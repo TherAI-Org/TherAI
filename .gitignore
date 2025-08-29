@@ -1,4 +1,8 @@
+# MacOS
 xcuserdata/
-
 *.xcuserstate
-xcuserdata/
+
+# Python venv
+venv/
+__pycache__/
+.DS_Store
