@@ -6,3 +6,6 @@ xcuserdata/
 venv/
 __pycache__/
 .DS_Store
+
+# SweetPad
+buildServer.json
