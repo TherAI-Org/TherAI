@@ -1,0 +1,12 @@
+# MacOS
+xcuserdata/
+*.xcuserstate
+
+# Python venv
+venv/
+__pycache__/
+.DS_Store
+.env
+
+# SweetPad
+buildServer.json
