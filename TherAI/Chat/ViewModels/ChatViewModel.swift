@@ -10,6 +10,24 @@ class ChatViewModel: ObservableObject {
     private let backend = BackendService.shared
     private let authService = AuthService.shared
 
+    init() {
+        Task { await loadHistory() }
+    }
+
+    func loadHistory() async {
+        do {
+            let session = try await authService.client.auth.session
+            let accessToken = session.accessToken
+            let dtos = try await backend.fetchMessages(accessToken: accessToken)
+            guard let userId = authService.currentUser?.id else { return }
+            let mapped = dtos.map { ChatMessage(dto: $0, currentUserId: userId) }
+            self.messages = mapped
+        } catch {
+            // Optionally keep messages empty on failure
+            print("Failed to load history: \(error)")
+        }
+    }
+
     func sendMessage() {
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
@@ -23,6 +41,8 @@ class ChatViewModel: ObservableObject {
             do {
                 let session = try await authService.client.auth.session
                 let accessToken = session.accessToken
+                print("USER_ID=\(session.user.id)")
+                print("TOKEN=\(session.accessToken)")
 
                 let responseText = try await backend.sendChatMessage(userMessage.content, accessToken: accessToken)
                 let aiMessage = ChatMessage(content: responseText, isFromUser: false)
