@@ -1,6 +1,7 @@
 # MacOS
 xcuserdata/
 *.xcuserstate
+Secrets.plist
 
 # Python venv
 venv/
