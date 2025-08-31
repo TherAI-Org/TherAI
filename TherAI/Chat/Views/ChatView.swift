@@ -1,17 +1,44 @@
 import SwiftUI
 
 struct ChatView: View {
+
     @StateObject private var viewModel = ChatViewModel()
+
+    @State private var showSettings = false
+    @State private var isSigningOut = false
 
     var body: some View {
         VStack(spacing: 0) {
             // Messages list
             messagesList
 
-            // Input area
             inputArea
         }
         .background(Color(.systemBackground))
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gearshape")
+                }
+                .accessibilityLabel("Settings")
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            NavigationView {
+                Form {
+                    Section(header: Text("Account")) {
+                        Button(role: .destructive) {
+                            isSigningOut = true
+                            Task { await AuthService.shared.signOut(); isSigningOut = false; showSettings = false }
+                        } label: {
+                            if isSigningOut { ProgressView() } else { Text("Sign Out") }
+                        }
+                    }
+                }
+                .navigationTitle("Settings")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
     }
 
     private var messagesList: some View {
