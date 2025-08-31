@@ -16,16 +16,24 @@ class SupabaseAuth:
         if not self.jwks_url:
             raise ValueError("Missing SUPABASE_JWKS_URL in environment")
 
-        # Some Supabase projects require an API key header for the JWKS endpoint
-        headers = None
-        supabase_publishable_key = os.getenv("SUPABASE_PUBLISHABLE_KEY")
-        if supabase_publishable_key:
-            headers = {"apikey": supabase_publishable_key, "Authorization": f"Bearer {supabase_publishable_key}"}
+        # Issuer validation
+        issuer_env: Optional[str] = os.getenv("SUPABASE_ISSUER") or os.getenv("SUPABASE_URL")
+        if not issuer_env:
+            raise ValueError("Missing SUPABASE_ISSUER or SUPABASE_URL in environment")
+        issuer_env = issuer_env.rstrip("/")
+        # Accept either full issuer (ending with /auth/v1) or base URL
+        self.issuer: str = issuer_env if issuer_env.endswith("/auth/v1") else f"{issuer_env}/auth/v1"
+
+        # Accepted algorithm (per project JWKS: ES256)
+        self.accepted_algorithms = ["ES256"]
+
+        # Small clock skew leeway (seconds)
+        self.leeway_seconds = int(os.getenv("JWT_LEEWAY_SECONDS", "60"))
 
         try:
-            self.jwk_client = PyJWKClient(self.jwks_url, headers=headers)
+            self.jwk_client = PyJWKClient(self.jwks_url)
         except Exception as e:
-            raise RuntimeError(f"Failed to initialize JWKS client: {e}")
+            raise RuntimeError("Failed to initialize JWKS client") from e
 
     def _get_signing_key(self, token: str):
         try:
@@ -36,31 +44,23 @@ class SupabaseAuth:
     def verify_jwt(self, token: str) -> dict:
         try:
             public_key = self._get_signing_key(token)
-            # Supabase uses ES256 (ECC P-256) for new signing keys
             payload = jwt.decode(
                 token,
                 public_key,
-                algorithms=["ES256"],
-                audience="authenticated",  # matches Supabase 'aud' claim
+                algorithms=self.accepted_algorithms,
+                audience="authenticated",
+                issuer=self.issuer,
                 options={"require": ["exp", "iat", "iss", "sub"]},
+                leeway=self.leeway_seconds,
             )
             return payload
         except jwt.ExpiredSignatureError:
-            raise HTTPException(status_code=401, detail="Token has expired")
-        except jwt.InvalidAudienceError:
-            raise HTTPException(status_code=401, detail="Invalid token audience")
-        except jwt.InvalidIssuerError:
-            raise HTTPException(status_code=401, detail="Invalid token issuer")
-        except jwt.InvalidTokenError as e:
-            raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        except (jwt.InvalidAudienceError, jwt.InvalidIssuerError, jwt.InvalidTokenError):
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     def get_current_user(self, credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
-        # Development bypass for local testing
-        if os.getenv("DISABLE_AUTH", "").lower() == "true":
-            return {"sub": "dev_user", "role": "authenticated"}
         token = credentials.credentials
-        if token.count(".") != 2:
-            raise HTTPException(status_code=401, detail="Token is not a valid JWT")
         return self.verify_jwt(token)
 
 # Create auth instance
