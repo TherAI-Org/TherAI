@@ -1,9 +1,9 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
-from Models.requests import ChatRequest, ChatResponse
-from Agents.chat import ChatAgent
-from auth import get_current_user
+from .Models.requests import ChatRequest, ChatResponse
+from .Agents.chat import ChatAgent
+from .auth import get_current_user
 
 app = FastAPI(title="TherAI Backend", version="0.1.0")
 
