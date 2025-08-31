@@ -12,6 +12,10 @@ struct TherAIApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onOpenURL { url in
+                    // Handle OAuth authentication callbacks
+                    AuthService.shared.client.auth.handle(url)
+                }
         }
     }
 }
