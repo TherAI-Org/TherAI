@@ -24,18 +24,7 @@ struct MessageBubble: View {
                 .foregroundColor(message.isFromUser ? .white : .primary)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
                 .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: message.isFromUser ? .trailing : .leading)
-
-            Text(formatTimestamp(message.timestamp))
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 4)
         }
-    }
-
-    private func formatTimestamp(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }
 
