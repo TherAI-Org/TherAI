@@ -49,6 +49,31 @@ struct BackendService {
         return decoded.response
     }
 
+    func fetchMessages(accessToken: String) async throws -> [ChatMessageDTO] {
+        let url = baseURL.appendingPathComponent("/chat/messages")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch {
+            throw error
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+
+        let decoded = try jsonDecoder.decode(MessagesResponseBody.self, from: data)
+        return decoded.messages
+    }
+
     private static func getSecretsPlistValue(for key: String) -> Any? {
         if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
            let plist = NSDictionary(contentsOfFile: path),
@@ -71,4 +96,15 @@ private struct ChatRequestBody: Codable {
 private struct ChatResponseBody: Codable {
     let response: String
     let success: Bool
+}
+
+struct ChatMessageDTO: Codable {
+    let id: UUID
+    let user_id: UUID
+    let role: String
+    let content: String
+}
+
+private struct MessagesResponseBody: Codable {
+    let messages: [ChatMessageDTO]
 }
