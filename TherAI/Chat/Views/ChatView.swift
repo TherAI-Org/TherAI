@@ -2,10 +2,16 @@ import SwiftUI
 
 struct ChatView: View {
 
-    @StateObject private var viewModel = ChatViewModel()
+    private let initialSessionId: UUID?
+    @StateObject private var viewModel: ChatViewModel
 
     @State private var showSettings = false
     @State private var isSigningOut = false
+
+    init(sessionId: UUID? = nil) {
+        self.initialSessionId = sessionId
+        _viewModel = StateObject(wrappedValue: ChatViewModel(sessionId: sessionId))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,6 +27,12 @@ struct ChatView: View {
                     Image(systemName: "gearshape")
                 }
                 .accessibilityLabel("Settings")
+            }
+            ToolbarItem(placement: .navigationBarLeading) {
+                NavigationLink(destination: MainChatView()) {
+                    Image(systemName: "list.bullet")
+                }
+                .accessibilityLabel("Chats")
             }
         }
         .sheet(isPresented: $showSettings) {
