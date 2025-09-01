@@ -3,6 +3,7 @@ import SwiftUI
 struct SlideOutSidebarView: View {
     @Binding var selectedTab: Tab
     @Binding var isOpen: Bool
+    @EnvironmentObject private var viewModel: SlideOutSidebarViewModel
     
     enum Tab {
         case chat
@@ -11,69 +12,132 @@ struct SlideOutSidebarView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Header with close button
+            // Header with profile picture and chat button
             HStack {
-                Text("TherAI")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
+                // Profile Picture Button
                 Button(action: {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        isOpen = false
-                    }
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.primary)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
-            
-            Divider()
-            
-            // Navigation Items
-            VStack(spacing: 8) {
-                SidebarItem(
-                    title: "Chat",
-                    icon: "message.fill",
-                    isSelected: selectedTab == .chat
-                ) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        selectedTab = .chat
-                        isOpen = false
-                    }
-                }
-                
-                SidebarItem(
-                    title: "Profile",
-                    icon: "person.fill",
-                    isSelected: selectedTab == .profile
-                ) {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
                         selectedTab = .profile
                         isOpen = false
                     }
+                }) {
+                    ProfilePictureView()
+                }
+                
+                Spacer()
+                
+                // Chat Button
+                Button(action: {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+                        selectedTab = .chat
+                        isOpen = false
+                    }
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.blue, .blue.opacity(0.8)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 44, height: 44)
+                            .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+                        
+                        Image(systemName: "message.fill")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.white)
+                    }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.top, 20)
+            .padding(.bottom, 30)
             
+            // Empty space for future content
             Spacer()
+            
+            // Bottom section for future features
+            VStack(spacing: 16) {
+                Text("More features coming soon...")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
-        .overlay(
-            Rectangle()
-                .frame(width: 1)
-                .foregroundColor(Color(.separator)),
-            alignment: .trailing
+        .background(
+            // Blue-Pink Gradient Background
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color.blue.opacity(0.8),
+                        Color.pink.opacity(0.6),
+                        Color.blue.opacity(0.4)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                // Floating orbs for depth
+                Circle()
+                    .fill(Color.white.opacity(0.1))
+                    .frame(width: 150, height: 150)
+                    .blur(radius: 30)
+                    .offset(x: -50, y: -100)
+                
+                Circle()
+                    .fill(Color.white.opacity(0.05))
+                    .frame(width: 200, height: 200)
+                    .blur(radius: 40)
+                    .offset(x: 100, y: 200)
+            }
         )
         .shadow(color: .black.opacity(0.1), radius: 10, x: 5, y: 0)
+    }
+}
+
+// MARK: - Profile Picture View
+struct ProfilePictureView: View {
+    var body: some View {
+        ZStack {
+            // Outer glow ring
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [.white.opacity(0.3), .white.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 56, height: 56)
+            
+            // White border
+            Circle()
+                .fill(.white)
+                .frame(width: 50, height: 50)
+                .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
+            
+            // Main avatar with blue gradient (matching profile screen)
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [.blue, .blue.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 42, height: 42)
+                .overlay(
+                    Text("M")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                )
+        }
     }
 }
 
@@ -176,12 +240,7 @@ struct SidebarView: View {
         }
         .frame(width: isExpanded ? 250 : 80)
         .background(Color(.systemBackground))
-        .overlay(
-            Rectangle()
-                .frame(width: 1)
-                .foregroundColor(Color(.separator)),
-            alignment: .trailing
-        )
+
     }
 }
 
