@@ -6,19 +6,22 @@ import Supabase
 class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
+    @Published var sessionId: UUID?
 
     private let backend = BackendService.shared
     private let authService = AuthService.shared
 
-    init() {
+    init(sessionId: UUID? = nil) {
+        self.sessionId = sessionId
         Task { await loadHistory() }
     }
 
     func loadHistory() async {
         do {
+            guard let sid = sessionId else { self.messages = []; return }
             let session = try await authService.client.auth.session
             let accessToken = session.accessToken
-            let dtos = try await backend.fetchMessages(accessToken: accessToken)
+            let dtos = try await backend.fetchMessages(sessionId: sid, accessToken: accessToken)
             guard let userId = authService.currentUser?.id else { return }
             let mapped = dtos.map { ChatMessage(dto: $0, currentUserId: userId) }
             self.messages = mapped
@@ -41,11 +44,9 @@ class ChatViewModel: ObservableObject {
             do {
                 let session = try await authService.client.auth.session
                 let accessToken = session.accessToken
-                print("USER_ID=\(session.user.id)")
-                print("TOKEN=\(session.accessToken)")
-
-                let responseText = try await backend.sendChatMessage(userMessage.content, accessToken: accessToken)
-                let aiMessage = ChatMessage(content: responseText, isFromUser: false)
+                let result = try await backend.sendChatMessage(userMessage.content, sessionId: self.sessionId, accessToken: accessToken)
+                if self.sessionId == nil { self.sessionId = result.sessionId }
+                let aiMessage = ChatMessage(content: result.response, isFromUser: false)
                 await MainActor.run {
                     self.messages.append(aiMessage)
                 }
