@@ -8,11 +8,19 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         self.content = content()
     }
     
-    // Calculate blur intensity based on drag progress
+    // Calculate blur intensity based on drag progress - now works bidirectionally
     private var blurIntensity: Double {
         let screenWidth = UIScreen.main.bounds.width
-        let dragProgress = abs(viewModel.dragOffset) / screenWidth
-        return min(dragProgress * 20, 10) // Max blur of 10, scales with drag progress
+        
+        if viewModel.isOpen {
+            // When sidebar is open, blur decreases as we drag left (negative dragOffset)
+            let dragProgress = abs(viewModel.dragOffset) / screenWidth
+            return max(0, 10 - (dragProgress * 20)) // Start at 10 blur, decrease to 0
+        } else {
+            // When sidebar is closed, blur increases as we drag right (positive dragOffset)
+            let dragProgress = viewModel.dragOffset / screenWidth
+            return min(dragProgress * 20, 10) // Start at 0 blur, increase to 10
+        }
     }
     
     var body: some View {
@@ -37,9 +45,11 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         .gesture(
             DragGesture()
                 .onChanged { value in
+                    // Always allow dragging - let the view model handle the constraints
                     viewModel.handleDragGesture(value.translation.width)
                 }
                 .onEnded { value in
+                    // Always handle swipe gestures - let the view model decide what to do
                     viewModel.handleSwipeGesture(value.translation.width, velocity: value.velocity.width)
                 }
         )
