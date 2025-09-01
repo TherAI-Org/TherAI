@@ -38,18 +38,20 @@ class SlideOutSidebarViewModel: ObservableObject {
     
     func handleDragGesture(_ translation: CGFloat) {
         if isOpen {
-            // When sidebar is open, allow dragging to close (negative translation = swipe left)
-            let newOffset = min(0, -translation)
+            // When sidebar is open, dragging left (negative) should close, dragging right (positive) should stay open
+            // Map the translation directly - negative values close the sidebar, positive values keep it open
+            let newOffset = max(-screenWidth, min(0, translation))
             dragOffset = newOffset
         } else {
-            // When sidebar is closed, allow dragging to open (positive translation = swipe right)
-            let newOffset = max(0, translation)
+            // When sidebar is closed, dragging right (positive) should open, dragging left (negative) should stay closed
+            // Only allow positive translation to open the sidebar
+            let newOffset = max(0, min(screenWidth, translation))
             dragOffset = newOffset
         }
     }
     
     func handleSwipeGesture(_ translation: CGFloat, velocity: CGFloat) {
-        let threshold: CGFloat = 50
+        let threshold: CGFloat = screenWidth * 0.3 // 30% of screen width
         let velocityThreshold: CGFloat = 500
         
         if isOpen {
