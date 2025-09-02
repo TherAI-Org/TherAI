@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var authService = AuthService.shared
-    
+
     var body: some View {
         Group {
             if authService.isAuthenticated {
@@ -26,14 +26,15 @@ struct ContentView: View {
 // MARK: - Main Content View
 struct MainContentView: View {
     @EnvironmentObject private var sidebarViewModel: SlideOutSidebarViewModel
-    
+
     var body: some View {
         Group {
             switch sidebarViewModel.selectedTab {
             case .chat:
-                ChatViewWithMenu()
+                ChatView(sessionId: sidebarViewModel.activeSessionId)
+                    .id(sidebarViewModel.chatViewKey)
             case .profile:
-                ProfileViewWithMenu()
+                ProfileView()
             }
         }
     }
