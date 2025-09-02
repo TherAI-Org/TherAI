@@ -17,13 +17,28 @@ struct MessageBubble: View {
 
     private var messageContent: some View {
         VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 4) {
-            Text(message.content)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(message.isFromUser ? Color.blue : Color(.systemGray5))
-                .foregroundColor(message.isFromUser ? .white : .primary)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: message.isFromUser ? .trailing : .leading)
+            if message.isFromUser {
+                // User message: gray bubble with black-ish outline
+                Text(message.content)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(Color(.systemGray6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18)
+                                    .stroke(Color.black.opacity(0.9), lineWidth: 1)
+                            )
+                    )
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: 500, alignment: .trailing)
+            } else {
+                // Assistant message: plain text only
+                Text(message.content)
+                    .foregroundColor(.primary)
+                    .padding(.top, 4)
+                    .frame(maxWidth: 500, alignment: .leading)
+            }
         }
     }
 }
