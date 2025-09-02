@@ -6,6 +6,7 @@ struct ChatMessage: Identifiable {
     let isFromUser: Bool
     let timestamp: Date
 
+    // Initializes a chat message locally
     init(id: UUID = UUID(), content: String, isFromUser: Bool, timestamp: Date = Date()) {
         self.id = id
         self.content = content
@@ -13,6 +14,7 @@ struct ChatMessage: Identifiable {
         self.timestamp = timestamp
     }
 
+    // Initializes a chat message from a backend DTO
     init(dto: ChatMessageDTO, currentUserId: UUID) {
         self.id = dto.id
         self.content = dto.content
@@ -20,4 +22,3 @@ struct ChatMessage: Identifiable {
         self.timestamp = Date()
     }
 }
-
