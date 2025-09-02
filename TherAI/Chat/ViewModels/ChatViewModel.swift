@@ -45,10 +45,24 @@ class ChatViewModel: ObservableObject {
                 let session = try await authService.client.auth.session
                 let accessToken = session.accessToken
                 let result = try await backend.sendChatMessage(userMessage.content, sessionId: self.sessionId, accessToken: accessToken)
-                if self.sessionId == nil { self.sessionId = result.sessionId }
+                let wasNew = self.sessionId == nil
+                if wasNew { self.sessionId = result.sessionId }
                 let aiMessage = ChatMessage(content: result.response, isFromUser: false)
                 await MainActor.run {
                     self.messages.append(aiMessage)
+                }
+
+                // Notifications
+                if wasNew, let sid = self.sessionId {
+                    NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
+                        "sessionId": sid,
+                        "title": "Chat"
+                    ])
+                }
+                if let sid = self.sessionId {
+                    NotificationCenter.default.post(name: .chatMessageSent, object: nil, userInfo: [
+                        "sessionId": sid
+                    ])
                 }
             } catch {
                 let errorMessage = ChatMessage(content: "Error: \(error.localizedDescription)", isFromUser: false)
