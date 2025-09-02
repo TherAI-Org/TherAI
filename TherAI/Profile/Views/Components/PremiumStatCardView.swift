@@ -1,3 +1,7 @@
+// View is nowhere to be used, consider deleting in the future.
+
+
+
 import SwiftUI
 
 struct PremiumStatCardView: View {
