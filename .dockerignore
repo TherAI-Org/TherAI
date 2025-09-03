@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Python
+.venv
+venv
+**/__pycache__/
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# macOS
+.DS_Store
+
+# Env/secrets (use Fly secrets instead)
+.env
+Backend/.env
+Secrets.plist
+
+# iOS project (not needed in the image)
+TherAI/
+TherAI.xcodeproj
+**/xcuserdata/
+**/*.xcuserstate
+
+# Misc
+buildServer.json
+.vscode/
+.idea/
