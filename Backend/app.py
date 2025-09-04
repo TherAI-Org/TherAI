@@ -2,11 +2,11 @@ import uuid
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
-from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
-from .Agents.chat import ChatAgent
-from .auth import get_current_user
-from .Database.chat_repository import save_message, list_messages_for_session
-from .Database.session_repository import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user
+from Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
+from Agents.chat import ChatAgent
+from auth import get_current_user
+from Database.chat_repository import save_message, list_messages_for_session
+from Database.session_repository import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user
 
 app = FastAPI()
 

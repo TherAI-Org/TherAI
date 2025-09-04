@@ -57,6 +57,9 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         .sheet(isPresented: $viewModel.showProfileSheet) {
             ProfileView()
         }
+        .sheet(isPresented: $viewModel.showSettingsSheet) {
+            SettingsView()
+        }
     }
 }
 
