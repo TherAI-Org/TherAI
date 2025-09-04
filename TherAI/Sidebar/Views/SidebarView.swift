@@ -15,13 +15,14 @@ struct SlideOutSidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
+                // Settings button in top left
                 Button(action: {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.showProfileSheet = true
+                        viewModel.showSettingsSheet = true
                     }
                 }) {
-                    Image(systemName: "person")
-                        .font(.system(size: 20, weight: .medium))
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.primary)
                 }
 
@@ -176,14 +177,20 @@ struct SlideOutSidebarView: View {
 
             Spacer()
 
+            // Grok-style profile button at bottom - centered
             VStack(spacing: 16) {
-                Text("More features coming soon...")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white.opacity(0.7))
-                    .multilineTextAlignment(.center)
+                Button(action: {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+                        viewModel.showProfileSheet = true
+                    }
+                }) {
+                    GrokStyleProfileButton()
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 40)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 50)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
@@ -248,6 +255,80 @@ private struct SectionHeader: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Grok Style Profile Button
+struct GrokStyleProfileButton: View {
+    var body: some View {
+        HStack(spacing: 16) {
+            // Two overlapping profile circles (Grok style)
+            ZStack {
+                // Partner profile circle (behind, slightly offset)
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(red: 0.9, green: 0.4, blue: 0.6), Color(red: 0.8, green: 0.3, blue: 0.5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white, lineWidth: 3)
+                    )
+                    .overlay(
+                        Text("S")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    )
+                    .offset(x: 20, y: 0)
+                
+                // User profile circle (in front)
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(red: 0.2, green: 0.6, blue: 0.9), Color(red: 0.1, green: 0.5, blue: 0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white, lineWidth: 3)
+                    )
+                    .overlay(
+                        Text("M")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    )
+                    .offset(x: -20, y: 0)
+            }
+            
+            // Names with connection symbol
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text("Marcus")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.primary)
+                    
+                    Text("&")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Text("Sarah")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.primary)
+                }
+            }
+            
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 20)
     }
 }
 
