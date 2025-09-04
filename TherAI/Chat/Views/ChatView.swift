@@ -6,8 +6,7 @@ struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
     @EnvironmentObject private var sidebarViewModel: SlideOutSidebarViewModel
 
-    @State private var showSettings = false
-    @State private var isSigningOut = false
+
 
     init(sessionId: UUID? = nil) {
         self.initialSessionId = sessionId
@@ -32,13 +31,6 @@ struct ChatView: View {
                     .fontWeight(.semibold)
 
                 Spacer()
-
-                Button(action: { showSettings = true }) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.primary)
-                }
-                .accessibilityLabel("Settings")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -52,22 +44,6 @@ struct ChatView: View {
             inputArea
         }
         .background(Color(.systemBackground))
-        .sheet(isPresented: $showSettings) {
-            NavigationView {
-                Form {
-                    Section(header: Text("Account")) {
-                        Button(role: .destructive) {
-                            isSigningOut = true
-                            Task { await AuthService.shared.signOut(); isSigningOut = false; showSettings = false }
-                        } label: {
-                            if isSigningOut { ProgressView() } else { Text("Sign Out") }
-                        }
-                    }
-                }
-                .navigationTitle("Settings")
-                .navigationBarTitleDisplayMode(.inline)
-            }
-        }
     }
 
     private var messagesList: some View {
