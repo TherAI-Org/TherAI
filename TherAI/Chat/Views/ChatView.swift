@@ -2,11 +2,13 @@ import SwiftUI
 
 struct ChatView: View {
 
-    private let initialSessionId: UUID?
-    @StateObject private var viewModel: ChatViewModel
     @EnvironmentObject private var sidebarViewModel: SlideOutSidebarViewModel
 
+    @StateObject private var viewModel: ChatViewModel
 
+    @FocusState private var isInputFocused: Bool
+
+    private let initialSessionId: UUID?
 
     init(sessionId: UUID? = nil) {
         self.initialSessionId = sessionId
@@ -44,6 +46,8 @@ struct ChatView: View {
             inputArea
         }
         .background(Color(.systemBackground))
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture().onEnded { isInputFocused = false })
     }
 
     private var messagesList: some View {
@@ -80,6 +84,7 @@ struct ChatView: View {
                     .textInputAutocapitalization(.sentences)
                     .disableAutocorrection(false)
                     .onSubmit { viewModel.sendMessage() }
+                    .focused($isInputFocused)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
