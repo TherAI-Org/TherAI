@@ -12,6 +12,7 @@ class SlideOutSidebarViewModel: ObservableObject {
     @Published var selectedTab: SidebarTab = .chat
     @Published var dragOffset: CGFloat = 0
     @Published var showProfileSheet: Bool = false
+    @Published var showSettingsSheet: Bool = false
 
     // Sidebar sections state
     @Published var isNotificationsExpanded: Bool = false
