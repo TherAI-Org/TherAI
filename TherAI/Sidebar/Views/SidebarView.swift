@@ -177,8 +177,8 @@ struct SlideOutSidebarView: View {
 
             Spacer()
 
-            // Grok-style profile button at bottom - centered
-            VStack(spacing: 16) {
+            // Grok-style profile button at bottom bottom of screen
+            VStack(spacing: 0) {
                 Button(action: {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.showProfileSheet = true
@@ -188,9 +188,9 @@ struct SlideOutSidebarView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
             }
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 16)
-            .padding(.bottom, 50)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 0)
+            .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
@@ -261,7 +261,7 @@ private struct SectionHeader: View {
 // MARK: - Grok Style Profile Button
 struct GrokStyleProfileButton: View {
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 24) {
             // Two overlapping profile circles (Grok style)
             ZStack {
                 // Partner profile circle (behind, slightly offset)
@@ -308,26 +308,25 @@ struct GrokStyleProfileButton: View {
             }
             
             // Names with connection symbol
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text("Marcus")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.primary)
-                    
-                    Text("&")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.secondary)
-                    
-                    Text("Sarah")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.primary)
-                }
+            HStack(spacing: 8) {
+                Text("Marcus")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.primary)
+                
+                Text("&")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.secondary)
+                
+                Text("Sarah")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.primary)
             }
             
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 32)
+        .padding(.leading, 50)
+        .padding(.trailing, 32)
         .padding(.vertical, 20)
     }
 }
