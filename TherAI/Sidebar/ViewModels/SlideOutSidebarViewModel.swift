@@ -14,6 +14,7 @@ class SlideOutSidebarViewModel: ObservableObject {
     @Published var dragOffset: CGFloat = 0
     @Published var showProfileSheet: Bool = false
     @Published var showSettingsSheet: Bool = false
+    @Published var showLinkSheet: Bool = false
 
     // Sidebar sections state
     @Published var isNotificationsExpanded: Bool = false
