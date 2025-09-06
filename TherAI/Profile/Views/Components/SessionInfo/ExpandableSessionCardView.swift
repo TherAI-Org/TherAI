@@ -80,7 +80,7 @@ struct ExpandableSessionCardView: View {
         )
 
         ExpandableSessionCardView(
-            title: "Needs Improvement",
+            title: "Opportunities",
             value: "5",
             icon: "exclamationmark.triangle.fill",
             gradient: [.orange, .orange.opacity(0.7)],
