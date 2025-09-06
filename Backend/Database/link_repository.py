@@ -11,6 +11,9 @@ RELATIONSHIPS_TABLE = "paired_accounts"
 def _utc_in_hours_iso(hours: int) -> str:
     return (datetime.now(timezone.utc) + timedelta(hours = hours)).isoformat()
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
 # Return True if the user appears in `paired_accounts` on either side
 async def is_user_linked(*, user_id: uuid.UUID) -> bool:
     user_id_str = str(user_id)
@@ -43,8 +46,8 @@ async def is_user_linked(*, user_id: uuid.UUID) -> bool:
         raise RuntimeError(f"Supabase select relationship failed: {res_b.error}")
     return bool(res_b.data)
 
-# Create a single-use invite row for the inviter with an expiry
-async def create_link_invite(*, inviter_user_id: uuid.UUID, expires_in_hours: int = 24) -> dict:
+# Create a single-use invite row for the inviter with an expiry (internal use only)
+async def _create_link_invite(*, inviter_user_id: uuid.UUID, expires_in_hours: int = 24) -> dict:
     if await is_user_linked(user_id = inviter_user_id):
         raise PermissionError("You are already linked to a partner. Please unlink first.")
 
@@ -64,6 +67,37 @@ async def create_link_invite(*, inviter_user_id: uuid.UUID, expires_in_hours: in
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase insert link invite failed: {res.error}")
     return res.data[0]
+
+# Return an existing, unexpired, unused invite for the inviter if present
+async def get_unexpired_invite_for_user(*, inviter_user_id: uuid.UUID) -> dict | None:
+    user_id_str = str(inviter_user_id)
+
+    def _select():
+        return (
+            supabase
+            .table(RELATIONSHIP_LINKS_TABLE)
+            .select("*")
+            .eq("invite_user_id", user_id_str)
+            .is_("used_at", "null")  # unused
+            .gt("expires_at", _utc_now_iso())  # not expired
+            .order("expires_at", desc = False)
+            .limit(1)
+            .execute()
+        )
+
+    res = await run_in_threadpool(_select)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase select unexpired invite failed: {res.error}")
+    return res.data[0] if res.data else None
+
+# Get or create an invite (idempotent within TTL)
+async def get_or_create_link_invite(*, inviter_user_id: uuid.UUID, expires_in_hours: int = 24) -> dict:
+    if await is_user_linked(user_id = inviter_user_id):
+        raise PermissionError("You are already linked to a partner. Please unlink first.")
+    existing = await get_unexpired_invite_for_user(inviter_user_id = inviter_user_id)
+    if existing:
+        return existing
+    return await _create_link_invite(inviter_user_id = inviter_user_id, expires_in_hours = expires_in_hours)
 
 # Accept the invite via transactional RPC and return relationship ID
 async def accept_link_invite(*, invite_token: str, invitee_user_id: uuid.UUID) -> uuid.UUID:
