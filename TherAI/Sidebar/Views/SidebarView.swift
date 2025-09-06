@@ -17,6 +17,8 @@ struct SlideOutSidebarView: View {
             HStack {
                 // Settings button in top left
                 Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.showSettingsSheet = true
                     }
@@ -29,6 +31,8 @@ struct SlideOutSidebarView: View {
                 Spacer()
 
                 Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.startNewChat()
                         viewModel.isChatsExpanded = true
@@ -180,6 +184,8 @@ struct SlideOutSidebarView: View {
             // Grok-style profile button at bottom bottom of screen
             VStack(spacing: 0) {
                 Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.showProfileSheet = true
                     }
