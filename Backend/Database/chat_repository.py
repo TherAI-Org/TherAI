@@ -5,6 +5,8 @@ from .supabase_client import supabase
 
 TABLE_NAME = "user_chat_messages"
 
+
+# Save a chat message row for a user and session
 async def save_message(*, user_id: uuid.UUID, session_id: uuid.UUID, role: str, content: str) -> dict:
     payload = {
         "user_id": str(user_id),
@@ -15,12 +17,12 @@ async def save_message(*, user_id: uuid.UUID, session_id: uuid.UUID, role: str, 
 
     def _insert():
         return supabase.table(TABLE_NAME).insert(payload).execute()
-
     res = await run_in_threadpool(_insert)
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase insert failed: {res.error}")
     return res.data[0]
 
+# List messages for a session for a user ordered by creation time
 async def list_messages_for_session(*, user_id: uuid.UUID, session_id: uuid.UUID, limit: int = 100, offset: int = 0) -> List[dict]:
     def _select():
         return (
