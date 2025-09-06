@@ -17,17 +17,12 @@ struct SettingRowView: View {
                 onAction()
             }
         }) {
-            HStack(spacing: 16) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(Color(.systemGray6))
-                        .frame(width: 32, height: 32)
-                    
-                    Image(systemName: setting.icon)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.primary)
-                }
+            HStack(spacing: 12) {
+                // Icon - smaller, iOS Settings style
+                Image(systemName: setting.icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.secondary)
+                    .frame(width: 24, height: 24)
                 
                 // Content
                 VStack(alignment: .leading, spacing: 2) {
@@ -51,38 +46,39 @@ struct SettingRowView: View {
                 case .toggle(let isOn):
                     Toggle("", isOn: .constant(isOn))
                         .labelsHidden()
+                        .tint(.accentColor)
                         .onTapGesture {
                             onToggle()
                         }
                 case .navigation:
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(.tertiaryLabel))
                 case .action:
                     if setting.title == "Sign Out" {
                         Text("Sign Out")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 16, weight: .regular))
                             .foregroundColor(.red)
                     } else {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Color(.tertiaryLabel))
                     }
                 case .picker:
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Color(.tertiaryLabel))
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
             .background(Color(.systemBackground))
         }
         .buttonStyle(PlainButtonStyle())
         
         if !isLast {
             Divider()
-                .padding(.leading, 68)
+                .padding(.leading, 52)
         }
     }
 }
