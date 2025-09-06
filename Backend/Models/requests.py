@@ -2,6 +2,7 @@ from uuid import UUID
 from typing import Optional
 from pydantic import BaseModel
 
+# Chat models
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[UUID] = None
@@ -28,3 +29,25 @@ class SessionDTO(BaseModel):
 
 class SessionsResponse(BaseModel):
     sessions: list[SessionDTO]
+
+# Link models
+class CreateLinkInviteResponse(BaseModel):
+    invite_token: str
+    share_url: str
+
+class AcceptLinkInviteRequest(BaseModel):
+    invite_token: str
+
+class AcceptLinkInviteResponse(BaseModel):
+    success: bool
+    relationship_id: UUID | None = None
+
+class UnlinkResponse(BaseModel):
+    success: bool
+    unlinked: bool
+
+# Link status
+class LinkStatusResponse(BaseModel):
+    success: bool
+    linked: bool
+    relationship_id: UUID | None = None
