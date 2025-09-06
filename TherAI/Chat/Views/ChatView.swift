@@ -19,6 +19,8 @@ struct ChatView: View {
         VStack(spacing: 0) {
             HStack {
                 Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
                     sidebarViewModel.openSidebar()
                 }) {
                     Image(systemName: "line.3.horizontal")
