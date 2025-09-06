@@ -2,25 +2,22 @@ import Foundation
 import SwiftUI
 
 struct SettingsData: Codable {
-    // App Settings
-    var notificationsEnabled: Bool = true
+    // App Settings - Notifications, Dark Mode, Haptic Feedback
+    var emailNotifications: Bool = true
+    var pushNotifications: Bool = true
     var darkModeEnabled: Bool = false
-    var autoSaveEnabled: Bool = true
     var hapticFeedbackEnabled: Bool = true
     
-    // Privacy Settings
-    var dataCollectionEnabled: Bool = true
-    var analyticsEnabled: Bool = true
-    var crashReportingEnabled: Bool = true
-    
-    // Chat Settings
+    // Chat Settings - Save Chats, Auto Scroll, Message Sound, Typing Indicator
+    var saveChatsEnabled: Bool = true
     var autoScrollEnabled: Bool = true
     var messageSoundEnabled: Bool = true
     var typingIndicatorEnabled: Bool = true
     
-    // Account Settings
-    var emailNotifications: Bool = true
-    var pushNotifications: Bool = true
+    // Privacy & Data - Crash Reports only
+    var crashReportingEnabled: Bool = true
+    
+    // Relationship Insights - Weekly Reports
     var weeklyReports: Bool = true
     
     init() {
