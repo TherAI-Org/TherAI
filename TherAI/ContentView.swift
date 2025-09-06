@@ -26,7 +26,7 @@ struct ContentView: View {
 // MARK: - Main Content View
 struct MainContentView: View {
     @EnvironmentObject private var sidebarViewModel: SlideOutSidebarViewModel
-
+    
     var body: some View {
         Group {
             switch sidebarViewModel.selectedTab {
