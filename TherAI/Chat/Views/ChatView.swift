@@ -6,6 +6,8 @@ struct ChatView: View {
 
     @StateObject private var viewModel: ChatViewModel
 
+    @State private var showLinking: Bool = false
+
     @FocusState private var isInputFocused: Bool
 
     private let initialSessionId: UUID?
@@ -35,6 +37,14 @@ struct ChatView: View {
                     .fontWeight(.semibold)
 
                 Spacer()
+
+                Button(action: {
+                    showLinking = true
+                }) {
+                    Image(systemName: "link")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.primary)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -50,6 +60,12 @@ struct ChatView: View {
         .background(Color(.systemBackground))
         .contentShape(Rectangle())
         .simultaneousGesture(TapGesture().onEnded { isInputFocused = false })
+        .sheet(isPresented: $showLinking) {
+            MainLinkView(accessTokenProvider: {
+                let session = try await AuthService.shared.client.auth.session
+                return session.accessToken
+            })
+        }
     }
 
     private var messagesList: some View {
