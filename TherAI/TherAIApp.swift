@@ -19,6 +19,7 @@ struct TherAIApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(linkVM)
                 .onOpenURL { url in
                     // Handle OAuth authentication callbacks
                     AuthService.shared.client.auth.handle(url)
@@ -44,6 +45,16 @@ struct TherAIApp: App {
                             await linkVM.acceptInvite(using: token)
                             linkVM.pendingInviteToken = nil
                         }
+                    }
+                    // When the user becomes authenticated, ensure link is ready right away
+                    if isAuthed {
+                        Task { await linkVM.ensureInviteReady() }
+                    }
+                }
+                .task {
+                    // On cold start, if already authenticated, ensure link is ready immediately
+                    if auth.isAuthenticated {
+                        await linkVM.ensureInviteReady()
                     }
                 }
         }
