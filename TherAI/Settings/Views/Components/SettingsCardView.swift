@@ -6,35 +6,20 @@ struct SettingsCardView: View {
     let onAction: (Int) -> Void
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Section Header
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: section.gradient,
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 40, height: 40)
-                    
-                    Image(systemName: section.icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.white)
-                }
-                
+        VStack(alignment: .leading, spacing: 6) {
+            // Section Header - iOS Settings style
+            HStack {
                 Text(section.title)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(.secondary)
+                    .textCase(.uppercase)
                 
                 Spacer()
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.bottom, 6)
             
-            // Settings Items
+            // Settings Items in grouped card
             VStack(spacing: 0) {
                 ForEach(Array(section.settings.enumerated()), id: \.offset) { index, setting in
                     SettingRowView(
@@ -45,21 +30,48 @@ struct SettingsCardView: View {
                     )
                 }
             }
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(.systemBackground))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            
+            // Section Footer (if needed)
+            if shouldShowFooter() {
+                HStack {
+                    Text(getFooterText())
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+            }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(.systemBackground),
-                            Color(.systemBackground).opacity(0.95)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
-        )
+    }
+    
+    private func shouldShowFooter() -> Bool {
+        switch section.title {
+        case "Privacy & Data":
+            return true
+        case "About":
+            return true
+        default:
+            return false
+        }
+    }
+    
+    private func getFooterText() -> String {
+        switch section.title {
+        case "Privacy & Data":
+            return "Help improve TherAI by automatically sending crash reports when the app encounters issues."
+        case "About":
+            return "TherAI helps couples strengthen their relationships through AI-powered insights and communication tools."
+        default:
+            return ""
+        }
     }
 }
 
