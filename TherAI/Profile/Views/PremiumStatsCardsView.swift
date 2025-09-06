@@ -31,7 +31,7 @@ struct PremiumStatsCardsView: View {
                 )
 
                 ExpandableSessionCardView(
-                    title: "Needs Improvement",
+                    title: "Opportunities",
                     value: "5",
                     icon: "exclamationmark.triangle.fill",
                     gradient: [.orange, .orange.opacity(0.7)],
@@ -78,7 +78,7 @@ struct PremiumStatsCardsView: View {
             )
 
             SessionsExpandedListView(
-                title: "Sessions Needing Improvement",
+                title: "Sessions with Opportunities",
                 sessions: CommunicationSession.mocksImprovement,
                 gradient: [.orange, .orange.opacity(0.7)],
                 expansionProgress: improvementExpansionProgress
@@ -89,7 +89,7 @@ struct PremiumStatsCardsView: View {
             .allowsHitTesting(improvementExpansionProgress > 0.1)
             .background(
                 SessionsExpandedListView(
-                    title: "Sessions Needing Improvement",
+                    title: "Sessions with Opportunities",
                     sessions: CommunicationSession.mocksImprovement,
                     gradient: [.orange, .orange.opacity(0.7)]
                 )
