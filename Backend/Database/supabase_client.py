@@ -13,5 +13,3 @@ def _init_supabase_client() -> Client:
     return create_client(url, key)
 
 supabase: Client = _init_supabase_client()
-
-
