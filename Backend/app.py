@@ -1,6 +1,5 @@
 import uuid
 from fastapi import FastAPI, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
 
 from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
 from .Agents.chat import ChatAgent
@@ -12,24 +11,15 @@ from .Routers.link_router import router as link_router
 
 app = FastAPI()
 
-# Add CORS middleware for iOS app
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this to your app's domain
-    allow_credentials = True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.include_router(aasa_router)
 app.include_router(link_router)
 
 chat_agent = ChatAgent()
 
+# Send a message and receive an assistant response, creating a session if needed
 @app.post("/chat/sessions/message", response_model = ChatResponse)
 async def chat_message(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     try:
-        # Persist user message
         try:
             user_uuid = uuid.UUID(current_user.get("sub"))
         except Exception:
@@ -62,6 +52,7 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
     except Exception as e:
         raise HTTPException(status_code = 500, detail = f"Error processing message: {str(e)}")
 
+# Get messages for a specific session owned by the current user
 @app.get("/chat/sessions/{session_id}/messages", response_model = MessagesResponse)
 async def get_messages(session_id: uuid.UUID, current_user: dict = Depends(get_current_user)):
     try:
@@ -88,6 +79,7 @@ async def get_messages(session_id: uuid.UUID, current_user: dict = Depends(get_c
         ]
     )
 
+# List chat sessions for the current user
 @app.get("/chat/sessions", response_model = SessionsResponse)
 async def get_sessions(current_user: dict = Depends(get_current_user)):
     try:
