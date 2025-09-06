@@ -52,7 +52,8 @@ final class LinkViewModel: ObservableObject {
         do {
             let token = try await accessTokenProvider()
             _ = try await BackendService.shared.unlink(accessToken: token)
-            state = .unlinked
+            // After unlink, generate a fresh invite immediately
+            await createInviteLink()
         } catch {
             state = .error(message: error.localizedDescription)
         }
@@ -66,6 +67,21 @@ final class LinkViewModel: ObservableObject {
             state = status.linked ? .linked : .idle
         } catch {
             // Keep silent here to avoid flashing errors on load
+        }
+    }
+
+    // Ensure there is always a shareable link ready if not linked
+    @MainActor
+    func ensureInviteReady() async {
+        // First, refresh to know if we are linked
+        await refreshStatus()
+        switch state {
+        case .linked, .shareReady:
+            return
+        case .creating, .accepting, .unlinking:
+            return
+        case .idle, .unlinked, .error:
+            await createInviteLink()
         }
     }
 
