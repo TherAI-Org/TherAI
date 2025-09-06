@@ -44,7 +44,7 @@ class AuthService: ObservableObject {
         checkAuthStatus()  // Initialises auth state on app launch to check for an existing Supabase session
     }
 
-    private static func getInfoPlistValue(for key: String) -> Any? {
+    static func getInfoPlistValue(for key: String) -> Any? {
         if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
            let plist = NSDictionary(contentsOfFile: path),
            let value = plist[key] {
