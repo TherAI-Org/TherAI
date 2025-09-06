@@ -3,6 +3,9 @@ import SwiftUI
 struct SlideOutSidebarContainerView<Content: View>: View {
 
     @StateObject private var viewModel = SlideOutSidebarViewModel()
+
+    @EnvironmentObject private var linkVM: LinkViewModel
+
     let content: Content
 
     init(@ViewBuilder content: () -> Content) {
@@ -59,6 +62,9 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         }
         .sheet(isPresented: $viewModel.showSettingsSheet) {
             SettingsView()
+        }
+        .sheet(isPresented: $viewModel.showLinkSheet) {
+            MainLinkView(viewModel: linkVM)
         }
     }
 }
