@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import get_current_user
 from ..Models.requests import CreateLinkInviteResponse, AcceptLinkInviteRequest, AcceptLinkInviteResponse, UnlinkResponse, LinkStatusResponse
-from ..Database.link_repository import create_link_invite, accept_link_invite, unlink_relationship_for_user, get_link_status_for_user
+from ..Database.link_repository import accept_link_invite, unlink_relationship_for_user, get_link_status_for_user, get_or_create_link_invite
 
 router = APIRouter(prefix = "/link")
 
@@ -17,7 +17,8 @@ async def create_invite(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
 
     try:
-        row = await create_link_invite(inviter_user_id = user_uuid, expires_in_hours = 24)
+        # Idempotent get-or-create behavior: return existing unexpired invite or create a new one
+        row = await get_or_create_link_invite(inviter_user_id = user_uuid, expires_in_hours = 24)
         base = os.getenv("SHARE_LINK_BASE_URL", "https://example.com")
         share_url = f"{base.rstrip('/')}/link?code={row['invite_token']}"
 
@@ -54,6 +55,12 @@ async def unlink(current_user: dict = Depends(get_current_user)):
 
     try:
         deleted = await unlink_relationship_for_user(user_id = user_uuid)
+        # Optionally trigger a new invite so the client can immediately fetch a ready link
+        try:
+            await get_or_create_link_invite(inviter_user_id = user_uuid, expires_in_hours = 24)
+        except Exception:
+            # Non-fatal for unlink endpoint; log if you add logging
+            pass
         return UnlinkResponse(success = True, unlinked = deleted)
     except Exception as e:
         raise HTTPException(status_code = 500, detail = f"Error unlinking: {str(e)}")
