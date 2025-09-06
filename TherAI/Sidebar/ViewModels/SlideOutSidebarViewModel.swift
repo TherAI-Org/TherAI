@@ -1,5 +1,6 @@
 import SwiftUI
 import Supabase
+import UIKit
 
 enum SidebarTab {
     case chat
@@ -87,6 +88,8 @@ class SlideOutSidebarViewModel: ObservableObject {
     }
 
     func openSidebar() {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
             isOpen = true
             dragOffset = 0
@@ -94,6 +97,8 @@ class SlideOutSidebarViewModel: ObservableObject {
     }
 
     func closeSidebar() {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
             isOpen = false
             dragOffset = 0
