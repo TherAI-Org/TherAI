@@ -4,6 +4,7 @@ struct ProfileView: View {
     private let data: ProfileData = ProfileData.load()
 
     @Environment(\.dismiss) private var dismiss
+    @State private var showingAvatarSelection = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,8 +40,32 @@ struct ProfileView: View {
                             // Profile Header Card
                             RelationshipHeaderView(relationshipHeader: data.relationshipHeader)
                             
-                            // Avatar Selection
-                            AvatarSelectionView()
+                            // Edit Avatars Button
+                            Button(action: { 
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    showingAvatarSelection = true
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "person.2.circle")
+                                        .font(.system(size: 16, weight: .medium))
+                                    Text("Edit Avatars")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 25)
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [.pink, .blue],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                )
+                            }
                             
                             // Premium Stats Cards
                             PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
@@ -49,10 +74,33 @@ struct ProfileView: View {
                             RelationshipInsightsSectionView()
                         }
                         .padding(.horizontal, 16)
+                        .padding(.top, 16)
                     }
                 }
             }
         }
+        .overlay(
+            showingAvatarSelection ? 
+            ZStack {
+                // Dimmed background
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showingAvatarSelection = false
+                        }
+                    }
+                
+                // Avatar selection card
+                AvatarSelectionView(isPresented: $showingAvatarSelection)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.8).combined(with: .opacity),
+                        removal: .scale(scale: 0.8).combined(with: .opacity)
+                    ))
+            }
+            .animation(.easeInOut(duration: 0.3), value: showingAvatarSelection)
+            : nil
+        )
     }
 }
 
