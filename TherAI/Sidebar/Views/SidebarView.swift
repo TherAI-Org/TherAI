@@ -7,8 +7,6 @@ struct SlideOutSidebarView: View {
     @Binding var selectedTab: SidebarTab
     @Binding var isOpen: Bool
 
-    @State private var notificationsExpansionProgress: CGFloat = 0
-    @State private var notificationsExpandedContentHeight: CGFloat = 0
     @State private var chatsExpansionProgress: CGFloat = 0
     @State private var chatsExpandedContentHeight: CGFloat = 0
 
@@ -52,24 +50,6 @@ struct SlideOutSidebarView: View {
 
             // Sections
             VStack(spacing: 10) {
-                // Notifications Section (expandable, no data yet)
-                SectionHeader(title: "Notifications", isExpanded: viewModel.isNotificationsExpanded) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.isNotificationsExpanded.toggle()
-                    }
-                }
-
-                if viewModel.isNotificationsExpanded {
-                    VStack(spacing: 6) {
-                        Text("No notifications from your partner yet...")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, 8)
-                            .padding(.top, -4)
-                    }
-                }
-
                 // Chats Section (expandable list of sessions)
                 SectionHeader(title: "Chats", isExpanded: viewModel.isChatsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
@@ -202,19 +182,7 @@ struct SlideOutSidebarView: View {
         .background(Color(.systemBackground))
         .shadow(color: .black.opacity(0.1), radius: 10, x: 5, y: 0)
         .onAppear {
-            notificationsExpansionProgress = viewModel.isNotificationsExpanded ? 1 : 0
             chatsExpansionProgress = viewModel.isChatsExpanded ? 1 : 0
-        }
-        .onChange(of: viewModel.isNotificationsExpanded) { _, newVal in
-            if newVal {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.1)) {
-                    notificationsExpansionProgress = 1
-                }
-            } else {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.9, blendDuration: 0.1)) {
-                    notificationsExpansionProgress = 0
-                }
-            }
         }
         .onChange(of: viewModel.isChatsExpanded) { _, newVal in
             if newVal {
