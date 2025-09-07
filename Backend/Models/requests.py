@@ -3,9 +3,14 @@ from typing import Optional
 from pydantic import BaseModel
 
 # Chat models
+class ChatHistoryMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
 class ChatRequest(BaseModel):
     message: str
     session_id: Optional[UUID] = None
+    chat_history: Optional[list[ChatHistoryMessage]] = None
 
 class ChatResponse(BaseModel):
     response: str
