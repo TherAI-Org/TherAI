@@ -28,19 +28,6 @@ struct SlideOutSidebarView: View {
                         .foregroundColor(.primary)
                 }
 
-                // Link button next to settings
-                Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.showLinkSheet = true
-                    }
-                }) {
-                    Image(systemName: "link")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.primary)
-                }
-
                 Spacer()
 
                 Button(action: {

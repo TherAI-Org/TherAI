@@ -2,16 +2,20 @@ import SwiftUI
 
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
+
+    @EnvironmentObject private var linkVM: LinkViewModel
+
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
-        VStack(spacing: 0) {
+        NavigationStack {
+            VStack(spacing: 0) {
             // Inline header with centered title and trailing close button
             ZStack {
                 Text("Settings")
                     .font(.title2)
                     .fontWeight(.semibold)
-                
+
                 HStack {
                     Spacer()
                     Button(action: { dismiss() }) {
@@ -26,9 +30,9 @@ struct SettingsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(Color(.systemBackground))
-            
+
             Divider()
-            
+
             ScrollView {
                 LazyVStack(spacing: 32) {
                     // Settings Sections with proper spacing
@@ -43,7 +47,7 @@ struct SettingsView: View {
                             }
                         )
                     }
-                    
+
                     // Bottom spacing
                     Spacer()
                         .frame(height: 20)
@@ -52,6 +56,15 @@ struct SettingsView: View {
                 .padding(.top, 20)
             }
             .background(Color(.systemGroupedBackground))
+            .navigationDestination(item: $viewModel.destination) { destination in
+                switch destination {
+                case .link:
+                    MainLinkView(viewModel: linkVM)
+                        .navigationTitle("Link Your Partner")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+            }
+            }
         }
     }
 }
