@@ -3,6 +3,7 @@ import SwiftUI
 
 @MainActor
 final class SessionsViewModel: ObservableObject {
+
     @Published var sessions: [ChatSession] = []
     @Published var isLoading = false
 
