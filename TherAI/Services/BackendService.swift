@@ -17,7 +17,7 @@ struct BackendService {
         self.baseURL = url
     }
 
-    func sendChatMessage(_ message: String, sessionId: UUID?, accessToken: String) async throws -> (response: String, sessionId: UUID) {
+    func sendChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String) async throws -> (response: String, sessionId: UUID) {
         let url = baseURL
             .appendingPathComponent("chat")
             .appendingPathComponent("sessions")
@@ -27,7 +27,7 @@ struct BackendService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-        let payload = ChatRequestBody(message: message, session_id: sessionId)
+        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory)
         request.httpBody = try jsonEncoder.encode(payload)
 
         let (data, response): (Data, URLResponse)
@@ -123,9 +123,15 @@ struct BackendService {
     }
 }
 
+struct ChatHistoryMessage: Codable {
+    let role: String
+    let content: String
+}
+
 private struct ChatRequestBody: Codable {
     let message: String
     let session_id: UUID?
+    let chat_history: [ChatHistoryMessage]?
 }
 
 private struct ChatResponseBody: Codable {
