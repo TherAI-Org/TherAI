@@ -1,21 +1,35 @@
 import Foundation
 import SwiftUI
 
+enum SettingsDestination: Hashable {
+    case link
+}
+
+extension SettingsDestination: Identifiable {
+    var id: String {
+        switch self {
+        case .link:
+            return "link"
+        }
+    }
+}
+
 @MainActor
 class SettingsViewModel: ObservableObject {
     @Published var settingsData = SettingsData()
     @Published var settingsSections: [SettingsSection] = []
-    
+    @Published var destination: SettingsDestination? = nil
+
     init() {
         loadSettings()
         setupSettingsSections()
     }
-    
+
     private func loadSettings() {
         // Load settings from UserDefaults or other storage
         // For now, using default values
     }
-    
+
     private func setupSettingsSections() {
         settingsSections = [
             // 1. App Settings → Notifications, Dark Mode, Haptic Feedback
@@ -56,6 +70,7 @@ class SettingsViewModel: ObservableObject {
                 icon: "heart.text.square",
                 gradient: [Color.pink, Color.purple],
                 settings: [
+                    SettingItem(title: "Link Your Partner", subtitle: "Invite or manage link", type: .navigation, icon: "link"),
                     SettingItem(title: "Weekly Reports", subtitle: "Get weekly relationship insights", type: .toggle(settingsData.weeklyReports), icon: "calendar")
                 ]
             ),
@@ -81,21 +96,23 @@ class SettingsViewModel: ObservableObject {
             )
         ]
     }
-    
+
     func toggleSetting(for sectionIndex: Int, settingIndex: Int) {
         // Handle toggle actions
         // This would update the actual settings and save them
     }
-    
+
     func handleSettingAction(for sectionIndex: Int, settingIndex: Int) {
         let section = settingsSections[sectionIndex]
         let setting = section.settings[settingIndex]
-        
+
         switch setting.title {
         case "Sign Out":
             Task {
                 await AuthService.shared.signOut()
             }
+        case "Link Your Partner":
+            destination = .link
         case "Notifications":
             // Navigate to notifications detail view
             break
