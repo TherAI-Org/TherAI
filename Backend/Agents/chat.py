@@ -17,14 +17,23 @@ class ChatAgent:
         with open(prompt_path, "r", encoding="utf-8") as f:
             self.system_prompt = f.read().strip()
 
-    def generate_response(self, user_message: str) -> str:
+    def generate_response(self, user_message: str, chat_history: list = None) -> str:
         try:
+            # Build input array starting with system prompt
+            input_messages = [{"role": "system", "content": self.system_prompt}]
+
+            # Add chat history if provided
+            if chat_history:
+                for msg in chat_history:
+                    role = "user" if msg.get("role") == "user" else "assistant"
+                    input_messages.append({"role": role, "content": msg.get("content", "")})
+
+            # Add the current user message
+            input_messages.append({"role": "user", "content": user_message})
+
             response = self.client.responses.create(
                 model = self.model,
-                input = [
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
+                input = input_messages,
             )
 
             if hasattr(response, "output_text") and response.output_text:
