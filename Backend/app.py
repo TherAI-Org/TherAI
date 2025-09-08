@@ -38,7 +38,15 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
 
         await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)
 
-        response = chat_agent.generate_response(request.message)
+        # Convert chat history to the format expected by the chat agent
+        chat_history_for_agent = None
+        if request.chat_history:
+            chat_history_for_agent = [
+                {"role": msg.role, "content": msg.content}
+                for msg in request.chat_history
+            ]
+
+        response = chat_agent.generate_response(request.message, chat_history_for_agent)
 
         # Persist assistant message
         await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = response)

@@ -4,6 +4,7 @@ import Supabase
 
 @MainActor
 class ChatViewModel: ObservableObject {
+
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var sessionId: UUID?
@@ -44,7 +45,15 @@ class ChatViewModel: ObservableObject {
             do {
                 let session = try await authService.client.auth.session
                 let accessToken = session.accessToken
-                let result = try await backend.sendChatMessage(userMessage.content, sessionId: self.sessionId, accessToken: accessToken)
+                // Build chat history from current messages (excluding the just-added user message)
+                let chatHistory = self.messages.dropLast().map { message in
+                    ChatHistoryMessage(
+                        role: message.isFromUser ? "user" : "assistant",
+                        content: message.content
+                    )
+                }
+
+                let result = try await backend.sendChatMessage(userMessage.content, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken)
                 let wasNew = self.sessionId == nil
                 if wasNew { self.sessionId = result.sessionId }
                 let aiMessage = ChatMessage(content: result.response, isFromUser: false)
@@ -52,7 +61,6 @@ class ChatViewModel: ObservableObject {
                     self.messages.append(aiMessage)
                 }
 
-                // Notifications
                 if wasNew, let sid = self.sessionId {
                     NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
                         "sessionId": sid,
