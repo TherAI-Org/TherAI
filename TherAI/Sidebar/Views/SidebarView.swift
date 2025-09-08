@@ -7,8 +7,6 @@ struct SlideOutSidebarView: View {
     @Binding var selectedTab: SidebarTab
     @Binding var isOpen: Bool
 
-    @State private var notificationsExpansionProgress: CGFloat = 0
-    @State private var notificationsExpandedContentHeight: CGFloat = 0
     @State private var chatsExpansionProgress: CGFloat = 0
     @State private var chatsExpandedContentHeight: CGFloat = 0
 
@@ -47,29 +45,14 @@ struct SlideOutSidebarView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
 
             Divider()
+                .padding(.horizontal, 16)
 
             // Sections
             VStack(spacing: 10) {
-                // Notifications Section (expandable, no data yet)
-                SectionHeader(title: "Notifications", isExpanded: viewModel.isNotificationsExpanded) {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.isNotificationsExpanded.toggle()
-                    }
-                }
-
-                if viewModel.isNotificationsExpanded {
-                    VStack(spacing: 6) {
-                        Text("No notifications from your partner yet...")
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.leading, 8)
-                            .padding(.top, -4)
-                    }
-                }
-
                 // Chats Section (expandable list of sessions)
                 SectionHeader(title: "Chats", isExpanded: viewModel.isChatsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
@@ -93,7 +76,7 @@ struct SlideOutSidebarView: View {
                                         isOpen = false
                                     }
                                 }) {
-                                    HStack(spacing: 10) {
+                                    HStack(spacing: 12) {
                                         Image(systemName: "message")
                                             .font(.system(size: 16, weight: .medium))
                                             .foregroundColor(.primary)
@@ -102,16 +85,8 @@ struct SlideOutSidebarView: View {
                                             .foregroundColor(.primary)
                                         Spacer()
                                     }
-                                    .padding(.horizontal, 12)
+                                    .padding(.horizontal, 16)
                                     .padding(.vertical, 8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(Color(.systemBackground))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
-                                            )
-                                    )
                                 }
                                 .buttonStyle(PlainButtonStyle())
                                 .opacity(rowProgress)
@@ -119,34 +94,7 @@ struct SlideOutSidebarView: View {
                                 .animation(.spring(response: 0.25, dampingFraction: 0.85, blendDuration: 0.05), value: rowProgress)
                             }
                         }
-                    }
-                    .frame(height: chatsExpandedContentHeight * chatsExpansionProgress, alignment: .top)
-                    .clipped()
-                    .background(
-                        VStack(spacing: 8) {
-                            ForEach(viewModel.sessions) { session in
-                                HStack(spacing: 10) {
-                                    Image(systemName: "message")
-                                        .font(.system(size: 16, weight: .medium))
-                                    Text(session.title ?? "Chat")
-                                        .font(.system(size: 16, weight: .regular))
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color(.systemBackground))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .stroke(Color.black.opacity(0.1), lineWidth: 1)
-                                        )
-                                )
-                            }
-                        }
-                        .fixedSize(horizontal: false, vertical: true)
-                        .hidden()
-                        .overlay(
+                        .background(
                             GeometryReader { proxy in
                                 Color.clear
                                     .onAppear {
@@ -169,7 +117,10 @@ struct SlideOutSidebarView: View {
                                     }
                             }
                         )
-                    )
+                    }
+                    .frame(height: chatsExpandedContentHeight * chatsExpansionProgress, alignment: .top)
+                    .clipped()
+                    .background(Color.clear)
                 } else if viewModel.isChatsExpanded {
                     // No animation for empty chats list
                     EmptyView()
@@ -191,6 +142,25 @@ struct SlideOutSidebarView: View {
                     }
                 }) {
                     GrokStyleProfileButton()
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.purple.opacity(0.5),
+                                            Color.blue.opacity(0.45),
+                                            Color.cyan.opacity(0.4)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    ),
+                                    lineWidth: 1.2
+                                )
+                        )
+                        .shadow(color: Color.purple.opacity(0.25), radius: 20, x: 0, y: 10)
+                        .shadow(color: Color.cyan.opacity(0.2), radius: 10, x: 0, y: 4)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -200,21 +170,8 @@ struct SlideOutSidebarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
-        .shadow(color: .black.opacity(0.1), radius: 10, x: 5, y: 0)
         .onAppear {
-            notificationsExpansionProgress = viewModel.isNotificationsExpanded ? 1 : 0
             chatsExpansionProgress = viewModel.isChatsExpanded ? 1 : 0
-        }
-        .onChange(of: viewModel.isNotificationsExpanded) { _, newVal in
-            if newVal {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.1)) {
-                    notificationsExpansionProgress = 1
-                }
-            } else {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.9, blendDuration: 0.1)) {
-                    notificationsExpansionProgress = 0
-                }
-            }
         }
         .onChange(of: viewModel.isChatsExpanded) { _, newVal in
             if newVal {
@@ -250,15 +207,8 @@ private struct SectionHeader: View {
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
-                    )
-            )
+            .padding(.vertical, 12)
+            // No background for minimalist, Grok-like look
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -274,7 +224,7 @@ struct GrokStyleProfileButton: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.9, green: 0.4, blue: 0.6), Color(red: 0.8, green: 0.3, blue: 0.5)],
+                            colors: [Color(red: 0.98, green: 0.45, blue: 0.7), Color(red: 0.85, green: 0.35, blue: 0.6)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -282,7 +232,7 @@ struct GrokStyleProfileButton: View {
                     .frame(width: 48, height: 48)
                     .overlay(
                         Circle()
-                            .stroke(Color.white, lineWidth: 3)
+                            .stroke(Color.white.opacity(0.8), lineWidth: 2)
                     )
                     .overlay(
                         Text("S")
@@ -295,7 +245,7 @@ struct GrokStyleProfileButton: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.2, green: 0.6, blue: 0.9), Color(red: 0.1, green: 0.5, blue: 0.8)],
+                            colors: [Color(red: 0.25, green: 0.7, blue: 1.0), Color(red: 0.12, green: 0.55, blue: 0.92)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -303,7 +253,7 @@ struct GrokStyleProfileButton: View {
                     .frame(width: 48, height: 48)
                     .overlay(
                         Circle()
-                            .stroke(Color.white, lineWidth: 3)
+                            .stroke(Color.white.opacity(0.8), lineWidth: 2)
                     )
                     .overlay(
                         Text("M")
