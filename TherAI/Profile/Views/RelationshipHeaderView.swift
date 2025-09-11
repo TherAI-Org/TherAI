@@ -86,7 +86,7 @@ struct RelationshipHeaderView: View {
 
             HStack(spacing: 6) {
                 Image(systemName: "heart.fill")
-                    .foregroundColor(.pink)
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                     .font(.system(size: 12))
 
                 Text("\(relationshipHeader.relationshipDuration) of love")
