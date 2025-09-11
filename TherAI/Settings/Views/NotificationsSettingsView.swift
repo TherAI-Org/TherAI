@@ -10,7 +10,7 @@ struct NotificationsSettingsView: View {
                 Section {
                     HStack {
                         Image(systemName: "envelope")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                             .font(.system(size: 16))
                             .frame(width: 24)
                         
@@ -31,7 +31,7 @@ struct NotificationsSettingsView: View {
                     
                     HStack {
                         Image(systemName: "bell")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                             .font(.system(size: 16))
                             .frame(width: 24)
                         
