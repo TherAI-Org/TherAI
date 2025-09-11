@@ -2,7 +2,7 @@ import Foundation
 
 struct ChatSession: Identifiable, Hashable {
     let id: UUID
-    let title: String?
+    var title: String?
 
     init(dto: ChatSessionDTO) {
         self.id = dto.id
