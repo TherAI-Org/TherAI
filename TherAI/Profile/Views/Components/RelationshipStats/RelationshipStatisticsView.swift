@@ -15,7 +15,7 @@ struct RelationshipStatisticsView: View {
 
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(color)
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
             }
 
             VStack(spacing: 3) {
