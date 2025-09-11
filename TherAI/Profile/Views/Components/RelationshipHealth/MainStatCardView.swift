@@ -48,7 +48,7 @@ struct MainStatCardView: View {
 
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                             .opacity(0.7)
                             .rotationEffect(.degrees(isExpanded ? 180 : 0))
                             .animation(.spring(response: 0.3, dampingFraction: 0.6, blendDuration: 0.1), value: isExpanded)
