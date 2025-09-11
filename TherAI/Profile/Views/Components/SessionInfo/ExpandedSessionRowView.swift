@@ -15,7 +15,7 @@ struct ExpandedSessionRowView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                         Text(session.duration)
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
@@ -24,7 +24,7 @@ struct ExpandedSessionRowView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "calendar")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                         Text(session.date)
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
