@@ -22,6 +22,11 @@ class SlideOutSidebarViewModel: ObservableObject {
 
     // Local chat sessions list (simple store for now)
     @Published var sessions: [ChatSession] = []
+    
+    // Rename dialog state
+    @Published var showRenameDialog: Bool = false
+    @Published var renameSessionId: UUID? = nil
+    @Published var renameText: String = ""
 
     init() {}
 
@@ -81,11 +86,111 @@ class SlideOutSidebarViewModel: ObservableObject {
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
             let dtos = try await BackendService.shared.fetchSessions(accessToken: accessToken)
-            let mapped = dtos.map { ChatSession(dto: $0) }
+            let mapped = dtos.map { dto in
+                // Fix empty string titles to be nil so UI shows "Chat"
+                let title = dto.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let finalTitle = title?.isEmpty == true ? nil : title
+                return ChatSession(id: dto.id, title: finalTitle)
+            }
             await MainActor.run { self.sessions = mapped }
         } catch {
             print("Failed to load sessions: \(error)")
         }
+    }
+    
+    // MARK: - Refresh sessions (for pull-to-refresh)
+    func refreshSessions() async {
+        await loadSessions()
+    }
+    
+    // MARK: - Delete session
+    func deleteSession(_ sessionId: UUID) async {
+        print("🗑️ Starting delete for session: \(sessionId)")
+        
+        // Remove from local sessions list immediately
+        await MainActor.run {
+            let beforeCount = self.sessions.count
+            self.sessions.removeAll { $0.id == sessionId }
+            let afterCount = self.sessions.count
+            print("📱 Removed session from local list: \(beforeCount) -> \(afterCount)")
+            
+            // If we deleted the active session, clear it
+            if self.activeSessionId == sessionId {
+                print("🔄 Clearing active session")
+                self.activeSessionId = nil
+                self.chatViewKey = UUID()
+            }
+        }
+        
+        // Try to delete from backend (but don't fail if it doesn't work)
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+            print("🔑 Got access token, calling backend...")
+            
+            try await BackendService.shared.deleteSession(sessionId: sessionId, accessToken: accessToken)
+            print("✅ Backend deletion successful")
+        } catch {
+            print("⚠️ Backend deletion failed (but local deletion succeeded): \(error)")
+            // Don't show error to user since local deletion worked
+        }
+    }
+    
+    // MARK: - Rename session
+    func renameSession(_ sessionId: UUID, newTitle: String) async {
+        print("✏️ Starting rename for session: \(sessionId) to '\(newTitle)'")
+        
+        // Update local sessions list immediately
+        await MainActor.run {
+            if let index = self.sessions.firstIndex(where: { $0.id == sessionId }) {
+                // If newTitle is empty, set to nil so UI shows "Chat"
+                self.sessions[index].title = newTitle.isEmpty ? nil : newTitle
+                print("📱 Updated local session title: '\(newTitle.isEmpty ? "nil (will show 'Chat')" : newTitle)'")
+            }
+        }
+        
+        // Try to rename on backend (but don't fail if it doesn't work)
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+            print("🔑 Got access token, calling backend...")
+            
+            try await BackendService.shared.renameSession(sessionId: sessionId, newTitle: newTitle, accessToken: accessToken)
+            print("✅ Backend rename successful")
+        } catch {
+            print("⚠️ Backend rename failed (but local rename succeeded): \(error)")
+            // Don't show error to user since local rename worked
+        }
+    }
+    
+    // MARK: - Rename dialog helpers
+    func startRename(sessionId: UUID, currentTitle: String?) {
+        renameSessionId = sessionId
+        renameText = currentTitle ?? ""
+        showRenameDialog = true
+    }
+    
+    func confirmRename() {
+        guard let sessionId = renameSessionId else {
+            return
+        }
+        
+        let trimmedTitle = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
+        
+        Task {
+            await renameSession(sessionId, newTitle: finalTitle ?? "")
+        }
+        
+        showRenameDialog = false
+        renameSessionId = nil
+        renameText = ""
+    }
+    
+    func cancelRename() {
+        showRenameDialog = false
+        renameSessionId = nil
+        renameText = ""
     }
 
     func openSidebar() {
