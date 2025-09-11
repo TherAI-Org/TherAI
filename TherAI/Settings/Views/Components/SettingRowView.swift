@@ -21,7 +21,7 @@ struct SettingRowView: View {
                 // Icon - smaller, iOS Settings style
                 Image(systemName: setting.icon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                     .frame(width: 24, height: 24)
                 
                 // Content
@@ -53,7 +53,7 @@ struct SettingRowView: View {
                 case .navigation:
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color(.tertiaryLabel))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 case .action:
                     if setting.title == "Sign Out" {
                         Text("Sign Out")
@@ -67,7 +67,7 @@ struct SettingRowView: View {
                 case .picker:
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color(.tertiaryLabel))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
             }
             .padding(.horizontal, 16)
