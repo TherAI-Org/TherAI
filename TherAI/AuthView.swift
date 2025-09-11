@@ -16,7 +16,7 @@ struct AuthView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "brain.head.profile")
                         .font(.system(size: 60))
-                        .foregroundColor(.blue)
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
 
                     Text("TherAI")
                         .font(.largeTitle)
