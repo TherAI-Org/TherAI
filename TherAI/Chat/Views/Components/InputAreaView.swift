@@ -4,57 +4,84 @@ import UIKit
 struct InputAreaView: View {
 
     @Binding var inputText: String
+    @Binding var isLoading: Bool
 
     let isInputFocused: FocusState<Bool>.Binding
     let send: () -> Void
+    let stop: () -> Void
     let onCreatedNewSession: (UUID) -> Void
 
     var body: some View {
 
-        let isSendDisabled = inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let borderWidth: CGFloat = 1.5
-        let cornerRadius: CGFloat = 18
-        let sendSize: CGFloat = 40
+        let isSendDisabled = !isLoading && inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let cornerRadius: CGFloat = 24
+        let sendSize: CGFloat = 28
 
         HStack(spacing: 12) {
-            HStack(spacing: 8) {
-                TextField("Ask anything", text: $inputText)
-                    .onSubmit { send() }
-                    .focused(isInputFocused)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Color(uiColor: .systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius)
-                            .stroke(Color.black, lineWidth: borderWidth)
-                    )
-                    .shadow(color: .black.opacity(0.03), radius: 2, x: 0, y: 1)
-            )
-
-            Button(action: { send() }) {
+            TextField("Message", text: $inputText)
+                .font(.system(size: 16, weight: .regular))
+                .foregroundColor(.primary)
+                .onSubmit { 
+                    guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    // Add haptic feedback
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                    impactFeedback.impactOccurred()
+                    send() 
+                }
+                .focused(isInputFocused)
+            
+            Button(action: { 
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+                
+                if isLoading {
+                    stop()
+                } else {
+                    send()
+                }
+            }) {
                 ZStack {
                     Circle()
-                        .fill(Color(uiColor: .systemBackground))
+                        .fill(isSendDisabled ? 
+                              Color(uiColor: .systemGray5) : 
+                              Color(red: 0.4, green: 0.2, blue: 0.6))
                         .frame(width: sendSize, height: sendSize)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.black, lineWidth: borderWidth)
-                        )
 
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isSendDisabled ? .secondary : .primary)
+                    Image(systemName: isLoading ? "stop.fill" : "arrow.up")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(isSendDisabled ? .secondary : .white)
                 }
             }
             .disabled(isSendDisabled)
-            .opacity(isSendDisabled ? 0.6 : 1)
+            .scaleEffect(isSendDisabled ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isSendDisabled)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(Color(uiColor: .secondarySystemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .stroke(
+                            isInputFocused.wrappedValue ? 
+                            Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.8) : 
+                            Color.clear, 
+                            lineWidth: 1
+                        )
+                )
+                .shadow(
+                    color: Color.black.opacity(0.04), 
+                    radius: 8, 
+                    x: 0, 
+                    y: 2
+                )
+        )
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
         .background(Color(uiColor: .systemBackground))
+        .animation(.easeInOut(duration: 0.2), value: isInputFocused.wrappedValue)
     }
 }
 
@@ -62,8 +89,10 @@ struct InputAreaView: View {
     @FocusState var isFocused: Bool
     return InputAreaView(
         inputText: .constant(""),
+        isLoading: .constant(false),
         isInputFocused: $isFocused,
         send: {},
+        stop: {},
         onCreatedNewSession: { _ in }
     )
 }
