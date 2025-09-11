@@ -47,7 +47,7 @@ struct MainLinkView: View {
                         HStack(spacing: 10) {
                             Image(systemName: "link")
                                 .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.primary)
+                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
 
                             Text(truncatedDisplay(for: url))
                                 .font(.footnote)
