@@ -303,4 +303,105 @@ extension BackendService {
         }
         return (decoded.linked, decoded.relationship_id)
     }
+
+    func deleteSession(sessionId: UUID, accessToken: String) async throws {
+        print("🌐 BackendService: Deleting session \(sessionId)")
+        
+        let url = baseURL
+            .appendingPathComponent("chat")
+            .appendingPathComponent("sessions")
+            .appendingPathComponent(sessionId.uuidString)
+        
+        print("🌐 BackendService: URL = \(url)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await urlSession.data(for: request)
+            print("🌐 BackendService: Got response")
+        } catch {
+            print("🌐 BackendService: Network error: \(error)")
+            throw error
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            print("🌐 BackendService: Invalid response type")
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        
+        print("🌐 BackendService: Status code: \(http.statusCode)")
+        
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            print("🌐 BackendService: Server error: \(serverMessage)")
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+
+        struct DeleteResponseBody: Codable { let success: Bool; let message: String }
+        let decoded = try jsonDecoder.decode(DeleteResponseBody.self, from: data)
+        print("🌐 BackendService: Decoded response: success=\(decoded.success), message=\(decoded.message)")
+        
+        guard decoded.success else {
+            print("🌐 BackendService: Server returned success=false")
+            throw NSError(domain: "Backend", code: -3, userInfo: [NSLocalizedDescriptionKey: "Failed to delete session"])
+        }
+        
+        print("🌐 BackendService: Delete successful!")
+    }
+
+    func renameSession(sessionId: UUID, newTitle: String, accessToken: String) async throws {
+        print("🌐 BackendService: Renaming session \(sessionId) to '\(newTitle)'")
+        
+        let url = baseURL
+            .appendingPathComponent("chat")
+            .appendingPathComponent("sessions")
+            .appendingPathComponent(sessionId.uuidString)
+            .appendingPathComponent("rename")
+        
+        print("🌐 BackendService: URL = \(url)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let payload = ["title": newTitle]
+        request.httpBody = try jsonEncoder.encode(payload)
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await urlSession.data(for: request)
+            print("🌐 BackendService: Got response")
+        } catch {
+            print("🌐 BackendService: Network error: \(error)")
+            throw error
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            print("🌐 BackendService: Invalid response type")
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        
+        print("🌐 BackendService: Status code: \(http.statusCode)")
+        
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            print("🌐 BackendService: Server error: \(serverMessage)")
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+
+        struct RenameResponseBody: Codable { let success: Bool; let message: String }
+        let decoded = try jsonDecoder.decode(RenameResponseBody.self, from: data)
+        print("🌐 BackendService: Decoded response: success=\(decoded.success), message=\(decoded.message)")
+        
+        guard decoded.success else {
+            print("🌐 BackendService: Server returned success=false")
+            throw NSError(domain: "Backend", code: -3, userInfo: [NSLocalizedDescriptionKey: "Failed to rename session"])
+        }
+        
+        print("🌐 BackendService: Rename successful!")
+    }
 }
