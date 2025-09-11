@@ -23,7 +23,7 @@ struct SlideOutSidebarView: View {
                 }) {
                     Image(systemName: "gearshape")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
 
                 Spacer()
@@ -40,7 +40,7 @@ struct SlideOutSidebarView: View {
                 }) {
                     Image(systemName: "square.and.pencil")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
             }
             .padding(.horizontal, 16)
@@ -79,7 +79,7 @@ struct SlideOutSidebarView: View {
                                     HStack(spacing: 12) {
                                         Image(systemName: "message")
                                             .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(.primary)
+                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                                         Text(session.title ?? "Chat")
                                             .font(.system(size: 16, weight: .regular))
                                             .foregroundColor(.primary)
@@ -204,7 +204,7 @@ private struct SectionHeader: View {
 
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
