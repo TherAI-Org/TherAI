@@ -18,26 +18,57 @@ struct MessageBubble: View {
     private var messageContent: some View {
         VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 4) {
             if message.isFromUser {
-                // User message: gray bubble with black-ish outline
+                // User message: high contrast with bold purple background
                 Text(message.content)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .font(.system(size: 16, weight: .regular))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
                     .background(
-                        RoundedRectangle(cornerRadius: 18)
-                            .fill(Color(.systemGray6))
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.4, green: 0.2, blue: 0.6),
+                                        Color(red: 0.35, green: 0.15, blue: 0.55)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(
+                                color: Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.25), 
+                                radius: 8, 
+                                x: 0, 
+                                y: 3
+                            )
+                    )
+                    .foregroundColor(.white)
+                    .frame(maxWidth: 320, alignment: .trailing)
+            } else {
+                // AI message: subtle, elegant background
+                Text(message.content)
+                    .font(.system(size: 16, weight: .regular))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(Color(uiColor: .secondarySystemBackground))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18)
-                                    .stroke(Color.black.opacity(0.9), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 20)
+                                    .stroke(
+                                        Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.08), 
+                                        lineWidth: 1
+                                    )
+                            )
+                            .shadow(
+                                color: Color.black.opacity(0.03), 
+                                radius: 4, 
+                                x: 0, 
+                                y: 2
                             )
                     )
                     .foregroundColor(.primary)
-                    .frame(maxWidth: 500, alignment: .trailing)
-            } else {
-                // Assistant message: plain text only
-                Text(message.content)
-                    .foregroundColor(.primary)
-                    .padding(.top, 4)
-                    .frame(maxWidth: 500, alignment: .leading)
+                    .frame(maxWidth: 320, alignment: .leading)
             }
         }
     }
