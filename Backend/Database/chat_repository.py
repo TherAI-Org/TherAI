@@ -20,6 +20,8 @@ async def save_message(*, user_id: uuid.UUID, session_id: uuid.UUID, role: str, 
     res = await run_in_threadpool(_insert)
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase insert failed: {res.error}")
+    if not hasattr(res, 'data') or not res.data:
+        raise RuntimeError("Supabase insert returned no data")
     return res.data[0]
 
 # List messages for a session for a user ordered by creation time
@@ -39,4 +41,6 @@ async def list_messages_for_session(*, user_id: uuid.UUID, session_id: uuid.UUID
     res = await run_in_threadpool(_select)
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase select failed: {res.error}")
-    return res.data
+    if not hasattr(res, 'data'):
+        raise RuntimeError("Supabase select returned invalid response")
+    return res.data or []
