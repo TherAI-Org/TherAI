@@ -25,7 +25,7 @@ struct ChatView: View {
                 }) {
                     Image(systemName: "line.3.horizontal")
                         .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.primary)
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
 
                 Spacer()
@@ -42,10 +42,14 @@ struct ChatView: View {
 
             Divider()
 
+            // Messages area that takes available space but leaves room for input
             MessagesListView(messages: viewModel.messages)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
+            // Input area that stays at the bottom
             InputAreaView(
                 inputText: $viewModel.inputText,
+                isLoading: $viewModel.isLoading,
                 isInputFocused: $isInputFocused,
                 send: {
                     let wasNew = viewModel.sessionId == nil
@@ -57,17 +61,32 @@ struct ChatView: View {
                                 if !sidebarViewModel.sessions.contains(newSession) {
                                     sidebarViewModel.sessions.insert(newSession, at: 0)
                                 }
-                                sidebarViewModel.openSession(sid)
+                                // Don't call openSession here as it recreates the ChatView
+                                // Just update the activeSessionId without changing chatViewKey
+                                sidebarViewModel.activeSessionId = sid
                             }
                         }
                     }
+                },
+                stop: {
+                    viewModel.stopGeneration()
                 },
                 onCreatedNewSession: { _ in }
             )
         }
         .background(Color(.systemBackground))
-        .contentShape(Rectangle())
-        .simultaneousGesture(TapGesture().onEnded { isInputFocused = false })
+        .onChange(of: sidebarViewModel.dragOffset) { _, newValue in
+            // Dismiss keyboard when sidebar drag starts (when drag offset becomes non-zero)
+            if abs(newValue) > 10 {
+                isInputFocused = false
+            }
+        }
+        .onChange(of: sidebarViewModel.isOpen) { _, newValue in
+            // Dismiss keyboard when sidebar opens
+            if newValue {
+                isInputFocused = false
+            }
+        }
     }
 }
 
