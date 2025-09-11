@@ -5,7 +5,7 @@ struct IconButtonLabelView: View {
     var body: some View {
         Image(systemName: systemName)
             .font(.system(size: 16, weight: .semibold))
-            .foregroundColor(.primary)
+            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
             .frame(width: 34, height: 34)
             .background(
                 Circle()
