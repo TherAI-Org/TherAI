@@ -1,11 +1,11 @@
 import uuid
 from fastapi import FastAPI, HTTPException, Depends
 
-from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
+from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO, RenameSessionRequest, RenameSessionResponse
 from .Agents.chat import ChatAgent
 from .auth import get_current_user
 from .Database.chat_repository import save_message, list_messages_for_session
-from .Database.session_repository import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user
+from .Database.session_repository import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user, delete_session, rename_session
 from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
 
@@ -106,3 +106,35 @@ async def get_sessions(current_user: dict = Depends(get_current_user)):
             for r in rows
         ]
     )
+
+# Delete a chat session and all its messages
+@app.delete("/chat/sessions/{session_id}")
+async def delete_session_endpoint(session_id: uuid.UUID, current_user: dict = Depends(get_current_user)):
+    try:
+        user_uuid = uuid.UUID(current_user.get("sub"))
+    except Exception:
+        raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+    try:
+        await delete_session(user_id=user_uuid, session_id=session_id)
+        return {"success": True, "message": "Session deleted successfully"}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid session")
+    except Exception as e:
+        raise HTTPException(status_code = 500, detail = f"Error deleting session: {str(e)}")
+
+# Rename a chat session
+@app.put("/chat/sessions/{session_id}/rename", response_model=RenameSessionResponse)
+async def rename_session_endpoint(session_id: uuid.UUID, request: RenameSessionRequest, current_user: dict = Depends(get_current_user)):
+    try:
+        user_uuid = uuid.UUID(current_user.get("sub"))
+    except Exception:
+        raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+    try:
+        await rename_session(user_id=user_uuid, session_id=session_id, new_title=request.title)
+        return RenameSessionResponse(success=True, message="Session renamed successfully")
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid session")
+    except Exception as e:
+        raise HTTPException(status_code = 500, detail = f"Error renaming session: {str(e)}")
