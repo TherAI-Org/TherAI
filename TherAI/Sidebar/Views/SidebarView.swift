@@ -7,8 +7,6 @@ struct SlideOutSidebarView: View {
     @Binding var selectedTab: SidebarTab
     @Binding var isOpen: Bool
 
-    @State private var chatsExpansionProgress: CGFloat = 0
-    @State private var chatsExpandedContentHeight: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,70 +58,73 @@ struct SlideOutSidebarView: View {
                     }
                 }
 
-                if viewModel.isChatsExpanded && !viewModel.sessions.isEmpty {
-                    ZStack(alignment: .top) {
-                        VStack(spacing: 8) {
-                            ForEach(Array(viewModel.sessions.enumerated()), id: \.offset) { index, session in
-                                let count = max(1, viewModel.sessions.count)
-                                let step = 1.0 / CGFloat(count)
-                                let start = CGFloat(index) * step
-                                let rowProgress = max(0, min(1, (chatsExpansionProgress - start) / step))
-
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                                        viewModel.openSession(session.id)
-                                        selectedTab = .chat
-                                        isOpen = false
+                if viewModel.isChatsExpanded {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            if !viewModel.sessions.isEmpty {
+                                ForEach(viewModel.sessions, id: \.id) { session in
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                                            viewModel.openSession(session.id)
+                                            selectedTab = .chat
+                                            isOpen = false
+                                        }
+                                    }) {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "message")
+                                                .font(.system(size: 16, weight: .medium))
+                                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                            Text(session.title ?? "Chat")
+                                                .font(.system(size: 16, weight: .regular))
+                                                .foregroundColor(.primary)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
                                     }
-                                }) {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: "message")
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                        Text(session.title ?? "Chat")
-                                            .font(.system(size: 16, weight: .regular))
-                                            .foregroundColor(.primary)
-                                        Spacer()
+                                    .buttonStyle(PlainButtonStyle())
+                                    .contextMenu {
+                                        Button(action: {
+                                            viewModel.startRename(sessionId: session.id, currentTitle: session.title)
+                                        }) {
+                                            Label("Rename", systemImage: "pencil")
+                                        }
+                                        
+                                        Button(action: {
+                                            print("🔥 Delete button pressed for session: \(session.id)")
+                                            // Test immediate UI update first
+                                            withAnimation(.easeInOut(duration: 0.3)) {
+                                                viewModel.sessions.removeAll { $0.id == session.id }
+                                            }
+                                            // Then try backend deletion
+                                            Task {
+                                                await viewModel.deleteSession(session.id)
+                                            }
+                                        }) {
+                                            Label("Delete", systemImage: "trash")
+                                        }
                                     }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .opacity(rowProgress)
-                                .offset(x: 0, y: (1 - rowProgress) * 8)
-                                .animation(.spring(response: 0.25, dampingFraction: 0.85, blendDuration: 0.05), value: rowProgress)
+                            } else {
+                                // Empty state
+                                VStack(spacing: 8) {
+                                    Image(systemName: "message")
+                                        .font(.system(size: 24, weight: .light))
+                                        .foregroundColor(.secondary)
+                                    Text("No chats yet")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 20)
                             }
                         }
-                        .background(
-                            GeometryReader { proxy in
-                                Color.clear
-                                    .onAppear {
-                                        let h = proxy.size.height
-                                        if abs(h - chatsExpandedContentHeight) > 0.5 {
-                                            chatsExpandedContentHeight = h
-                                        }
-                                    }
-                                    .onChange(of: viewModel.isChatsExpanded) { _, _ in
-                                        let h = proxy.size.height
-                                        if abs(h - chatsExpandedContentHeight) > 0.5 {
-                                            chatsExpandedContentHeight = h
-                                        }
-                                    }
-                                    .onChange(of: viewModel.sessions) { _, _ in
-                                        let h = proxy.size.height
-                                        if abs(h - chatsExpandedContentHeight) > 0.5 {
-                                            chatsExpandedContentHeight = h
-                                        }
-                                    }
-                            }
-                        )
+                        .padding(.horizontal, 0)
                     }
-                    .frame(height: chatsExpandedContentHeight * chatsExpansionProgress, alignment: .top)
-                    .clipped()
+                    .refreshable {
+                        await viewModel.refreshSessions()
+                    }
+                    .frame(maxHeight: 300) // Limit height to prevent taking up too much space
                     .background(Color.clear)
-                } else if viewModel.isChatsExpanded {
-                    // No animation for empty chats list
-                    EmptyView()
                 }
             }
             .padding(.top, 12)
@@ -170,19 +171,16 @@ struct SlideOutSidebarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
-        .onAppear {
-            chatsExpansionProgress = viewModel.isChatsExpanded ? 1 : 0
-        }
-        .onChange(of: viewModel.isChatsExpanded) { _, newVal in
-            if newVal {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85, blendDuration: 0.05)) {
-                    chatsExpansionProgress = 1
-                }
-            } else {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.9, blendDuration: 0.05)) {
-                    chatsExpansionProgress = 0
-                }
+        .alert("Rename Chat", isPresented: $viewModel.showRenameDialog) {
+            TextField("Chat name", text: $viewModel.renameText)
+            Button("Cancel", role: .cancel) {
+                viewModel.cancelRename()
             }
+            Button("Rename") {
+                viewModel.confirmRename()
+            }
+        } message: {
+            Text("Enter a new name for this chat")
         }
     }
 }
