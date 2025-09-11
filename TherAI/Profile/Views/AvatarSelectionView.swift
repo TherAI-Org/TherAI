@@ -23,7 +23,7 @@ struct AvatarSelectionView: View {
                 }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 22))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
             }
 
@@ -63,7 +63,7 @@ struct AvatarSelectionView: View {
 
                             Image(systemName: "plus")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                         }
                     }
                 }
