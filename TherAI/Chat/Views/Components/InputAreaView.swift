@@ -18,7 +18,7 @@ struct InputAreaView: View {
         let sendSize: CGFloat = 28
 
         HStack(spacing: 12) {
-            TextField("Message", text: $inputText)
+            TextField("Share what's on your mind", text: $inputText)
                 .font(.system(size: 16, weight: .regular))
                 .foregroundColor(.primary)
                 .onSubmit { 
