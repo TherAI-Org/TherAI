@@ -102,9 +102,33 @@ async def assert_session_owned_by_user(*, user_id: uuid.UUID, session_id: uuid.U
     if not res.data:
         raise PermissionError("Session not found or not owned by user")
 
+async def session_exists(*, user_id: uuid.UUID, session_id: uuid.UUID) -> bool:
+    """Check if a session exists without raising an error"""
+    def _select():
+        return (
+            supabase
+            .table(SESSIONS_TABLE)
+            .select("id")
+            .eq("id", str(session_id))
+            .eq("user_id", str(user_id))
+            .limit(1)
+            .execute()
+        )
+
+    try:
+        res = await run_in_threadpool(_select)
+        return getattr(res, "data", None) is not None and len(res.data) > 0
+    except Exception:
+        return False
+
 # Delete a chat session and all its messages
 async def delete_session(*, user_id: uuid.UUID, session_id: uuid.UUID) -> None:
-    # First verify the session belongs to the user
+    # First check if the session exists
+    if not await session_exists(user_id=user_id, session_id=session_id):
+        print(f"ℹ️ Session {session_id} not found, considering it already deleted")
+        return  # Session doesn't exist, consider it already deleted
+    
+    # Verify the session belongs to the user (this will raise PermissionError if not)
     await assert_session_owned_by_user(user_id=user_id, session_id=session_id)
     
     # Delete all messages in the session

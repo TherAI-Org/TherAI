@@ -121,6 +121,7 @@ async def delete_session_endpoint(session_id: uuid.UUID, current_user: dict = De
     except PermissionError:
         raise HTTPException(status_code=403, detail="Forbidden: invalid session")
     except Exception as e:
+        print(f"❌ Error deleting session {session_id}: {e}")
         raise HTTPException(status_code = 500, detail = f"Error deleting session: {str(e)}")
 
 # Rename a chat session
