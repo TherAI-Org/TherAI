@@ -76,12 +76,10 @@ struct SlideOutSidebarView: View {
                             .overlay(
                                 Circle().stroke(Color.white.opacity(0.8), lineWidth: 1)
                             )
-                            .matchedGeometryEffect(id: "settingsEmblem", in: profileNamespace)
 
                         Image(systemName: "gearshape")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
-                            .matchedGeometryEffect(id: "settingsGearIcon", in: profileNamespace)
                     }
                 }
 
