@@ -15,28 +15,28 @@ struct RelationshipInsightsSectionView: View {
                     title: "Communication",
                     value: "Great",
                     icon: "message.fill",
-                    color: .blue
+                    color: Color(red: 0.26, green: 0.58, blue: 1.00)
                 )
 
                 RelationshipStatisticsView(
                     title: "Trust Level",
                     value: "Strong",
                     icon: "lock.shield.fill",
-                    color: .green
+                    color: Color.green
                 )
 
                 RelationshipStatisticsView(
                     title: "Future Goals",
                     value: "Aligned",
                     icon: "target",
-                    color: .purple
+                    color: Color(red: 0.63, green: 0.32, blue: 0.98)
                 )
 
                 RelationshipStatisticsView(
                     title: "Intimacy",
                     value: "Deep",
                     icon: "heart.fill",
-                    color: .pink
+                    color: Color.pink
                 )
             }
         }
