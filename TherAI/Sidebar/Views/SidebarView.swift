@@ -1,5 +1,45 @@
 import SwiftUI
 
+// MARK: - PendingRequestRow Component
+struct PendingRequestRow: View {
+    let request: DialogueViewModel.DialogueRequest
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            Image(systemName: "person.2.circle.fill")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                .frame(width: 20)
+
+            // Content
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Partner Request")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+
+                Text(request.requestContent)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            // Arrow
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
 struct SlideOutSidebarView: View {
 
     @EnvironmentObject private var viewModel: SlideOutSidebarViewModel
@@ -53,6 +93,42 @@ struct SlideOutSidebarView: View {
 
             // Sections
             VStack(spacing: 10) {
+                // Pending Requests Section (always visible)
+                SectionHeader(title: "Pending Requests", isExpanded: viewModel.isNotificationsExpanded) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                        viewModel.isNotificationsExpanded.toggle()
+                    }
+                }
+
+                if viewModel.isNotificationsExpanded {
+                    if viewModel.pendingRequests.isEmpty {
+                        // Show empty state
+                        HStack {
+                            Text("No pending requests")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(viewModel.pendingRequests) { request in
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                                        viewModel.openPendingRequest(request)
+                                        isOpen = false
+                                    }
+                                }) {
+                                    PendingRequestRow(request: request)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+
                 // Chats Section (expandable list of sessions)
                 SectionHeader(title: "Chats", isExpanded: viewModel.isChatsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
