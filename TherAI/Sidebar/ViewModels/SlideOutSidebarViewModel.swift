@@ -10,6 +10,7 @@ enum SidebarTab {
 class SlideOutSidebarViewModel: ObservableObject {
 
     @Published var isOpen = false
+    @Published var isDialogueOpen = false
     @Published var selectedTab: SidebarTab = .chat
     @Published var dragOffset: CGFloat = 0
     @Published var showProfileSheet: Bool = false
@@ -211,6 +212,8 @@ class SlideOutSidebarViewModel: ObservableObject {
     func openSidebar() {
         Haptics.impact(.light)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+            // Ensure dialogue is closed when opening sidebar
+            isDialogueOpen = false
             isOpen = true
             dragOffset = 0
         }
@@ -239,13 +242,33 @@ class SlideOutSidebarViewModel: ObservableObject {
         }
     }
 
+    func openDialogue() {
+        Haptics.impact(.light)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+            // Ensure sidebar is closed when opening dialogue
+            isOpen = false
+            isDialogueOpen = true
+            dragOffset = 0
+        }
+    }
+
+    func closeDialogue() {
+        Haptics.impact(.light)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+            isDialogueOpen = false
+            dragOffset = 0
+        }
+    }
+
     func handleDragGesture(_ translation: CGFloat, width: CGFloat) {
+        // Only show drag interaction for the sidebar panel.
         if isOpen {
+            // Sidebar open: allow dragging left to close (negative only)
             let newOffset = max(-width, min(0, translation))
             dragOffset = newOffset
         } else {
-            let newOffset = max(0, min(width, translation))
-            dragOffset = newOffset
+            // For center and dialogue states, do not visually drag; rely on swipe end.
+            dragOffset = 0
         }
     }
 
@@ -254,6 +277,7 @@ class SlideOutSidebarViewModel: ObservableObject {
         let velocityThreshold: CGFloat = 500
 
         if isOpen {
+            // Sidebar visible: swipe left to close back to center
             if translation < -threshold || velocity < -velocityThreshold {
                 closeSidebar()
             } else {
@@ -261,9 +285,21 @@ class SlideOutSidebarViewModel: ObservableObject {
                     dragOffset = 0
                 }
             }
+        } else if isDialogueOpen {
+            // Dialogue visible: swipe right to close back to center
+            if translation > threshold || velocity > velocityThreshold {
+                closeDialogue()
+            } else {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+                    dragOffset = 0
+                }
+            }
         } else {
+            // Center: decide which pane to open
             if translation > threshold || velocity > velocityThreshold {
                 openSidebar()
+            } else if translation < -threshold || velocity < -velocityThreshold {
+                openDialogue()
             } else {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
                     dragOffset = 0
