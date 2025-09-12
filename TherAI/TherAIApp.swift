@@ -16,10 +16,14 @@ struct TherAIApp: App {
         let session = try await AuthService.shared.client.auth.session
         return session.accessToken
     })
+    @AppStorage(PreferenceKeys.appearancePreference) private var appearance: String = "System"
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(linkVM)
+                .preferredColorScheme(
+                    appearance == "Light" ? .light : appearance == "Dark" ? .dark : nil
+                )
                 .onOpenURL { url in
                     // Handle OAuth authentication callbacks
                     AuthService.shared.client.auth.handle(url)

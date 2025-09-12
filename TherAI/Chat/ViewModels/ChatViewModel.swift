@@ -91,7 +91,7 @@ class ChatViewModel: ObservableObject {
                 if wasNew, let sid = self.sessionId {
                     NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
                         "sessionId": sid,
-                        "title": "Chat"
+                        "title": "Session"
                     ])
                 }
                 if let sid = self.sessionId {

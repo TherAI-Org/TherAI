@@ -15,6 +15,7 @@ struct BackendService {
             fatalError("Missing or invalid BACKEND_BASE_URL in Secrets.plist")
         }
         self.baseURL = url
+        print("🌐 BackendService: Initialized with base URL: \(url)")
     }
 
     func sendChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String) async throws -> (response: String, sessionId: UUID) {

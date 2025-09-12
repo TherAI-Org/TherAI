@@ -19,22 +19,18 @@ struct InputAreaView: View {
         let sendSize: CGFloat = 28
 
         HStack(spacing: 12) {
-            TextField("Message", text: $inputText)
-                .font(.system(size: 16, weight: .regular))
+            TextField("Share what's on your mind", text: $inputText)
+                .font(Typography.body)
                 .foregroundColor(.primary)
                 .onSubmit {
                     guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    // Add haptic feedback
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.light)
                     send()
                 }
                 .focused(isInputFocused)
 
             Button(action: {
-                // Add haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
+                Haptics.impact(.light)
 
                 if isLoading {
                     stop()

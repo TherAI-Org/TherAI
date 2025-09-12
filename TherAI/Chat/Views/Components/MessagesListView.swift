@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MessagesListView: View {
     let messages: [ChatMessage]
+    @AppStorage(PreferenceKeys.autoScrollEnabled) private var autoScrollEnabled: Bool = true
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -16,8 +17,9 @@ struct MessagesListView: View {
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
             .onChange(of: messages.count) {
+                guard autoScrollEnabled else { return }
                 if let lastMessage = messages.last {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
                         proxy.scrollTo(lastMessage.id, anchor: .bottom)
                     }
                 }

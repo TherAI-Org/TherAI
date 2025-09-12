@@ -44,6 +44,9 @@ struct SettingsView: View {
                             },
                             onAction: { settingIndex in
                                 viewModel.handleSettingAction(for: sectionIndex, settingIndex: settingIndex)
+                            },
+                            onPickerSelect: { settingIndex, value in
+                                viewModel.handlePickerSelection(for: sectionIndex, settingIndex: settingIndex, value: value)
                             }
                         )
                     }
@@ -58,15 +61,31 @@ struct SettingsView: View {
             .scrollIndicators(.hidden)
             .background(Color(.systemGroupedBackground))
             .navigationDestination(item: $viewModel.destination) { destination in
-                switch destination {
-                case .link:
+                if destination == .link {
                     MainLinkView(viewModel: linkVM)
                         .navigationTitle("Link Your Partner")
                         .navigationBarTitleDisplayMode(.inline)
+                } else if destination == .appearance {
+                    AppearancePickerView(
+                        current: mapToOption(viewModel.currentAppearance),
+                        onSelect: { option in
+                            viewModel.selectAppearance(option.rawValue)
+                        }
+                    )
+                } else {
+                    EmptyView()
                 }
             }
             }
         }
+    }
+}
+
+private func mapToOption(_ value: String) -> AppearanceOption {
+    switch value {
+    case "Light": return .light
+    case "Dark": return .dark
+    default: return .system
     }
 }
 

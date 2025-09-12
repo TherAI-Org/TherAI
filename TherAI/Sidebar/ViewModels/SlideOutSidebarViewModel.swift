@@ -13,6 +13,8 @@ class SlideOutSidebarViewModel: ObservableObject {
     @Published var selectedTab: SidebarTab = .chat
     @Published var dragOffset: CGFloat = 0
     @Published var showProfileSheet: Bool = false
+    @Published var showProfileOverlay: Bool = false
+    @Published var showSettingsOverlay: Bool = false
     @Published var showSettingsSheet: Bool = false
     @Published var showLinkSheet: Bool = false
 
@@ -22,6 +24,8 @@ class SlideOutSidebarViewModel: ObservableObject {
 
     // Local chat sessions list (simple store for now)
     @Published var sessions: [ChatSession] = []
+
+    // Rename/Delete features removed
 
     // Pending dialogue requests from partner
     @Published var pendingRequests: [DialogueViewModel.DialogueRequest] = []
@@ -118,9 +122,11 @@ class SlideOutSidebarViewModel: ObservableObject {
         let created = NotificationCenter.default.addObserver(forName: .chatSessionCreated, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             if let sid = note.userInfo?["sessionId"] as? UUID {
+
                 // Avoid creating a duplicate entry pointing to the dialogue session
                 if !self.sessions.contains(where: { $0.id == sid }) {
                     let session = ChatSession(id: sid, title: note.userInfo?["title"] as? String ?? "Chat")
+
                     self.sessions.insert(session, at: 0)
                 }
                 self.isChatsExpanded = true
@@ -141,16 +147,48 @@ class SlideOutSidebarViewModel: ObservableObject {
 
     // MARK: - Load sessions from backend
     func loadSessions() async {
+        print("🔄 Loading sessions from backend...")
         do {
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
+            print("🔑 Got access token, fetching sessions...")
             let dtos = try await BackendService.shared.fetchSessions(accessToken: accessToken)
-            let mapped = dtos.map { ChatSession(dto: $0) }
-            await MainActor.run { self.sessions = mapped }
+            print("📋 Fetched \(dtos.count) sessions from backend")
+            let mapped = dtos.map { dto in
+                // Fix empty string titles to be nil so UI shows "Session"
+                let title = dto.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let finalTitle = title?.isEmpty == true ? nil : title
+                return ChatSession(id: dto.id, title: finalTitle)
+            }
+            await MainActor.run {
+                self.sessions = mapped
+                print("📱 Updated local sessions list with \(mapped.count) sessions")
+            }
         } catch {
-            print("Failed to load sessions: \(error)")
+            // Suppress "cancelled" (-999) which occurs when a previous in-flight request is cancelled by a new one or view lifecycle
+            if let nsError = error as NSError?, nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                print("⏭️ Load sessions cancelled (expected during rapid refresh) — ignoring")
+                return
+            }
+            print("❌ Failed to load sessions: \(error)")
         }
     }
+
+    // MARK: - Refresh sessions (for pull-to-refresh)
+    func refreshSessions() async {
+        await loadSessions()
+    }
+
+    // MARK: - Clear and reload sessions (for debugging)
+    func clearAndReloadSessions() async {
+        print("🔄 Clearing local sessions and reloading from backend...")
+        await MainActor.run {
+            self.sessions.removeAll()
+        }
+        await loadSessions()
+    }
+
+    // Delete/Rename methods removed
 
     // MARK: - Load pending requests from backend
     func loadPendingRequests() async {
@@ -167,8 +205,7 @@ class SlideOutSidebarViewModel: ObservableObject {
     }
 
     func openSidebar() {
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
+        Haptics.impact(.light)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
             isOpen = true
             dragOffset = 0
@@ -176,8 +213,7 @@ class SlideOutSidebarViewModel: ObservableObject {
     }
 
     func closeSidebar() {
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
+        Haptics.impact(.light)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
             isOpen = false
             dragOffset = 0
