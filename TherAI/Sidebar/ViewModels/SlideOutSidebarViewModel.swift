@@ -168,6 +168,10 @@ class SlideOutSidebarViewModel: ObservableObject {
                 self.sessions = mapped
                 self.isLoadingSessions = false
                 print("📱 Updated local sessions list with \(mapped.count) sessions")
+                // Auto-select the most recent session if none is active to avoid splitting into a new chat
+                if self.activeSessionId == nil, let first = mapped.first {
+                    self.activeSessionId = first.id
+                }
                 self.saveCachedSessions()
             }
         } catch {
