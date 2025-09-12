@@ -167,8 +167,8 @@ struct SlideOutSidebarView: View {
                     }
                 }
 
-                // Sessions Section (expandable list of sessions)
-                SectionHeader(title: "Sessions", isExpanded: viewModel.isChatsExpanded) {
+                // Chats Section (expandable list of sessions)
+                SectionHeader(title: "Chats", isExpanded: viewModel.isChatsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.isChatsExpanded.toggle()
                     }
@@ -177,7 +177,15 @@ struct SlideOutSidebarView: View {
                 if viewModel.isChatsExpanded {
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            if !viewModel.sessions.isEmpty {
+                            if viewModel.isLoadingSessions {
+                                VStack(spacing: 16) {
+                                    ProgressView()
+                                    Text("Loading sessions…")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 40)
+                            } else if !viewModel.sessions.isEmpty {
                                 ForEach(viewModel.sessions, id: \.id) { session in
                                     Button(action: {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
@@ -208,7 +216,7 @@ struct SlideOutSidebarView: View {
                                         .font(.system(size: 32, weight: .light))
                                         .foregroundColor(.secondary)
 
-                                    Text("No sessions yet")
+                                    Text("No chats yet")
                                         .font(.system(size: 18, weight: .medium))
                                         .foregroundColor(.secondary)
                                 }
@@ -219,12 +227,6 @@ struct SlideOutSidebarView: View {
                     }
                     .refreshable {
                         await viewModel.refreshSessions()
-                    }
-                    .onAppear {
-                        // Clear and reload sessions when sidebar appears to ensure we have latest from backend
-                        Task {
-                            await viewModel.clearAndReloadSessions()
-                        }
                     }
                     .frame(maxHeight: 300) // Limit height to prevent taking up too much space
                     .background(Color.clear)

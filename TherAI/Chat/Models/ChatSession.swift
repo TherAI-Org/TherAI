@@ -1,6 +1,6 @@
 import Foundation
 
-struct ChatSession: Identifiable, Hashable, Equatable {
+struct ChatSession: Identifiable, Hashable, Equatable, Codable {
     let id: UUID
     var title: String?
 
