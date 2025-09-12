@@ -4,6 +4,7 @@ struct SettingsCardView: View {
     let section: SettingsSection
     let onToggle: (Int) -> Void
     let onAction: (Int) -> Void
+    let onPickerSelect: ((Int, String) -> Void)?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -26,15 +27,21 @@ struct SettingsCardView: View {
                         setting: setting,
                         isLast: index == section.settings.count - 1,
                         onToggle: { onToggle(index) },
-                        onAction: { onAction(index) }
+                        onAction: { onAction(index) },
+                        onPickerSelect: { value in onPickerSelect?(index, value) }
                     )
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(Color(.systemBackground))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             
             // Section Footer (if needed)
             if shouldShowFooter() {
@@ -66,7 +73,7 @@ struct SettingsCardView: View {
     private func getFooterText() -> String {
         switch section.title {
         case "Privacy & Data":
-            return "Help improve TherAI by automatically sending crash reports when the app encounters issues."
+            return "Clearing chat history will also reset relationship insights after the app refreshes."
         case "About":
             return "TherAI helps couples strengthen their relationships through AI-powered insights and communication tools."
         default:
@@ -87,7 +94,8 @@ struct SettingsCardView: View {
             ]
         ),
         onToggle: { _ in },
-        onAction: { _ in }
+        onAction: { _ in },
+        onPickerSelect: { _, _ in }
     )
     .padding(20)
 }
