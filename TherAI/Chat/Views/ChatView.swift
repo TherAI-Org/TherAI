@@ -49,24 +49,34 @@ struct ChatView: View {
             ///////////
             // Content based on selected mode
             if selectedMode == .personal {
-                // Personal mode - show chat messages
-                MessagesListView(messages: viewModel.messages)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Personal mode - show chat messages or empty state prompt
+                if viewModel.messages.isEmpty {
+                    PersonalEmptyStateView(prompt: viewModel.emptyPrompt)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    MessagesListView(messages: viewModel.messages)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else {
-                // Dialogue mode - show dialogue messages
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(dialogueViewModel.messages) { message in
-                            DialogueMessageView(
-                                message: message,
-                                currentUserId: UUID(uuidString: AuthService.shared.currentUser?.id.uuidString ?? "")
-                            )
+                // Dialogue mode - show empty state or dialogue messages
+                if dialogueViewModel.messages.isEmpty {
+                    DialogueEmptyStateView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(dialogueViewModel.messages) { message in
+                                DialogueMessageView(
+                                    message: message,
+                                    currentUserId: UUID(uuidString: AuthService.shared.currentUser?.id.uuidString ?? "")
+                                )
+                            }
                         }
                     }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollIndicators(.hidden)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollIndicators(.hidden)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
             // Input area - only show for personal mode
@@ -113,6 +123,10 @@ struct ChatView: View {
             // Keep swipe state and picker mode in sync on appear
             if sidebarViewModel.isDialogueOpen {
                 selectedMode = .dialogue
+            }
+            // Auto-focus input on first appear when in Personal mode
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                if selectedMode == .personal { isInputFocused = true }
             }
         }
         .onChange(of: sidebarViewModel.dragOffset) { _, newValue in
@@ -162,6 +176,8 @@ struct ChatView: View {
         .onChange(of: sidebarViewModel.isDialogueOpen) { _, newValue in
             // Swiping left/right toggles this flag; mirror it to the picker mode
             if newValue {
+                // Dismiss keyboard immediately when entering dialogue
+                withAnimation(nil) { isInputFocused = false }
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
                     if selectedMode != .dialogue { selectedMode = .dialogue }
                 }
@@ -175,8 +191,10 @@ struct ChatView: View {
                 }
             }
         }
-        .onChange(of: selectedMode) { _, newMode in
+        .onChange(of: selectedMode) { oldMode, newMode in
             if newMode == .dialogue {
+                // Ensure keyboard hides instantly when switching modes via picker/programmatically
+                withAnimation(nil) { isInputFocused = false }
                 Task {
                     // Always use the currently active personal session to scope dialogue
                     if let sid = sidebarViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
@@ -190,6 +208,14 @@ struct ChatView: View {
                     Task { await viewModel.loadHistory() }
                 }
                 if sidebarViewModel.isDialogueOpen { sidebarViewModel.closeDialogue() }
+                // Only auto-focus if we did not just come from Dialogue mode
+                if oldMode != .dialogue {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        isInputFocused = true
+                    }
+                } else {
+                    withAnimation(nil) { isInputFocused = false }
+                }
             }
         }
     }
