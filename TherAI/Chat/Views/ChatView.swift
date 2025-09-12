@@ -30,7 +30,7 @@ struct ChatView: View {
 
                 Spacer()
 
-                Text("Chat")
+                Text("Session")
                     .font(.title2)
                     .fontWeight(.semibold)
 
@@ -57,7 +57,7 @@ struct ChatView: View {
                     if wasNew {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                             if let sid = viewModel.sessionId {
-                                let newSession = ChatSession(id: sid, title: "Chat")
+                                let newSession = ChatSession(id: sid, title: "Session")
                                 if !sidebarViewModel.sessions.contains(newSession) {
                                     sidebarViewModel.sessions.insert(newSession, at: 0)
                                 }
