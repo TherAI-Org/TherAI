@@ -1,5 +1,8 @@
 import uuid
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import iterate_in_threadpool
+import json
 
 from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
 from .Agents.personal import PersonalAgent
@@ -108,6 +111,161 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
         )
     except Exception as e:
         raise HTTPException(status_code = 500, detail = f"Error processing message: {str(e)}")
+
+
+# Stream assistant response as Server-Sent Events (SSE)
+@app.post("/chat/sessions/message/stream")
+async def chat_message_stream(request: ChatRequest, current_user: dict = Depends(get_current_user)):
+    try:
+        try:
+            user_uuid = uuid.UUID(current_user.get("sub"))
+        except Exception:
+            raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+        # Determine session id: if provided, verify ownership; else create one
+        if request.session_id is not None:
+            try:
+                await assert_session_owned_by_user(user_id=user_uuid, session_id=request.session_id)
+                session_uuid = request.session_id
+            except PermissionError:
+                raise HTTPException(status_code=403, detail="Forbidden: invalid session")
+        else:
+            session_row = await create_session(user_id=user_uuid, title=None)
+            session_uuid = uuid.UUID(session_row["id"])
+
+        # Persist user message immediately
+        await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)
+
+        # Convert chat history to the format expected by the chat agent
+        chat_history_for_agent = None
+        if request.chat_history:
+            chat_history_for_agent = [
+                {"role": msg.role, "content": msg.content}
+                for msg in request.chat_history
+            ]
+
+        # AUTO-ENHANCED CONTEXT
+        dialogue_context = None
+        partner_context = None
+        try:
+            linked_session = await get_linked_session_by_user(user_id=user_uuid)
+            if linked_session:
+                from .Database.link_repository import get_link_status_for_user
+                linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+                if linked and relationship_id:
+                    dialogue_context = await get_dialogue_history_for_context(user_id=user_uuid)
+                    partner_personal_session_id = await get_partner_personal_session(
+                        user_id=user_uuid,
+                        relationship_id=relationship_id
+                    )
+                    if partner_personal_session_id:
+                        from .Database.link_repository import get_partner_user_id
+                        partner_user_id = await get_partner_user_id(user_id=user_uuid)
+                        if partner_user_id:
+                            partner_messages = await list_messages_for_session(
+                                user_id=partner_user_id,
+                                session_id=partner_personal_session_id,
+                                limit=50
+                            )
+                            partner_context = partner_messages
+        except Exception as e:
+            print(f"Context retrieval warning (stream): {e}")
+
+        def iter_sse():
+            # Anti-buffering prelude (2KB of comments) to force flush through some proxies/CDNs
+            yield (":" + " " * 2048 + "\n\n").encode()
+            # Send session id to client first so UI can bind to it
+            sess_payload = json.dumps({"session_id": str(session_uuid)})
+            yield f"event: session\ndata: {sess_payload}\n\n".encode()
+
+            full_text_parts = []
+            try:
+                print(f"[SSE] /chat stream start session_id={session_uuid}")
+                input_messages = [{"role": "system", "content": personal_agent.system_prompt}] if hasattr(personal_agent, "system_prompt") else []
+                if chat_history_for_agent:
+                    for msg in chat_history_for_agent:
+                        role = "user" if msg.get("role") == "user" else "assistant"
+                        input_messages.append({"role": role, "content": msg.get("content", "")})
+                if dialogue_context:
+                    dialogue_text = "DIALOGUE CONTEXT (Shared conversations with partner):\n"
+                    for msg in dialogue_context:
+                        sender = "Partner" if msg.get("message_type") == "request" else "AI Mediator"
+                        dialogue_text += f"{sender}: {msg.get('content', '')}\n"
+                    input_messages.append({"role": "system", "content": dialogue_text.strip()})
+                if partner_context:
+                    partner_text = "PARTNER CONTEXT (Partner's recent personal thoughts):\n"
+                    for msg in partner_context:
+                        role = "Partner" if msg.get("role") == "user" else "AI Assistant to Partner"
+                        partner_text += f"{role}: {msg.get('content', '')}\n"
+                    input_messages.append({"role": "system", "content": partner_text.strip()})
+                input_messages.append({"role": "user", "content": request.message})
+
+                with personal_agent.client.responses.stream(model=personal_agent.model, input=input_messages) as stream:  # type: ignore[attr-defined]
+                    used_iterator = False
+                    try:
+                        for delta in stream.text_deltas:  # type: ignore[attr-defined]
+                            used_iterator = True
+                            try:
+                                if delta:
+                                    full_text_parts.append(delta)
+                                    yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
+                            except Exception:
+                                continue
+                    except Exception:
+                        # Fallback to raw event loop if text_deltas isn't available
+                        for event in stream:
+                            try:
+                                ev_type = getattr(event, "type", "")
+                                if ev_type.endswith("output_text.delta"):
+                                    delta = getattr(event, "delta", "") or ""
+                                    if delta:
+                                        full_text_parts.append(delta)
+                                        yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
+                                elif ev_type.endswith("error"):
+                                    err = getattr(event, "error", None)
+                                    if err:
+                                        yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
+                            except Exception:
+                                continue
+
+                    final = stream.get_final_response()
+                    final_text = getattr(final, "output_text", None) or "".join(full_text_parts)
+                    print(f"[SSE] /chat stream completed tokens={len(full_text_parts)} final_len={len(final_text)}")
+
+                # If no tokens were sent during streaming, emit the final text now so clients show something
+                if not full_text_parts and final_text:
+                    yield f"event: token\ndata: {json.dumps(final_text)}\n\n".encode()
+
+                # Persist assistant message at the end
+                try:
+                    import asyncio
+                    asyncio.run(save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = final_text))
+                    asyncio.run(touch_session(session_id=session_uuid))
+                except Exception as e:
+                    warn_msg = json.dumps(f"Failed to save message: {e}")
+                    yield f"event: warn\ndata: {warn_msg}\n\n".encode()
+
+                yield b"event: done\ndata: {}\n\n"
+                print(f"[SSE] /chat stream done sent for session_id={session_uuid}")
+            except Exception as e:
+                print(f"[SSE] /chat stream error: {e}")
+                yield f"event: error\ndata: {json.dumps(str(e))}\n\n".encode()
+
+        return StreamingResponse(
+            iterate_in_threadpool(iter_sse()),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                "Content-Encoding": "identity",
+                "Content-Type": "text/event-stream; charset=utf-8",
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code = 500, detail = f"Error processing stream: {str(e)}")
 
 # Get messages for a specific session owned by the current user
 @app.get("/chat/sessions/{session_id}/messages", response_model = MessagesResponse)

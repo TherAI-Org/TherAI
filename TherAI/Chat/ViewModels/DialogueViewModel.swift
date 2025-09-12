@@ -104,40 +104,87 @@ class DialogueViewModel: ObservableObject {
             }
 
             let request = DialogueRequestBody(
-                message: "", // Not used in current implementation
+                message: "",
                 sessionId: sessionId,
                 chatHistory: chatHistory
             )
 
-            // This will trigger auto-linking on the backend
-            let result = try await backendService.createDialogueRequest(request, accessToken: accessToken)
-            print("[Dialogue] createDialogueRequest success: requestId=\(result.requestId) dialogueSessionId=\(result.dialogueSessionId)")
+            var accumulated = ""
+            var currentDialogueSessionId: UUID? = nil
+            var placeholderIndex: Int? = nil
 
-            // Reload dialogue messages to show the new message
+            let stream = backendService.streamDialogueRequest(request, accessToken: accessToken)
+            for await event in stream {
+                switch event {
+                case .dialogueSession(let did):
+                    currentDialogueSessionId = did
+                case .token(let token):
+                    accumulated += token
+                    // Create placeholder on first token
+                    if placeholderIndex == nil {
+                        let userId = AuthService.shared.currentUser?.id ?? UUID()
+                        let formatter = ISO8601DateFormatter()
+                        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                        let createdAt = formatter.string(from: Date())
+
+                        let placeholder = DialogueMessage(
+                            id: UUID(),
+                            dialogueSessionId: currentDialogueSessionId ?? sessionId,
+                            requestId: nil,
+                            content: "",
+                            messageType: "request",
+                            senderUserId: userId,
+                            createdAt: createdAt
+                        )
+                        self.messages.append(placeholder)
+                        placeholderIndex = self.messages.count - 1
+                    }
+                    if let idx = placeholderIndex, idx < self.messages.count {
+                        let existing = self.messages[idx]
+                        let updated = DialogueMessage(
+                            id: existing.id,
+                            dialogueSessionId: existing.dialogueSessionId,
+                            requestId: existing.requestId,
+                            content: accumulated,
+                            messageType: existing.messageType,
+                            senderUserId: existing.senderUserId,
+                            createdAt: existing.createdAt
+                        )
+                        var newMessages = self.messages
+                        newMessages[idx] = updated
+                        self.messages = newMessages
+                    }
+                case .requestId(let rid):
+                    if let idx = placeholderIndex, idx < self.messages.count {
+                        let existing = self.messages[idx]
+                        let updated = DialogueMessage(
+                            id: existing.id,
+                            dialogueSessionId: existing.dialogueSessionId,
+                            requestId: rid,
+                            content: existing.content,
+                            messageType: existing.messageType,
+                            senderUserId: existing.senderUserId,
+                            createdAt: existing.createdAt
+                        )
+                        var newMessages = self.messages
+                        newMessages[idx] = updated
+                        self.messages = newMessages
+                    }
+                case .done:
+                    isLoading = false
+                case .error(let msg):
+                    errorMessage = msg
+                    isLoading = false
+                default:
+                    break
+                }
+            }
+
+            // Reconcile with server state at the end
             await loadDialogueMessages(sourceSessionId: sessionId)
 
         } catch {
-            print("[Dialogue] createDialogueRequest failed: \(error.localizedDescription)")
-
-            // Handle specific error cases
-            if let nsError = error as NSError? {
-                if nsError.domain == "Backend" && nsError.code == 400 {
-                    // This is a 400 error from the backend
-                    if let errorMessage = nsError.userInfo[NSLocalizedDescriptionKey] as? String {
-                        if errorMessage.contains("A dialogue request is already pending") {
-                            self.errorMessage = "A dialogue request is already pending for this relationship. Please wait for your partner to respond."
-                        } else {
-                            self.errorMessage = "Failed to send to partner: \(errorMessage)"
-                        }
-                    } else {
-                        self.errorMessage = "Failed to send to partner: \(error.localizedDescription)"
-                    }
-                } else {
-                    self.errorMessage = "Failed to send to partner: \(error.localizedDescription)"
-                }
-            } else {
-                self.errorMessage = "Failed to send to partner: \(error.localizedDescription)"
-            }
+            self.errorMessage = "Failed to send to partner: \(error.localizedDescription)"
         }
 
         isLoading = false

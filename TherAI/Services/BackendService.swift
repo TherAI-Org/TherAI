@@ -27,6 +27,7 @@ struct BackendService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        // Do not advertise SSE for the non-streaming endpoint
 
         let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory)
         request.httpBody = try jsonEncoder.encode(payload)
@@ -51,6 +52,47 @@ struct BackendService {
             throw NSError(domain: "Backend", code: -3, userInfo: [NSLocalizedDescriptionKey: "Request failed"])
         }
         return (decoded.response, sid)
+    }
+
+    // MARK: - Streaming (SSE)
+
+    enum StreamEvent: Equatable {
+        case session(UUID)
+        case dialogueSession(UUID)
+        case requestId(UUID)
+        case token(String)
+        case done
+        case error(String)
+    }
+
+    func streamChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String) -> AsyncStream<StreamEvent> {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("chat")
+            .appendingPathComponent("sessions")
+            .appendingPathComponent("message")
+            .appendingPathComponent("stream"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory)
+        request.httpBody = try? jsonEncoder.encode(payload)
+
+        return SSEService.shared.stream(request: request)
+    }
+
+    func streamDialogueRequest(_ requestBody: DialogueRequestBody, accessToken: String) -> AsyncStream<StreamEvent> {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("dialogue")
+            .appendingPathComponent("request")
+            .appendingPathComponent("stream"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.httpBody = try? jsonEncoder.encode(requestBody)
+
+        return SSEService.shared.stream(request: request)
     }
 
     func fetchMessages(sessionId: UUID, accessToken: String) async throws -> [ChatMessageDTO] {

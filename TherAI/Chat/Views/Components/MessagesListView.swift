@@ -10,6 +10,7 @@ struct MessagesListView: View {
                 LazyVStack(spacing: 12) {
                     ForEach(messages) { message in
                         MessageBubble(message: message)
+                            .id(message.id)
                     }
                 }
                 .padding()
@@ -20,6 +21,15 @@ struct MessagesListView: View {
                 guard autoScrollEnabled else { return }
                 if let lastMessage = messages.last {
                     withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    }
+                }
+            }
+            // Also scroll when the last message's content changes during streaming
+            .onChange(of: messages.last?.content ?? "") { _, _ in
+                guard autoScrollEnabled else { return }
+                if let lastMessage = messages.last {
+                    withAnimation(.linear(duration: 0.15)) {
                         proxy.scrollTo(lastMessage.id, anchor: .bottom)
                     }
                 }
