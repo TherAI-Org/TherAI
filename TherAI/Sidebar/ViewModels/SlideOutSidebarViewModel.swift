@@ -100,6 +100,11 @@ class SlideOutSidebarViewModel: ObservableObject {
                 print("📱 Updated local sessions list with \(mapped.count) sessions")
             }
         } catch {
+            // Suppress "cancelled" (-999) which occurs when a previous in-flight request is cancelled by a new one or view lifecycle
+            if let nsError = error as NSError?, nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                print("⏭️ Load sessions cancelled (expected during rapid refresh) — ignoring")
+                return
+            }
             print("❌ Failed to load sessions: \(error)")
         }
     }
@@ -120,97 +125,25 @@ class SlideOutSidebarViewModel: ObservableObject {
     
     // MARK: - Delete session
     func deleteSession(_ sessionId: UUID) async {
-        print("🗑️ Starting delete for session: \(sessionId)")
-        
-        // Remove from local sessions list immediately
-        await MainActor.run {
-            let beforeCount = self.sessions.count
-            self.sessions.removeAll { $0.id == sessionId }
-            let afterCount = self.sessions.count
-            print("📱 Removed session from local list: \(beforeCount) -> \(afterCount)")
-            
-            // If we deleted the active session, clear it
-            if self.activeSessionId == sessionId {
-                print("🔄 Clearing active session")
-                self.activeSessionId = nil
-                self.chatViewKey = UUID()
-            }
-        }
-        
-        // Try to delete from backend (but don't fail if it doesn't work)
-        do {
-            let session = try await AuthService.shared.client.auth.session
-            let accessToken = session.accessToken
-            print("🔑 Got access token, calling backend...")
-            
-            try await BackendService.shared.deleteSession(sessionId: sessionId, accessToken: accessToken)
-            print("✅ Backend deletion successful")
-        } catch {
-            // Check if it's a 404 error (session not found on server)
-            if let nsError = error as NSError?, nsError.code == 404 {
-                print("ℹ️ Session not found on server (already deleted or never existed): \(sessionId)")
-            } else {
-                print("⚠️ Backend deletion failed (but local deletion succeeded): \(error)")
-            }
-            // Don't show error to user since local deletion worked
-        }
+        print("🗑️ Delete session is disabled for now. Ignoring request for: \(sessionId)")
     }
     
     // MARK: - Rename session
     func renameSession(_ sessionId: UUID, newTitle: String) async {
-        print("✏️ Starting rename for session: \(sessionId) to '\(newTitle)'")
-        
-        // Update local sessions list immediately
-        await MainActor.run {
-            if let index = self.sessions.firstIndex(where: { $0.id == sessionId }) {
-                // If newTitle is empty, set to nil so UI shows "Session"
-                self.sessions[index].title = newTitle.isEmpty ? nil : newTitle
-                print("📱 Updated local session title: '\(newTitle.isEmpty ? "nil (will show 'Session')" : newTitle)'")
-            }
-        }
-        
-        // Try to rename on backend (but don't fail if it doesn't work)
-        do {
-            let session = try await AuthService.shared.client.auth.session
-            let accessToken = session.accessToken
-            print("🔑 Got access token, calling backend...")
-            
-            try await BackendService.shared.renameSession(sessionId: sessionId, newTitle: newTitle, accessToken: accessToken)
-            print("✅ Backend rename successful")
-        } catch {
-            print("⚠️ Backend rename failed (but local rename succeeded): \(error)")
-            // Don't show error to user since local rename worked
-        }
+        print("✏️ Rename session is disabled for now. Ignoring request for: \(sessionId) -> '\(newTitle)'")
     }
     
     // MARK: - Rename dialog helpers
     func startRename(sessionId: UUID, currentTitle: String?) {
-        renameSessionId = sessionId
-        renameText = currentTitle ?? ""
-        showRenameDialog = true
+        print("✏️ Rename is disabled for now. Start ignored for: \(sessionId)")
     }
     
     func confirmRename() {
-        guard let sessionId = renameSessionId else {
-            return
-        }
-        
-        let trimmedTitle = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let finalTitle = trimmedTitle.isEmpty ? nil : trimmedTitle
-        
-        Task {
-            await renameSession(sessionId, newTitle: finalTitle ?? "")
-        }
-        
-        showRenameDialog = false
-        renameSessionId = nil
-        renameText = ""
+        print("✏️ Rename is disabled for now. Confirm ignored.")
     }
     
     func cancelRename() {
-        showRenameDialog = false
-        renameSessionId = nil
-        renameText = ""
+        print("✏️ Rename is disabled for now. Cancel ignored.")
     }
 
     func openSidebar() {
