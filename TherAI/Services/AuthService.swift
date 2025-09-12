@@ -106,4 +106,13 @@ class AuthService: ObservableObject {
             print("Sign out error: \(error)")
         }
     }
+
+    func getAccessToken() async -> String? {
+        do {
+            let session = try await client.auth.session
+            return session.accessToken
+        } catch {
+            return nil
+        }
+    }
 }
