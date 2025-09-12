@@ -2,19 +2,23 @@ import uuid
 from fastapi import FastAPI, HTTPException, Depends
 
 from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
-from .Agents.chat import ChatAgent
+from .Agents.personal import PersonalAgent
 from .auth import get_current_user
-from .Database.chat_repository import save_message, list_messages_for_session
+from .Database.chat_repository import save_message, list_messages_for_session, get_partner_chat_history
+from .Database.dialogue_repository import get_dialogue_history_for_context
 from .Database.session_repository import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user
+from .Database.linked_sessions_repository import get_linked_session_by_user, get_partner_personal_session
 from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
+from .Routers.dialogue_router import router as dialogue_router
 
 app = FastAPI()
 
 app.include_router(aasa_router)
 app.include_router(link_router)
+app.include_router(dialogue_router)
 
-chat_agent = ChatAgent()
+personal_agent = PersonalAgent()
 
 # Send a message and receive an assistant response, creating a session if needed
 @app.post("/chat/sessions/message", response_model = ChatResponse)
@@ -46,7 +50,52 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
                 for msg in request.chat_history
             ]
 
-        response = chat_agent.generate_response(request.message, chat_history_for_agent)
+        # AUTO-ENHANCED CONTEXT: Get linked session context automatically
+        dialogue_context = None
+        partner_context = None
+
+        try:
+            # Check if user has a linked session (bonded relationship)
+            linked_session = await get_linked_session_by_user(user_id=user_uuid)
+
+            if linked_session:
+                # User is in a bonded relationship - get enhanced context
+                from .Database.link_repository import get_link_status_for_user
+                linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+
+                if linked and relationship_id:
+                    # Get dialogue history for relationship context
+                    dialogue_context = await get_dialogue_history_for_context(user_id=user_uuid)
+
+                    # Get partner's personal chat history from their bonded session
+                    partner_personal_session_id = await get_partner_personal_session(
+                        user_id=user_uuid,
+                        relationship_id=relationship_id
+                    )
+
+                    if partner_personal_session_id:
+                        # Get partner's messages from their bonded personal session
+                        # We need to get partner's user_id first
+                        from .Database.link_repository import get_partner_user_id
+                        partner_user_id = await get_partner_user_id(user_id=user_uuid)
+
+                        if partner_user_id:
+                            partner_messages = await list_messages_for_session(
+                                user_id=partner_user_id,
+                                session_id=partner_personal_session_id,
+                                limit=50
+                            )
+                            partner_context = partner_messages
+        except Exception as e:
+            # If context retrieval fails, continue without it (user may not be linked)
+            print(f"Context retrieval warning: {e}")
+
+        response = personal_agent.generate_response(
+            request.message,
+            chat_history_for_agent,
+            dialogue_context = dialogue_context,
+            partner_context = partner_context
+        )
 
         # Persist assistant message
         await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = response)
