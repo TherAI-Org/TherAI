@@ -27,7 +27,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     return CGFloat(value)
                 } else {
                     let dragProgress = Double(viewModel.dragOffset) / max(widthD, 1.0)
-                    let value = min(dragProgress * 20.0, 10.0)
+                    let value = min(abs(dragProgress) * 20.0, 10.0)
                     return CGFloat(value)
                 }
             }()
@@ -435,6 +435,7 @@ private struct SettingsOverlayView: View {
             }
         }
         .padding(.bottom, 12)
+        .background(Color(.systemBackground).ignoresSafeArea())
         .onAppear {
             showSubtitleCapsule = false
             showCards = false
@@ -448,3 +449,6 @@ private struct SettingsOverlayView: View {
         .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
     }
 }
+
+// MARK: - Dialogue Panel View (right-side)
+// Dialogue panel view removed; ChatView already provides dialogue mode
