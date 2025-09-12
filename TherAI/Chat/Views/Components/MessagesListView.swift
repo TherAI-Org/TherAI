@@ -14,6 +14,8 @@ struct MessagesListView: View {
                 }
                 .padding()
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
             .onChange(of: messages.count) {
                 guard autoScrollEnabled else { return }
                 if let lastMessage = messages.last {

@@ -90,6 +90,11 @@ struct SlideOutSidebarContainerView<Content: View>: View {
             viewModel.startObserving()
             viewModel.dragOffset = 0
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await viewModel.refreshSessions() }
+            }
+        }
         // Deprecated in favor of in-place overlay
         .sheet(isPresented: $viewModel.showSettingsSheet) {
             SettingsView()

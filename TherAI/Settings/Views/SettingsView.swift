@@ -58,6 +58,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 20)
             }
+            .scrollIndicators(.hidden)
             .background(Color(.systemGroupedBackground))
             .navigationDestination(item: $viewModel.destination) { destination in
                 if destination == .link {
