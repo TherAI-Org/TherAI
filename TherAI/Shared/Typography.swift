@@ -3,6 +3,7 @@ import SwiftUI
 enum Typography {
     // Display and titles
     static let display = Font.system(size: 34, weight: .bold, design: .rounded)
+    static let displaySoft = Font.system(size: 32, weight: .semibold, design: .rounded)
     static let largeTitle = Font.system(size: 28, weight: .bold, design: .rounded)
     static let title = Font.system(size: 22, weight: .semibold)
     static let title2 = Font.system(size: 20, weight: .semibold)
