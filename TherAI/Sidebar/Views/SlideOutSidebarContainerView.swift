@@ -36,9 +36,9 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .offset(x: viewModel.isOpen ? width + viewModel.dragOffset : viewModel.dragOffset)
-                    .blur(radius: blurIntensity)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0), value: viewModel.isOpen)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7, blendDuration: 0), value: viewModel.dragOffset)
+                    .blur(radius: min(blurIntensity, 6))
+                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: viewModel.isOpen)
+                    .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: viewModel.dragOffset)
 
                 // Slide-out Sidebar - slides in from left to fully replace main content
                 SlideOutSidebarView(
@@ -47,9 +47,9 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     profileNamespace: profileNamespace
                 )
                 .offset(x: viewModel.isOpen ? viewModel.dragOffset : -width + viewModel.dragOffset)
-                .blur(radius: (viewModel.showProfileOverlay || viewModel.showSettingsOverlay) ? 12 : 0)
-                .animation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0), value: viewModel.isOpen)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7, blendDuration: 0), value: viewModel.dragOffset)
+                .blur(radius: (viewModel.showProfileOverlay || viewModel.showSettingsOverlay) ? 8 : 0)
+                .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: viewModel.isOpen)
+                .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: viewModel.dragOffset)
 
                 // Profile Overlay on top of slide-out menu
                 if viewModel.showProfileOverlay {
@@ -59,7 +59,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     )
                     // Keep a single animation driver to avoid freeze during matchedGeometry
                     .transition(.opacity)
-                    .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: viewModel.showProfileOverlay)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: viewModel.showProfileOverlay)
                 }
 
                 // Settings Overlay on top of slide-out menu
@@ -78,7 +78,9 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 DragGesture()
                     .onChanged { value in
                         guard !viewModel.showProfileOverlay && !viewModel.showSettingsOverlay else { return }
-                        viewModel.handleDragGesture(value.translation.width, width: width)
+                        // Clamp to reduce layout thrash on rapid drags
+                        let clamped = max(min(value.translation.width, width), -width)
+                        viewModel.handleDragGesture(clamped, width: width)
                     }
                     .onEnded { value in
                         guard !viewModel.showProfileOverlay && !viewModel.showSettingsOverlay else { return }
@@ -208,7 +210,7 @@ private struct ProfileOverlayView: View {
                                 .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
                         }
                         .padding(.top, -24)
-                        .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
+                        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 4)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
 
                         // Together since capsule near avatars (appears with cards)
@@ -278,9 +280,11 @@ private struct ProfileOverlayView: View {
             .onAppear {
                 showTogetherCapsule = false
                 showCards = false
-                // Shorter reveal so avatars lead but content follows quickly
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                    withAnimation(.spring(response: 0.38, dampingFraction: 0.92)) {
+                // Reveal content only after avatar matchedGeometry animation settles
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    withAnimation(
+                        .spring(response: 0.28, dampingFraction: 0.94)
+                    ) {
                         showTogetherCapsule = true
                         showCards = true
                     }
@@ -304,7 +308,7 @@ private struct ProfileOverlayView: View {
                 : nil
             )
         }
-        .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
+        .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: isPresented)
     }
 }
 
