@@ -166,7 +166,6 @@ struct ChatView: View {
                     withAnimation(nil) { isInputFocused = false }
                 }
             }
-            if !sidebarViewModel.isDialogueOpen { sidebarViewModel.openDialogue() }
         }
     }
 

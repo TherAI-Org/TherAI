@@ -146,7 +146,8 @@ struct SlideOutSidebarView: View {
                             Spacer()
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.top, 2)
+                        .padding(.bottom, 8)
                     } else {
                         VStack(spacing: 8) {
                             ForEach(viewModel.pendingRequests) { request in
