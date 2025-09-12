@@ -229,3 +229,48 @@ async def get_link_status_for_user(*, user_id: uuid.UUID) -> tuple[bool, Optiona
         return False, None
     return True, uuid.UUID(relationship["id"])  # type: ignore[index]
 
+
+# Get partner's user_id from relationship
+async def get_partner_user_id(*, user_id: uuid.UUID) -> Optional[uuid.UUID]:
+    """Get the partner's user_id for a given user"""
+    user_id_str = str(user_id)
+
+    def _select_rel_by_partner_a():
+        return (
+            supabase
+            .table(RELATIONSHIPS_TABLE)
+            .select("partner_a_user_id, partner_b_user_id")
+            .eq("partner_a_user_id", user_id_str)
+            .limit(1)
+            .execute()
+        )
+    def _select_rel_by_partner_b():
+        return (
+            supabase
+            .table(RELATIONSHIPS_TABLE)
+            .select("partner_a_user_id, partner_b_user_id")
+            .eq("partner_b_user_id", user_id_str)
+            .limit(1)
+            .execute()
+        )
+
+    rel_res_a = await run_in_threadpool(_select_rel_by_partner_a)
+    if getattr(rel_res_a, "error", None):
+        raise RuntimeError(f"Supabase select relationship failed: {rel_res_a.error}")
+
+    if rel_res_a.data:
+        relationship = rel_res_a.data[0]
+        # User is partner_a, so return partner_b
+        return uuid.UUID(relationship["partner_b_user_id"])
+
+    rel_res_b = await run_in_threadpool(_select_rel_by_partner_b)
+    if getattr(rel_res_b, "error", None):
+        raise RuntimeError(f"Supabase select relationship failed: {rel_res_b.error}")
+
+    if rel_res_b.data:
+        relationship = rel_res_b.data[0]
+        # User is partner_b, so return partner_a
+        return uuid.UUID(relationship["partner_a_user_id"])
+
+    return None
+
