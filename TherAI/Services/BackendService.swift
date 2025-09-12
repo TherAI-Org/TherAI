@@ -15,6 +15,7 @@ struct BackendService {
             fatalError("Missing or invalid BACKEND_BASE_URL in Secrets.plist")
         }
         self.baseURL = url
+        print("🌐 BackendService: Initialized with base URL: \(url)")
     }
 
     func sendChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String) async throws -> (response: String, sessionId: UUID) {
@@ -354,6 +355,7 @@ extension BackendService {
 
     func renameSession(sessionId: UUID, newTitle: String, accessToken: String) async throws {
         print("🌐 BackendService: Renaming session \(sessionId) to '\(newTitle)'")
+        print("🌐 BackendService: Base URL = \(baseURL)")
         
         let url = baseURL
             .appendingPathComponent("chat")
@@ -361,7 +363,7 @@ extension BackendService {
             .appendingPathComponent(sessionId.uuidString)
             .appendingPathComponent("rename")
         
-        print("🌐 BackendService: URL = \(url)")
+        print("🌐 BackendService: Final URL = \(url)")
         
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
