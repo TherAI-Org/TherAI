@@ -142,6 +142,12 @@ class ChatViewModel: ObservableObject {
                     }
                 }
 
+                // Safety: ensure loading state is cleared if stream ends without a .done event
+                self.fallbackTask?.cancel()
+                await MainActor.run {
+                    self.isLoading = false
+                }
+
                 if wasNewSession, let sid = self.sessionId {
                     NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
                         "sessionId": sid,
