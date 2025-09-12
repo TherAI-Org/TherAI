@@ -206,7 +206,13 @@ struct SlideOutSidebarView: View {
                                         .padding(.vertical, 8)
                                     }
                                     .buttonStyle(PlainButtonStyle())
-                                    // Context menu removed (rename/delete disabled)
+                                    .contextMenu {
+                                        Button(role: .destructive) {
+                                            Task { await viewModel.deleteSession(session.id) }
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             } else {
                                 // Minimalistic empty state

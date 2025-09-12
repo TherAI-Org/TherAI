@@ -151,6 +151,31 @@ struct BackendService {
         return decoded.sessions
     }
 
+    // Delete a chat session
+    func deleteSession(sessionId: UUID, accessToken: String) async throws {
+        let url = baseURL
+            .appendingPathComponent("chat")
+            .appendingPathComponent("sessions")
+            .appendingPathComponent(sessionId.uuidString)
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (_, response): (Data, URLResponse)
+        do {
+            (_, response) = try await urlSession.data(for: request)
+        } catch {
+            throw error
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: "Failed to delete session"])
+        }
+    }
+
     func createEmptySession(accessToken: String) async throws -> ChatSessionDTO {
         let url = baseURL
             .appendingPathComponent("chat")
