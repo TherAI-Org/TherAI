@@ -79,6 +79,7 @@ struct SettingsView: View {
             }
         }
         .background(Color.white.ignoresSafeArea())
+        .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
     }
 }
 
