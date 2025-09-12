@@ -102,6 +102,7 @@ struct ProfileView: View {
             .animation(.easeInOut(duration: 0.3), value: showingAvatarSelection)
             : nil
         )
+        .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
     }
 }
 
