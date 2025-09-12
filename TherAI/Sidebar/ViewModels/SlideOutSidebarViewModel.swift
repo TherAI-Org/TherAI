@@ -13,6 +13,8 @@ class SlideOutSidebarViewModel: ObservableObject {
     @Published var selectedTab: SidebarTab = .chat
     @Published var dragOffset: CGFloat = 0
     @Published var showProfileSheet: Bool = false
+    @Published var showProfileOverlay: Bool = false
+    @Published var showSettingsOverlay: Bool = false
     @Published var showSettingsSheet: Bool = false
     @Published var showLinkSheet: Bool = false
 
@@ -147,8 +149,7 @@ class SlideOutSidebarViewModel: ObservableObject {
     }
 
     func openSidebar() {
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
+        Haptics.impact(.light)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
             isOpen = true
             dragOffset = 0
@@ -156,8 +157,7 @@ class SlideOutSidebarViewModel: ObservableObject {
     }
 
     func closeSidebar() {
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
+        Haptics.impact(.light)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
             isOpen = false
             dragOffset = 0
