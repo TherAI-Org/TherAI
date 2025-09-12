@@ -313,3 +313,22 @@ async def get_sessions(current_user: dict = Depends(get_current_user)):
             for r in rows
         ]
     )
+
+
+# Create an empty personal chat session for the current user
+@app.post("/chat/sessions", response_model = SessionDTO)
+async def create_empty_session(current_user: dict = Depends(get_current_user)):
+    try:
+        user_uuid = uuid.UUID(current_user.get("sub"))
+    except Exception:
+        raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+    try:
+        row = await create_session(user_id=user_uuid, title=None)
+        return SessionDTO(
+            id=uuid.UUID(row["id"]),
+            user_id=user_uuid,
+            title=row.get("title"),
+        )
+    except Exception as e:
+        raise HTTPException(status_code = 500, detail = f"Error creating session: {str(e)}")
