@@ -92,8 +92,16 @@ struct SlideOutSidebarContainerView<Content: View>: View {
             viewModel.dragOffset = 0
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
+            switch newPhase {
+            case .inactive, .background:
+                // Ensure no residual drag offset when app goes to background/recent apps
+                withAnimation(nil) { viewModel.dragOffset = 0 }
+            case .active:
+                // Reset any leftover offset immediately (no animation) and refresh data
+                withAnimation(nil) { viewModel.dragOffset = 0 }
                 Task { await viewModel.refreshSessions() }
+            @unknown default:
+                withAnimation(nil) { viewModel.dragOffset = 0 }
             }
         }
         // Deprecated in favor of in-place overlay
