@@ -240,7 +240,7 @@ struct SlideOutSidebarView: View {
             VStack(spacing: 0) {
                 Button(action: {
                     Haptics.impact(.medium)
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0)) {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
                         viewModel.showProfileOverlay = true
                     }
                 }) {
@@ -307,17 +307,17 @@ struct GrokStyleProfileButton: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 48, height: 48)
+                    .frame(width: 56, height: 56)
                     .overlay(
                         Circle()
                             .stroke(Color.white.opacity(0.8), lineWidth: 2)
                     )
                     .overlay(
                         Text("S")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     )
-                    .offset(x: 20)
+                    .offset(x: 24)
                     .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
                 // User profile circle (in front)
@@ -332,17 +332,17 @@ struct GrokStyleProfileButton: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 48, height: 48)
+                    .frame(width: 56, height: 56)
                     .overlay(
                         Circle()
                             .stroke(Color.white.opacity(0.8), lineWidth: 2)
                     )
                     .overlay(
                         Text("M")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     )
-                    .offset(x: -20)
+                    .offset(x: -24)
                     .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
             }
             Spacer(minLength: 0)
