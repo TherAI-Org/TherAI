@@ -52,6 +52,7 @@ struct SessionsExpandedListView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
             }
+            .scrollIndicators(.hidden)
             .frame(height: 320)
             .clipped()
         }
