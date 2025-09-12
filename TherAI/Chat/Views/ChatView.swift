@@ -100,12 +100,20 @@ struct ChatView: View {
                         }
                     }
                 )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: selectedMode)
             }
         }
         .background(Color(.systemBackground))
         .contentShape(Rectangle())
         .onTapGesture {
             isInputFocused = false
+        }
+        .onAppear {
+            // Keep swipe state and picker mode in sync on appear
+            if sidebarViewModel.isDialogueOpen {
+                selectedMode = .dialogue
+            }
         }
         .onChange(of: sidebarViewModel.dragOffset) { _, newValue in
             if abs(newValue) > 10 {
@@ -120,7 +128,10 @@ struct ChatView: View {
         .onAppear {
             // Set up sidebar callback to switch to dialogue mode
             sidebarViewModel.onSwitchToDialogue = {
-                selectedMode = .dialogue
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                    selectedMode = .dialogue
+                }
+                if !sidebarViewModel.isDialogueOpen { sidebarViewModel.openDialogue() }
             }
 
             // Set up callback to refresh pending requests when dialogue requests are accepted
@@ -148,12 +159,29 @@ struct ChatView: View {
                 }
             }
         }
+        .onChange(of: sidebarViewModel.isDialogueOpen) { _, newValue in
+            // Swiping left/right toggles this flag; mirror it to the picker mode
+            if newValue {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                    if selectedMode != .dialogue { selectedMode = .dialogue }
+                }
+                // Load messages for current active session when entering dialogue
+                Task {
+                    if let sid = sidebarViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
+                }
+            } else {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                    if selectedMode == .dialogue { selectedMode = .personal }
+                }
+            }
+        }
         .onChange(of: selectedMode) { _, newMode in
             if newMode == .dialogue {
                 Task {
                     // Always use the currently active personal session to scope dialogue
                     if let sid = sidebarViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
                 }
+                if !sidebarViewModel.isDialogueOpen { sidebarViewModel.openDialogue() }
             } else if newMode == .personal {
                 // If personal mode is selected while the stored session is the dialogue session,
                 // clear it so sending creates a fresh personal session for this user.
@@ -161,6 +189,7 @@ struct ChatView: View {
                     viewModel.sessionId = nil
                     Task { await viewModel.loadHistory() }
                 }
+                if sidebarViewModel.isDialogueOpen { sidebarViewModel.closeDialogue() }
             }
         }
     }
