@@ -23,17 +23,13 @@ struct InputAreaView: View {
                 .foregroundColor(.primary)
                 .onSubmit { 
                     guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    // Add haptic feedback
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.light)
                     send() 
                 }
                 .focused(isInputFocused)
             
             Button(action: { 
-                // Add haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
+                Haptics.impact(.light)
                 
                 if isLoading {
                     stop()
