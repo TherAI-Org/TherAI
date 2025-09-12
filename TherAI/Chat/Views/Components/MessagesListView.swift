@@ -13,6 +13,8 @@ struct MessagesListView: View {
                 }
                 .padding()
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators(.hidden)
             .onChange(of: messages.count) {
                 if let lastMessage = messages.last {
                     withAnimation(.easeInOut(duration: 0.3)) {
