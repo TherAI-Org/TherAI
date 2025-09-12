@@ -31,8 +31,7 @@ struct ChatView: View {
                 Spacer()
 
                 Text("Session")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                    .font(Typography.title2)
 
                 Spacer()
             }
