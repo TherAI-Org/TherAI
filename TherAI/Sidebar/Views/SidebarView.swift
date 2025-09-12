@@ -47,39 +47,54 @@ struct SlideOutSidebarView: View {
     @Binding var selectedTab: SidebarTab
     @Binding var isOpen: Bool
 
-    @State private var chatsExpansionProgress: CGFloat = 0
-    @State private var chatsExpandedContentHeight: CGFloat = 0
+    let profileNamespace: Namespace.ID
+
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 // Settings button in top left
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.medium)
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.showSettingsSheet = true
+                        viewModel.showSettingsOverlay = true
                     }
                 }) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.26, green: 0.58, blue: 1.00),
+                                        Color(red: 0.63, green: 0.32, blue: 0.98)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 32, height: 32)
+                            .overlay(
+                                Circle().stroke(Color.white.opacity(0.8), lineWidth: 1)
+                            )
+                            .matchedGeometryEffect(id: "settingsEmblem", in: profileNamespace)
+
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .matchedGeometryEffect(id: "settingsGearIcon", in: profileNamespace)
+                    }
                 }
 
                 Spacer()
 
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.medium)
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.startNewChat()
-                        viewModel.isChatsExpanded = true
-                        selectedTab = .chat
                         isOpen = false
                     }
                 }) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 20, weight: .medium))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 22, weight: .medium))
                         .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
             }
@@ -93,6 +108,29 @@ struct SlideOutSidebarView: View {
 
             // Sections
             VStack(spacing: 10) {
+                // New Conversation Button
+                Button(action: {
+                    Haptics.impact(.medium)
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                        viewModel.startNewChat()
+                        viewModel.isChatsExpanded = true
+                        selectedTab = .chat
+                        isOpen = false
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        Text("New Conversation")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(PlainButtonStyle())
                 // Pending Requests Section (always visible)
                 SectionHeader(title: "Pending Requests", isExpanded: viewModel.isNotificationsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
@@ -129,77 +167,67 @@ struct SlideOutSidebarView: View {
                     }
                 }
 
-                // Chats Section (expandable list of sessions)
-                SectionHeader(title: "Chats", isExpanded: viewModel.isChatsExpanded) {
+                // Sessions Section (expandable list of sessions)
+                SectionHeader(title: "Sessions", isExpanded: viewModel.isChatsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.isChatsExpanded.toggle()
                     }
                 }
 
-                if viewModel.isChatsExpanded && !viewModel.sessions.isEmpty {
-                    ZStack(alignment: .top) {
-                        VStack(spacing: 8) {
-                            ForEach(Array(viewModel.sessions.enumerated()), id: \.offset) { index, session in
-                                let count = max(1, viewModel.sessions.count)
-                                let step = 1.0 / CGFloat(count)
-                                let start = CGFloat(index) * step
-                                let rowProgress = max(0, min(1, (chatsExpansionProgress - start) / step))
-
-                                Button(action: {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                                        viewModel.openSession(session.id)
-                                        selectedTab = .chat
-                                        isOpen = false
+                if viewModel.isChatsExpanded {
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            if !viewModel.sessions.isEmpty {
+                                ForEach(viewModel.sessions, id: \.id) { session in
+                                    Button(action: {
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                                            viewModel.openSession(session.id)
+                                            selectedTab = .chat
+                                            isOpen = false
+                                        }
+                                    }) {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "message")
+                                                .font(.system(size: 16, weight: .medium))
+                                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                            Text(session.title ?? "Session")
+                                                .font(.system(size: 16, weight: .regular))
+                                                .foregroundColor(.primary)
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
                                     }
-                                }) {
-                                    HStack(spacing: 12) {
-                                        Image(systemName: "message")
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                        Text(session.title ?? "Chat")
-                                            .font(.system(size: 16, weight: .regular))
-                                            .foregroundColor(.primary)
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
+                                    .buttonStyle(PlainButtonStyle())
+                                    // Context menu removed (rename/delete disabled)
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                .opacity(rowProgress)
-                                .offset(x: 0, y: (1 - rowProgress) * 8)
-                                .animation(.spring(response: 0.25, dampingFraction: 0.85, blendDuration: 0.05), value: rowProgress)
+                            } else {
+                                // Minimalistic empty state
+                                VStack(spacing: 16) {
+                                    Image(systemName: "message")
+                                        .font(.system(size: 32, weight: .light))
+                                        .foregroundColor(.secondary)
+
+                                    Text("No sessions yet")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 40)
                             }
                         }
-                        .background(
-                            GeometryReader { proxy in
-                                Color.clear
-                                    .onAppear {
-                                        let h = proxy.size.height
-                                        if abs(h - chatsExpandedContentHeight) > 0.5 {
-                                            chatsExpandedContentHeight = h
-                                        }
-                                    }
-                                    .onChange(of: viewModel.isChatsExpanded) { _, _ in
-                                        let h = proxy.size.height
-                                        if abs(h - chatsExpandedContentHeight) > 0.5 {
-                                            chatsExpandedContentHeight = h
-                                        }
-                                    }
-                                    .onChange(of: viewModel.sessions) { _, _ in
-                                        let h = proxy.size.height
-                                        if abs(h - chatsExpandedContentHeight) > 0.5 {
-                                            chatsExpandedContentHeight = h
-                                        }
-                                    }
-                            }
-                        )
+                        .padding(.horizontal, 0)
                     }
-                    .frame(height: chatsExpandedContentHeight * chatsExpansionProgress, alignment: .top)
-                    .clipped()
+                    .refreshable {
+                        await viewModel.refreshSessions()
+                    }
+                    .onAppear {
+                        // Clear and reload sessions when sidebar appears to ensure we have latest from backend
+                        Task {
+                            await viewModel.clearAndReloadSessions()
+                        }
+                    }
+                    .frame(maxHeight: 300) // Limit height to prevent taking up too much space
                     .background(Color.clear)
-                } else if viewModel.isChatsExpanded {
-                    // No animation for empty chats list
-                    EmptyView()
                 }
             }
             .padding(.top, 12)
@@ -211,55 +239,23 @@ struct SlideOutSidebarView: View {
             // Grok-style profile button at bottom bottom of screen
             VStack(spacing: 0) {
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.showProfileSheet = true
+                    Haptics.impact(.medium)
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0)) {
+                        viewModel.showProfileOverlay = true
                     }
                 }) {
-                    GrokStyleProfileButton()
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.purple.opacity(0.5),
-                                            Color.blue.opacity(0.45),
-                                            Color.cyan.opacity(0.4)
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    ),
-                                    lineWidth: 1.2
-                                )
-                        )
-                        .shadow(color: Color.purple.opacity(0.25), radius: 20, x: 0, y: 10)
-                        .shadow(color: Color.cyan.opacity(0.2), radius: 10, x: 0, y: 4)
+                    GrokStyleProfileButton(profileNamespace: profileNamespace)
                 }
                 .buttonStyle(PlainButtonStyle())
+                // GPU overlay currently falls back when start frame is unavailable
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 0)
-            .padding(.bottom, 20)
+            .padding(.bottom, 0)
+            .offset(y: 6)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
-        .onAppear {
-            chatsExpansionProgress = viewModel.isChatsExpanded ? 1 : 0
-        }
-        .onChange(of: viewModel.isChatsExpanded) { _, newVal in
-            if newVal {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85, blendDuration: 0.05)) {
-                    chatsExpansionProgress = 1
-                }
-            } else {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.9, blendDuration: 0.05)) {
-                    chatsExpansionProgress = 0
-                }
-            }
-        }
     }
 }
 
@@ -273,7 +269,7 @@ private struct SectionHeader: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.primary)
 
                 Spacer()
@@ -292,15 +288,21 @@ private struct SectionHeader: View {
 
 // MARK: - Grok Style Profile Button
 struct GrokStyleProfileButton: View {
+    let profileNamespace: Namespace.ID
+
     var body: some View {
-        HStack(spacing: 24) {
-            // Two overlapping profile circles (Grok style)
+        HStack {
+            // Align avatars towards left, but not fully flush to edge
+            // Two overlapping profile circles
             ZStack {
                 // Partner profile circle (behind, slightly offset)
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.98, green: 0.45, blue: 0.7), Color(red: 0.85, green: 0.35, blue: 0.6)],
+                            colors: [
+                                Color(red: 0.72, green: 0.37, blue: 0.98),
+                                Color(red: 0.38, green: 0.65, blue: 1.00)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -315,13 +317,17 @@ struct GrokStyleProfileButton: View {
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     )
-                    .offset(x: 20, y: 0)
+                    .offset(x: 20)
+                    .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
                 // User profile circle (in front)
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.25, green: 0.7, blue: 1.0), Color(red: 0.12, green: 0.55, blue: 0.92)],
+                            colors: [
+                                Color(red: 0.26, green: 0.58, blue: 1.00),
+                                Color(red: 0.63, green: 0.32, blue: 0.98)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -336,34 +342,22 @@ struct GrokStyleProfileButton: View {
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     )
-                    .offset(x: -20, y: 0)
+                    .offset(x: -20)
+                    .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
             }
-
-            // Names with connection symbol
-            HStack(spacing: 8) {
-                Text("Marcus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
-
-                Text("&")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                Text("Sarah")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
-            }
-
-            Spacer()
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .padding(.leading, 50)
-        .padding(.trailing, 32)
+        .padding(.leading, 40)
+        .padding(.trailing, 18)
         .padding(.vertical, 20)
     }
 }
 
-#Preview {
-    SlideOutSidebarView(selectedTab: .constant(.chat), isOpen: .constant(true))
-        .environmentObject(SlideOutSidebarViewModel())
+struct SlideOutSidebarView_Previews: PreviewProvider {
+    @Namespace static var ns
+    static var previews: some View {
+        SlideOutSidebarView(selectedTab: .constant(.chat), isOpen: .constant(true), profileNamespace: ns)
+            .environmentObject(SlideOutSidebarViewModel())
+    }
 }

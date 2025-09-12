@@ -12,7 +12,6 @@ struct SettingsData: Codable {
     var saveChatsEnabled: Bool = true
     var autoScrollEnabled: Bool = true
     var messageSoundEnabled: Bool = true
-    var typingIndicatorEnabled: Bool = true
     
     // Privacy & Data - Crash Reports only
     var crashReportingEnabled: Bool = true

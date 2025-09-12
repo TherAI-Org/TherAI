@@ -23,8 +23,7 @@ struct ChatView: View {
         VStack(spacing: 0) {
             HStack {
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.medium)
                     sidebarViewModel.openSidebar()
                 }) {
                     Image(systemName: "line.3.horizontal")
@@ -37,7 +36,6 @@ struct ChatView: View {
                 PickerView(selectedMode: $selectedMode)
                     .frame(maxWidth: 200)
                     .padding(.top, 10)
-
                 Spacer()
 
                 // Invisible spacer to balance the hamburger button
@@ -48,6 +46,7 @@ struct ChatView: View {
             .padding(.vertical, 2)
             .background(Color(.systemBackground))
 
+            ///////////
             // Content based on selected mode
             if selectedMode == .personal {
                 // Personal mode - show chat messages

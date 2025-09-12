@@ -20,7 +20,7 @@ struct MessageBubble: View {
             if message.isFromUser {
                 // User message: high contrast with bold purple background
                 Text(message.content)
-                    .font(.system(size: 16, weight: .regular))
+                    .font(Typography.body)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 14)
                     .background(
@@ -47,7 +47,7 @@ struct MessageBubble: View {
             } else {
                 // AI message: subtle, elegant background
                 Text(message.content)
-                    .font(.system(size: 16, weight: .regular))
+                    .font(Typography.body)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 14)
                     .background(
