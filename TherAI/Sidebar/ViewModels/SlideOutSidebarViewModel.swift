@@ -23,12 +23,21 @@ class SlideOutSidebarViewModel: ObservableObject {
     // Local chat sessions list (simple store for now)
     @Published var sessions: [ChatSession] = []
 
+    // Pending dialogue requests from partner
+    @Published var pendingRequests: [DialogueViewModel.DialogueRequest] = []
+
     init() {}
 
     // Currently active session shown in ChatView (nil => new unsaved session)
     @Published var activeSessionId: UUID? = nil
     // Changing this forces ChatView to reinitialize
     @Published var chatViewKey: UUID = UUID()
+
+    // Callback for switching to dialogue mode
+    var onSwitchToDialogue: (() -> Void)?
+
+    // Callback for refreshing pending requests
+    var onRefreshPendingRequests: (() -> Void)?
 
     func startNewChat() {
         activeSessionId = nil
@@ -40,6 +49,53 @@ class SlideOutSidebarViewModel: ObservableObject {
         chatViewKey = UUID()
     }
 
+    func openPendingRequest(_ request: DialogueViewModel.DialogueRequest) {
+        // Accept first, then switch to dialogue once messages are available
+        Task { await acceptPendingRequest(request) }
+    }
+
+    private func acceptPendingRequest(_ request: DialogueViewModel.DialogueRequest) async {
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+
+            // Check if this request was sent TO the current user (not BY the current user)
+            if let currentUserId = AuthService.shared.currentUser?.id,
+               request.senderUserId != currentUserId {
+                // Accept the request via service and get personal + dialogue ids
+                let (partnerSessionId, _) = try await BackendService.shared.markRequestAsAccepted(requestId: request.id, accessToken: accessToken)
+
+                // Ensure the partner's personal session appears in the chat list
+                let personalSession = ChatSession(id: partnerSessionId, title: "Chat")
+
+                // Add the dialogue session to the chat sessions list and switch to it
+                await MainActor.run {
+                    // Remove from pending requests
+                    self.pendingRequests.removeAll { $0.id == request.id }
+
+                    // Add personal session if not already present
+                    if !self.sessions.contains(where: { $0.id == partnerSessionId }) {
+                        self.sessions.insert(personalSession, at: 0)
+                    }
+
+                    // Switch to the personal session for this chat
+                    self.activeSessionId = partnerSessionId
+
+                    // Expand chats section to show the new session
+                    self.isChatsExpanded = true
+                }
+
+                // Tell ChatView to switch to dialogue now (will trigger scoped load)
+                await MainActor.run { self.onSwitchToDialogue?() }
+
+                // Also refresh from backend to ensure consistency
+                await loadPendingRequests()
+            }
+        } catch {
+            print("Failed to accept pending request: \(error)")
+        }
+    }
+
     // MARK: - Notifications
     private var observers: [NSObjectProtocol] = []
 
@@ -48,15 +104,23 @@ class SlideOutSidebarViewModel: ObservableObject {
     }
 
     func startObserving() {
-        // Initial load of sessions
-        Task { await loadSessions() }
+        // Ensure we start with a fresh session (no active session)
+        activeSessionId = nil
+        chatViewKey = UUID()
+
+        // Initial load of sessions and pending requests
+        Task {
+            await loadSessions()
+            await loadPendingRequests()
+        }
 
         // Session created
         let created = NotificationCenter.default.addObserver(forName: .chatSessionCreated, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             if let sid = note.userInfo?["sessionId"] as? UUID {
-                let session = ChatSession(id: sid, title: note.userInfo?["title"] as? String ?? "Chat")
-                if !self.sessions.contains(session) {
+                // Avoid creating a duplicate entry pointing to the dialogue session
+                if !self.sessions.contains(where: { $0.id == sid }) {
+                    let session = ChatSession(id: sid, title: note.userInfo?["title"] as? String ?? "Chat")
                     self.sessions.insert(session, at: 0)
                 }
                 self.isChatsExpanded = true
@@ -85,6 +149,20 @@ class SlideOutSidebarViewModel: ObservableObject {
             await MainActor.run { self.sessions = mapped }
         } catch {
             print("Failed to load sessions: \(error)")
+        }
+    }
+
+    // MARK: - Load pending requests from backend
+    func loadPendingRequests() async {
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+            let response = try await BackendService.shared.getPendingRequests(accessToken: accessToken)
+            await MainActor.run {
+                self.pendingRequests = response.requests
+            }
+        } catch {
+            print("Failed to load pending requests: \(error)")
         }
     }
 
