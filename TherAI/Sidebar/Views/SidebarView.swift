@@ -7,28 +7,48 @@ struct SlideOutSidebarView: View {
     @Binding var selectedTab: SidebarTab
     @Binding var isOpen: Bool
 
+    let profileNamespace: Namespace.ID
+
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 // Settings button in top left
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.medium)
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.showSettingsSheet = true
+                        viewModel.showSettingsOverlay = true
                     }
                 }) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.26, green: 0.58, blue: 1.00),
+                                        Color(red: 0.63, green: 0.32, blue: 0.98)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 32, height: 32)
+                            .overlay(
+                                Circle().stroke(Color.white.opacity(0.8), lineWidth: 1)
+                            )
+                            .matchedGeometryEffect(id: "settingsEmblem", in: profileNamespace)
+
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .matchedGeometryEffect(id: "settingsGearIcon", in: profileNamespace)
+                    }
                 }
 
                 Spacer()
 
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.medium)
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                         isOpen = false
                     }
@@ -50,8 +70,7 @@ struct SlideOutSidebarView: View {
             VStack(spacing: 10) {
                 // New Conversation Button
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
+                    Haptics.impact(.medium)
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.startNewChat()
                         viewModel.isChatsExpanded = true
@@ -165,38 +184,20 @@ struct SlideOutSidebarView: View {
             // Grok-style profile button at bottom bottom of screen
             VStack(spacing: 0) {
                 Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.showProfileSheet = true
+                    Haptics.impact(.medium)
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0)) {
+                        viewModel.showProfileOverlay = true
                     }
                 }) {
-                    GrokStyleProfileButton()
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.purple.opacity(0.5),
-                                            Color.blue.opacity(0.45),
-                                            Color.cyan.opacity(0.4)
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    ),
-                                    lineWidth: 1.2
-                                )
-                        )
-                        .shadow(color: Color.purple.opacity(0.25), radius: 20, x: 0, y: 10)
-                        .shadow(color: Color.cyan.opacity(0.2), radius: 10, x: 0, y: 4)
+                    GrokStyleProfileButton(profileNamespace: profileNamespace)
                 }
                 .buttonStyle(PlainButtonStyle())
+                // GPU overlay currently falls back when start frame is unavailable
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 0)
-            .padding(.bottom, 20)
+            .padding(.bottom, 0)
+            .offset(y: 6)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
@@ -243,15 +244,21 @@ private struct SectionHeader: View {
 
 // MARK: - Grok Style Profile Button
 struct GrokStyleProfileButton: View {
+    let profileNamespace: Namespace.ID
+
     var body: some View {
-        HStack(spacing: 24) {
-            // Two overlapping profile circles (Grok style)
+        HStack {
+            // Align avatars towards left, but not fully flush to edge
+            // Two overlapping profile circles
             ZStack {
                 // Partner profile circle (behind, slightly offset)
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.98, green: 0.45, blue: 0.7), Color(red: 0.85, green: 0.35, blue: 0.6)],
+                            colors: [
+                                Color(red: 0.72, green: 0.37, blue: 0.98),
+                                Color(red: 0.38, green: 0.65, blue: 1.00)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -266,13 +273,17 @@ struct GrokStyleProfileButton: View {
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     )
-                    .offset(x: 20, y: 0)
+                    .offset(x: 20)
+                    .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
                 // User profile circle (in front)
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [Color(red: 0.25, green: 0.7, blue: 1.0), Color(red: 0.12, green: 0.55, blue: 0.92)],
+                            colors: [
+                                Color(red: 0.26, green: 0.58, blue: 1.00),
+                                Color(red: 0.63, green: 0.32, blue: 0.98)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -287,34 +298,22 @@ struct GrokStyleProfileButton: View {
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     )
-                    .offset(x: -20, y: 0)
+                    .offset(x: -20)
+                    .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
             }
-
-            // Names with connection symbol
-            HStack(spacing: 8) {
-                Text("Marcus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
-
-                Text("&")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.secondary)
-
-                Text("Sarah")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
-            }
-
-            Spacer()
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .padding(.leading, 50)
-        .padding(.trailing, 32)
+        .padding(.leading, 40)
+        .padding(.trailing, 18)
         .padding(.vertical, 20)
     }
 }
 
-#Preview {
-    SlideOutSidebarView(selectedTab: .constant(.chat), isOpen: .constant(true))
-        .environmentObject(SlideOutSidebarViewModel())
+struct SlideOutSidebarView_Previews: PreviewProvider {
+    @Namespace static var ns
+    static var previews: some View {
+        SlideOutSidebarView(selectedTab: .constant(.chat), isOpen: .constant(true), profileNamespace: ns)
+            .environmentObject(SlideOutSidebarViewModel())
+    }
 }
