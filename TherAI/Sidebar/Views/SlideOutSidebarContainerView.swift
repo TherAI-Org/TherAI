@@ -274,6 +274,7 @@ private struct ProfileOverlayView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             .padding(.bottom, 12)
+            .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
             .onAppear {
                 showTogetherCapsule = false
                 showCards = false
@@ -445,6 +446,7 @@ private struct SettingsOverlayView: View {
         }
         .padding(.bottom, 12)
         .background(Color(.systemBackground).ignoresSafeArea())
+        .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
         .onAppear {
             showSubtitleCapsule = false
             showCards = false
