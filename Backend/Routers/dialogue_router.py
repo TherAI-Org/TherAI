@@ -39,6 +39,7 @@ from ..Database.linked_sessions_repository import (
     update_linked_session_partner_session_for_source,
 )
 from ..Database.session_repository import create_session, assert_session_owned_by_user, get_or_create_default_session
+import asyncio
 
 router = APIRouter(prefix="/dialogue", tags=["dialogue"])
 
@@ -445,6 +446,9 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
             {"role": "user", "content": full_context}
         ]
 
+        # Capture the main event loop to dispatch DB coroutines from the thread
+        loop = asyncio.get_running_loop()
+
         def iter_sse():
             # Anti-buffering prelude
             yield (":" + " " * 2048 + "\n\n").encode()
@@ -488,33 +492,67 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
 
                 # Persist dialogue message and (possibly) create a pending request
                 try:
-                    import asyncio
                     if first_time_link or not partner_joined:
-                        dialogue_request = asyncio.run(create_dialogue_request(
-                            sender_user_id=user_uuid,
-                            recipient_user_id=uuid.UUID(str(partner_user_id)),
-                            sender_session_id=request.session_id,
-                            request_content=final_text,
-                            relationship_id=relationship_id
-                        ))
-                        req_id = dialogue_request["id"]
-                        asyncio.run(create_dialogue_message(
-                            dialogue_session_id=dialogue_session_id,
-                            request_id=uuid.UUID(req_id),
-                            content=final_text,
-                            sender_user_id=user_uuid,
-                            message_type="request"
-                        ))
-                        yield f"event: request\ndata: {json.dumps(req_id)}\n\n".encode()
+                        try:
+                            fut_req = asyncio.run_coroutine_threadsafe(
+                                create_dialogue_request(
+                                    sender_user_id=user_uuid,
+                                    recipient_user_id=uuid.UUID(str(partner_user_id)),
+                                    sender_session_id=request.session_id,
+                                    request_content=final_text,
+                                    relationship_id=relationship_id
+                                ),
+                                loop,
+                            )
+                            dialogue_request = fut_req.result()
+                            req_id = dialogue_request["id"]
+
+                            fut_msg = asyncio.run_coroutine_threadsafe(
+                                create_dialogue_message(
+                                    dialogue_session_id=dialogue_session_id,
+                                    request_id=uuid.UUID(req_id),
+                                    content=final_text,
+                                    sender_user_id=user_uuid,
+                                    message_type="request"
+                                ),
+                                loop,
+                            )
+                            fut_msg.result()
+
+                            print(f"[SSE] Persisted dialogue request and message request_id={req_id} dialogue_session_id={dialogue_session_id}")
+                            yield f"event: request\ndata: {json.dumps(req_id)}\n\n".encode()
+                        except Exception as ee:
+                            # If a pending request already exists for this relationship, still persist the message without a new request
+                            if "pending request already exists" in str(ee).lower():
+                                fut_msg = asyncio.run_coroutine_threadsafe(
+                                    create_dialogue_message(
+                                        dialogue_session_id=dialogue_session_id,
+                                        request_id=None,
+                                        content=final_text,
+                                        sender_user_id=user_uuid,
+                                        message_type="request"
+                                    ),
+                                    loop,
+                                )
+                                fut_msg.result()
+                                print(f"[SSE] Pending request exists — persisted dialogue message without new request dialogue_session_id={dialogue_session_id}")
+                            else:
+                                raise
                     else:
-                        asyncio.run(create_dialogue_message(
-                            dialogue_session_id=dialogue_session_id,
-                            request_id=None,
-                            content=final_text,
-                            sender_user_id=user_uuid,
-                            message_type="request"
-                        ))
+                        fut_msg = asyncio.run_coroutine_threadsafe(
+                            create_dialogue_message(
+                                dialogue_session_id=dialogue_session_id,
+                                request_id=None,
+                                content=final_text,
+                                sender_user_id=user_uuid,
+                                message_type="request"
+                            ),
+                            loop,
+                        )
+                        fut_msg.result()
+                        print(f"[SSE] Persisted dialogue message dialogue_session_id={dialogue_session_id}")
                 except Exception as e:
+                    print(f"[SSE] Persist failed: {e}")
                     yield f"event: warn\ndata: {json.dumps(f'Persist failed: {e}')}\n\n".encode()
 
                 yield b"event: done\ndata: {}\n\n"
