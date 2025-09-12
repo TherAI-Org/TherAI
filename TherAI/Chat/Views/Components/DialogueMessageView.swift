@@ -13,24 +13,45 @@ struct DialogueMessageView: View {
                 }
 
                 VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
-                    // AI/partner message: plain text for non-user, bubble only for current user to keep affordance
                     if isFromCurrentUser {
                         Text(message.content)
-                            .font(.body)
-                            .foregroundColor(.white)
+                            .font(Typography.body)
                             .multilineTextAlignment(.leading)
-                            .padding(16)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 14)
                             .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color.blue)
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(red: 0.4, green: 0.2, blue: 0.6),
+                                                Color(red: 0.35, green: 0.15, blue: 0.55)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .shadow(
+                                        color: Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.25),
+                                        radius: 8,
+                                        x: 0,
+                                        y: 3
+                                    )
                             )
+                            .foregroundColor(.white)
+                            .frame(maxWidth: 320, alignment: .trailing)
                     } else {
                         Text(message.content)
-                            .font(.body)
+                            .font(Typography.body)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(Color(.secondarySystemBackground))
+                            )
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     Text(formatTimestamp(message.createdAt))

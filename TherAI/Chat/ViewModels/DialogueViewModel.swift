@@ -7,12 +7,45 @@ class DialogueViewModel: ObservableObject {
     @Published var pendingRequests: [DialogueRequest] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var isStreaming = false
 
     private let backendService = BackendService.shared
     private var acceptedRequestIds: Set<UUID> = []
 
+    // Sanitizes streamed dialogue text that may arrive as a quoted JSON string
+    // - Removes leading/trailing quotes
+    // - Optionally decodes common JSON escape sequences on finalization
+    private func sanitizeStreamContent(_ text: String, isFinal: Bool) -> String {
+        var cleaned = text
+        if cleaned.first == "\"" { cleaned.removeFirst() }
+        if isFinal, cleaned.last == "\"" { cleaned.removeLast() }
+
+        // On final, attempt to fully JSON-decode in case of escape sequences
+        if isFinal {
+            // Try as-is first (already quoted), then wrap if needed
+            let attempts: [String] = ["\"" + cleaned + "\"", cleaned]
+            for candidate in attempts {
+                if let data = candidate.data(using: .utf8),
+                   let decoded = try? JSONDecoder().decode(String.self, from: data) {
+                    return decoded
+                }
+            }
+        }
+
+        // During streaming, do a light unescape for readability
+        cleaned = cleaned
+            .replacingOccurrences(of: "\\n", with: "\n")
+            .replacingOccurrences(of: "\\t", with: "\t")
+            .replacingOccurrences(of: "\\\"", with: "\"")
+            .replacingOccurrences(of: "\\/", with: "/")
+            .replacingOccurrences(of: "\\r", with: "\r")
+        return cleaned
+    }
+
     // Callback for refreshing pending requests in sidebar
     var onRefreshPendingRequests: (() -> Void)?
+    // Callback to request the UI to switch into Dialogue mode
+    var onSwitchToDialogue: (() -> Void)?
 
     struct DialogueMessage: Identifiable, Codable {
         let id: UUID
@@ -59,6 +92,8 @@ class DialogueViewModel: ObservableObject {
     }
 
     func loadDialogueMessages(sourceSessionId: UUID? = nil) async {
+        // Do not overwrite local streaming state while streaming
+        if isStreaming { return }
         isLoading = true
         errorMessage = nil
 
@@ -97,6 +132,7 @@ class DialogueViewModel: ObservableObject {
     func sendToPartner(sessionId: UUID, chatHistory: [ChatHistoryMessage]) async {
         isLoading = true
         errorMessage = nil
+        isStreaming = true
 
         do {
             guard let accessToken = await AuthService.shared.getAccessToken() else {
@@ -114,12 +150,44 @@ class DialogueViewModel: ObservableObject {
             var placeholderIndex: Int? = nil
 
             let stream = backendService.streamDialogueRequest(request, accessToken: accessToken)
+            print("[Dialogue] Starting stream to /dialogue/request/stream sessionId=\(sessionId)")
+
+            // Fallback: if no SSE activity after 6s, call non-stream endpoint
+            let fallbackTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                guard let self = self, !Task.isCancelled else { return }
+                do {
+                    print("[Dialogue] Fallback triggered — calling non-stream create")
+                    let result = try await self.backendService.createDialogueRequest(request, accessToken: accessToken)
+                    await MainActor.run {
+                        self.isStreaming = false
+                    }
+                    // Reconcile with server state without switching modes
+                    await loadDialogueMessages(sourceSessionId: sessionId)
+                    print("[Dialogue] Fallback success — requestId=\(result.requestId) dialogueId=\(result.dialogueSessionId)")
+                    return
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Dialogue fallback failed: \(error.localizedDescription)"
+                        self.isLoading = false
+                        self.isStreaming = false
+                    }
+                }
+            }
+            var receivedAnyEvent = false
             for await event in stream {
+                receivedAnyEvent = true
                 switch event {
                 case .dialogueSession(let did):
+                    fallbackTask.cancel()
+                    print("[Dialogue] Received dialogueSession id=\(did)")
                     currentDialogueSessionId = did
+                    // No auto-switch; UI switches only on pending request acceptance.
                 case .token(let token):
+                    fallbackTask.cancel()
+                    if accumulated.isEmpty { print("[Dialogue] First token received length=\(token.count)") }
                     accumulated += token
+                    // No auto-switch; UI switches only on pending request acceptance.
                     // Create placeholder on first token
                     if placeholderIndex == nil {
                         let userId = AuthService.shared.currentUser?.id ?? UUID()
@@ -141,11 +209,12 @@ class DialogueViewModel: ObservableObject {
                     }
                     if let idx = placeholderIndex, idx < self.messages.count {
                         let existing = self.messages[idx]
+                        let display = sanitizeStreamContent(accumulated, isFinal: false)
                         let updated = DialogueMessage(
                             id: existing.id,
                             dialogueSessionId: existing.dialogueSessionId,
                             requestId: existing.requestId,
-                            content: accumulated,
+                            content: display,
                             messageType: existing.messageType,
                             senderUserId: existing.senderUserId,
                             createdAt: existing.createdAt
@@ -155,6 +224,8 @@ class DialogueViewModel: ObservableObject {
                         self.messages = newMessages
                     }
                 case .requestId(let rid):
+                    fallbackTask.cancel()
+                    print("[Dialogue] Persisted requestId=\(rid)")
                     if let idx = placeholderIndex, idx < self.messages.count {
                         let existing = self.messages[idx]
                         let updated = DialogueMessage(
@@ -171,8 +242,29 @@ class DialogueViewModel: ObservableObject {
                         self.messages = newMessages
                     }
                 case .done:
+                    fallbackTask.cancel()
+                    print("[Dialogue] Stream done — success")
+                    // Final sanitize of placeholder content before reconciling
+                    if let idx = placeholderIndex, idx < self.messages.count {
+                        let existing = self.messages[idx]
+                        let display = sanitizeStreamContent(accumulated, isFinal: true)
+                        let updated = DialogueMessage(
+                            id: existing.id,
+                            dialogueSessionId: existing.dialogueSessionId,
+                            requestId: existing.requestId,
+                            content: display,
+                            messageType: existing.messageType,
+                            senderUserId: existing.senderUserId,
+                            createdAt: existing.createdAt
+                        )
+                        var newMessages = self.messages
+                        newMessages[idx] = updated
+                        self.messages = newMessages
+                    }
                     isLoading = false
                 case .error(let msg):
+                    fallbackTask.cancel()
+                    print("[Dialogue] Stream error: \(msg)")
                     errorMessage = msg
                     isLoading = false
                 default:
@@ -180,11 +272,16 @@ class DialogueViewModel: ObservableObject {
                 }
             }
 
-            // Reconcile with server state at the end
+            if !receivedAnyEvent {
+                print("[Dialogue] No SSE events received — server may have returned non-200 or no body")
+            }
+            // Stop streaming first, then reconcile with server state
+            isStreaming = false
             await loadDialogueMessages(sourceSessionId: sessionId)
 
         } catch {
             self.errorMessage = "Failed to send to partner: \(error.localizedDescription)"
+            isStreaming = false
         }
 
         isLoading = false
