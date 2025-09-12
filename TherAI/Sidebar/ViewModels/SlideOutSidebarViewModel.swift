@@ -60,7 +60,7 @@ class SlideOutSidebarViewModel: ObservableObject {
         let created = NotificationCenter.default.addObserver(forName: .chatSessionCreated, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             if let sid = note.userInfo?["sessionId"] as? UUID {
-                let session = ChatSession(id: sid, title: note.userInfo?["title"] as? String ?? "Chat")
+                let session = ChatSession(id: sid, title: note.userInfo?["title"] as? String ?? "Session")
                 if !self.sessions.contains(session) {
                     self.sessions.insert(session, at: 0)
                 }
@@ -82,24 +82,39 @@ class SlideOutSidebarViewModel: ObservableObject {
 
     // MARK: - Load sessions from backend
     func loadSessions() async {
+        print("🔄 Loading sessions from backend...")
         do {
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
+            print("🔑 Got access token, fetching sessions...")
             let dtos = try await BackendService.shared.fetchSessions(accessToken: accessToken)
+            print("📋 Fetched \(dtos.count) sessions from backend")
             let mapped = dtos.map { dto in
-                // Fix empty string titles to be nil so UI shows "Chat"
+                // Fix empty string titles to be nil so UI shows "Session"
                 let title = dto.title?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let finalTitle = title?.isEmpty == true ? nil : title
                 return ChatSession(id: dto.id, title: finalTitle)
             }
-            await MainActor.run { self.sessions = mapped }
+            await MainActor.run { 
+                self.sessions = mapped
+                print("📱 Updated local sessions list with \(mapped.count) sessions")
+            }
         } catch {
-            print("Failed to load sessions: \(error)")
+            print("❌ Failed to load sessions: \(error)")
         }
     }
     
     // MARK: - Refresh sessions (for pull-to-refresh)
     func refreshSessions() async {
+        await loadSessions()
+    }
+    
+    // MARK: - Clear and reload sessions (for debugging)
+    func clearAndReloadSessions() async {
+        print("🔄 Clearing local sessions and reloading from backend...")
+        await MainActor.run {
+            self.sessions.removeAll()
+        }
         await loadSessions()
     }
     
@@ -131,7 +146,12 @@ class SlideOutSidebarViewModel: ObservableObject {
             try await BackendService.shared.deleteSession(sessionId: sessionId, accessToken: accessToken)
             print("✅ Backend deletion successful")
         } catch {
-            print("⚠️ Backend deletion failed (but local deletion succeeded): \(error)")
+            // Check if it's a 404 error (session not found on server)
+            if let nsError = error as NSError?, nsError.code == 404 {
+                print("ℹ️ Session not found on server (already deleted or never existed): \(sessionId)")
+            } else {
+                print("⚠️ Backend deletion failed (but local deletion succeeded): \(error)")
+            }
             // Don't show error to user since local deletion worked
         }
     }
@@ -143,9 +163,9 @@ class SlideOutSidebarViewModel: ObservableObject {
         // Update local sessions list immediately
         await MainActor.run {
             if let index = self.sessions.firstIndex(where: { $0.id == sessionId }) {
-                // If newTitle is empty, set to nil so UI shows "Chat"
+                // If newTitle is empty, set to nil so UI shows "Session"
                 self.sessions[index].title = newTitle.isEmpty ? nil : newTitle
-                print("📱 Updated local session title: '\(newTitle.isEmpty ? "nil (will show 'Chat')" : newTitle)'")
+                print("📱 Updated local session title: '\(newTitle.isEmpty ? "nil (will show 'Session')" : newTitle)'")
             }
         }
         
