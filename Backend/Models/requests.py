@@ -35,14 +35,6 @@ class SessionDTO(BaseModel):
 class SessionsResponse(BaseModel):
     sessions: list[SessionDTO]
 
-# Rename models
-class RenameSessionRequest(BaseModel):
-    title: str
-
-class RenameSessionResponse(BaseModel):
-    success: bool
-    message: str
-
 # Link models
 class CreateLinkInviteResponse(BaseModel):
     invite_token: str
