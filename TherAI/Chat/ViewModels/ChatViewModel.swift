@@ -7,8 +7,15 @@ class ChatViewModel: ObservableObject {
 
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
-    @Published var sessionId: UUID?
+    @Published var sessionId: UUID? {
+        didSet {
+            if sessionId == nil {
+                generateEmptyPrompt()
+            }
+        }
+    }
     @Published var isLoading: Bool = false
+    @Published var emptyPrompt: String = ""
 
     private let backend = BackendService.shared
     private let authService = AuthService.shared
@@ -17,6 +24,7 @@ class ChatViewModel: ObservableObject {
 
     init(sessionId: UUID? = nil) {
         self.sessionId = sessionId
+        self.generateEmptyPrompt()
         Task { await loadHistory() }
     }
 
@@ -161,6 +169,45 @@ class ChatViewModel: ObservableObject {
 
     func clearChat() {
         messages.removeAll()
+        generateEmptyPrompt()
+    }
+
+    func generateEmptyPrompt() {
+        // Short, varied, therapist-style prompts
+        let prompts = [
+            "What’s on your mind today?",
+            "Where would you like to start?",
+            "What feels heavy today?",
+            "What would feel supportive to talk through?",
+            "What’s been on your heart lately?",
+            "What do you need right now?",
+            "What’s asking for your attention?",
+            "What feels stuck today?",
+            "What would make today easier?",
+            "What’s been weighing on you?",
+            "What’s going well—and what isn’t?",
+            "What feels most important to share?",
+            "What are you hoping to figure out?",
+            "What’s a small win you want today?",
+            "What would you like space for?",
+            "What’s one thing you want to unpack?",
+            "What’s been taking up mental space?",
+            "What would help you feel grounded?",
+            "What’s been coming up lately?",
+            "What feels unclear right now?",
+            "What’s the story today?",
+            "What do you want to get off your chest?",
+            "What are you navigating today?",
+            "What would you like to process?"
+        ]
+
+        // Use a seed per new chat so it changes each new session but stays stable per view appearance
+        var generator = SystemRandomNumberGenerator()
+        if let choice = prompts.randomElement(using: &generator) {
+            emptyPrompt = choice
+        } else {
+            emptyPrompt = "What’s on your mind today?"
+        }
     }
 }
 
