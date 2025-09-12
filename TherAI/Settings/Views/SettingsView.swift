@@ -78,6 +78,7 @@ struct SettingsView: View {
             }
             }
         }
+        .background(Color.white.ignoresSafeArea())
     }
 }
 
