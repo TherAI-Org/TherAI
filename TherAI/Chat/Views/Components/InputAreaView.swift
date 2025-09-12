@@ -10,6 +10,7 @@ struct InputAreaView: View {
     let send: () -> Void
     let stop: () -> Void
     let onCreatedNewSession: (UUID) -> Void
+    let onSendToPartner: () -> Void
 
     var body: some View {
 
@@ -21,16 +22,16 @@ struct InputAreaView: View {
             TextField("Share what's on your mind", text: $inputText)
                 .font(Typography.body)
                 .foregroundColor(.primary)
-                .onSubmit { 
+                .onSubmit {
                     guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                     Haptics.impact(.light)
-                    send() 
+                    send()
                 }
                 .focused(isInputFocused)
-            
-            Button(action: { 
+
+            Button(action: {
                 Haptics.impact(.light)
-                
+
                 if isLoading {
                     stop()
                 } else {
@@ -39,8 +40,8 @@ struct InputAreaView: View {
             }) {
                 ZStack {
                     Circle()
-                        .fill(isSendDisabled ? 
-                              Color(uiColor: .systemGray5) : 
+                        .fill(isSendDisabled ?
+                              Color(uiColor: .systemGray5) :
                               Color(red: 0.4, green: 0.2, blue: 0.6))
                         .frame(width: sendSize, height: sendSize)
 
@@ -52,25 +53,29 @@ struct InputAreaView: View {
             .disabled(isSendDisabled)
             .scaleEffect(isSendDisabled ? 0.9 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isSendDisabled)
+            .contextMenu {
+                Button(action: {
+                    send()
+                }) {
+                    Label("Send to Personal", systemImage: "person.circle")
+                }
+
+                Button(action: {
+                    onSendToPartner()
+                }) {
+                    Label("Send to Partner", systemImage: "heart.circle")
+                }
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: cornerRadius)
                 .fill(Color(uiColor: .secondarySystemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .stroke(
-                            isInputFocused.wrappedValue ? 
-                            Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.8) : 
-                            Color.clear, 
-                            lineWidth: 1
-                        )
-                )
                 .shadow(
-                    color: Color.black.opacity(0.04), 
-                    radius: 8, 
-                    x: 0, 
+                    color: Color.black.opacity(0.04),
+                    radius: 8,
+                    x: 0,
                     y: 2
                 )
         )
@@ -89,7 +94,8 @@ struct InputAreaView: View {
         isInputFocused: $isFocused,
         send: {},
         stop: {},
-        onCreatedNewSession: { _ in }
+        onCreatedNewSession: { _ in },
+        onSendToPartner: {}
     )
 }
 

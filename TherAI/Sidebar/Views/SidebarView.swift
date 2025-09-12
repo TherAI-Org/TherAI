@@ -1,5 +1,45 @@
 import SwiftUI
 
+// MARK: - PendingRequestRow Component
+struct PendingRequestRow: View {
+    let request: DialogueViewModel.DialogueRequest
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            Image(systemName: "person.2.circle.fill")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                .frame(width: 20)
+
+            // Content
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Partner Request")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+
+                Text(request.requestContent)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            // Arrow
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(.systemGray6))
+        )
+    }
+}
+
 struct SlideOutSidebarView: View {
 
     @EnvironmentObject private var viewModel: SlideOutSidebarViewModel
@@ -91,9 +131,44 @@ struct SlideOutSidebarView: View {
                     .padding(.vertical, 12)
                 }
                 .buttonStyle(PlainButtonStyle())
-                
-                // Sessions Section (expandable list of sessions)
-                SectionHeader(title: "Sessions", isExpanded: viewModel.isChatsExpanded) {
+                // Pending Requests Section (always visible)
+                SectionHeader(title: "Pending Requests", isExpanded: viewModel.isNotificationsExpanded) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                        viewModel.isNotificationsExpanded.toggle()
+                    }
+                }
+
+                if viewModel.isNotificationsExpanded {
+                    if viewModel.pendingRequests.isEmpty {
+                        // Show empty state
+                        HStack {
+                            Text("No pending requests")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                    } else {
+                        VStack(spacing: 8) {
+                            ForEach(viewModel.pendingRequests) { request in
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                                        viewModel.openPendingRequest(request)
+                                        isOpen = false
+                                    }
+                                }) {
+                                    PendingRequestRow(request: request)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                }
+
+                // Chats Section (expandable list of sessions)
+                SectionHeader(title: "Chats", isExpanded: viewModel.isChatsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.isChatsExpanded.toggle()
                     }
@@ -102,7 +177,15 @@ struct SlideOutSidebarView: View {
                 if viewModel.isChatsExpanded {
                     ScrollView {
                         LazyVStack(spacing: 8) {
-                            if !viewModel.sessions.isEmpty {
+                            if viewModel.isLoadingSessions {
+                                VStack(spacing: 16) {
+                                    ProgressView()
+                                    Text("Loading sessions…")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.vertical, 40)
+                            } else if !viewModel.sessions.isEmpty {
                                 ForEach(viewModel.sessions, id: \.id) { session in
                                     Button(action: {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
@@ -124,27 +207,7 @@ struct SlideOutSidebarView: View {
                                         .padding(.vertical, 8)
                                     }
                                     .buttonStyle(PlainButtonStyle())
-                                    .contextMenu {
-                                        Button(action: {
-                                            viewModel.startRename(sessionId: session.id, currentTitle: session.title)
-                                        }) {
-                                            Label("Rename", systemImage: "pencil")
-                                        }
-                                        
-                                        Button(action: {
-                                            print("🔥 Delete button pressed for session: \(session.id)")
-                                            // Test immediate UI update first
-                                            withAnimation(.easeInOut(duration: 0.3)) {
-                                                viewModel.sessions.removeAll { $0.id == session.id }
-                                            }
-                                            // Then try backend deletion
-                                            Task {
-                                                await viewModel.deleteSession(session.id)
-                                            }
-                                        }) {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
+                                    // Context menu removed (rename/delete disabled)
                                 }
                             } else {
                                 // Minimalistic empty state
@@ -152,8 +215,8 @@ struct SlideOutSidebarView: View {
                                     Image(systemName: "message")
                                         .font(.system(size: 32, weight: .light))
                                         .foregroundColor(.secondary)
-                                    
-                                    Text("No sessions yet")
+
+                                    Text("No chats yet")
                                         .font(.system(size: 18, weight: .medium))
                                         .foregroundColor(.secondary)
                                 }
@@ -164,12 +227,6 @@ struct SlideOutSidebarView: View {
                     }
                     .refreshable {
                         await viewModel.refreshSessions()
-                    }
-                    .onAppear {
-                        // Clear and reload sessions when sidebar appears to ensure we have latest from backend
-                        Task {
-                            await viewModel.clearAndReloadSessions()
-                        }
                     }
                     .frame(maxHeight: 300) // Limit height to prevent taking up too much space
                     .background(Color.clear)
@@ -201,17 +258,6 @@ struct SlideOutSidebarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
-        .alert("Rename Chat", isPresented: $viewModel.showRenameDialog) {
-            TextField("Chat name", text: $viewModel.renameText)
-            Button("Cancel", role: .cancel) {
-                viewModel.cancelRename()
-            }
-            Button("Rename") {
-                viewModel.confirmRename()
-            }
-        } message: {
-            Text("Enter a new name for this chat")
-        }
     }
 }
 

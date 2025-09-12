@@ -39,9 +39,9 @@ struct ProfileView: View {
                         VStack(spacing: 20) {
                             // Profile Header Card
                             RelationshipHeaderView(relationshipHeader: data.relationshipHeader)
-                            
+
                             // Edit Avatars Button
-                            Button(action: { 
+                            Button(action: {
                                 withAnimation(.easeInOut(duration: 0.3)) {
                                     showingAvatarSelection = true
                                 }
@@ -66,21 +66,22 @@ struct ProfileView: View {
                                         )
                                 )
                             }
-                            
+
                             // Premium Stats Cards
                             PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
-                            
+
                             // Premium Relationship Insights
                             RelationshipInsightsSectionView()
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
                     }
+                    .scrollIndicators(.hidden)
                 }
             }
         }
         .overlay(
-            showingAvatarSelection ? 
+            showingAvatarSelection ?
             ZStack {
                 // Dimmed background
                 Color.black.opacity(0.4)
@@ -90,7 +91,7 @@ struct ProfileView: View {
                             showingAvatarSelection = false
                         }
                     }
-                
+
                 // Avatar selection card
                 AvatarSelectionView(isPresented: $showingAvatarSelection)
                     .transition(.asymmetric(
