@@ -24,13 +24,16 @@ class SlideOutSidebarViewModel: ObservableObject {
 
     // Local chat sessions list (simple store for now)
     @Published var sessions: [ChatSession] = []
+    @Published var isLoadingSessions: Bool = false
 
     // Rename/Delete features removed
 
     // Pending dialogue requests from partner
     @Published var pendingRequests: [DialogueViewModel.DialogueRequest] = []
 
-    init() {}
+    init() {
+        loadCachedSessions()
+    }
 
     // Currently active session shown in ChatView (nil => new unsaved session)
     @Published var activeSessionId: UUID? = nil
@@ -149,28 +152,32 @@ class SlideOutSidebarViewModel: ObservableObject {
     func loadSessions() async {
         print("🔄 Loading sessions from backend...")
         do {
+            await MainActor.run { self.isLoadingSessions = self.sessions.isEmpty }
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
             print("🔑 Got access token, fetching sessions...")
             let dtos = try await BackendService.shared.fetchSessions(accessToken: accessToken)
             print("📋 Fetched \(dtos.count) sessions from backend")
             let mapped = dtos.map { dto in
-                // Fix empty string titles to be nil so UI shows "Session"
                 let title = dto.title?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let finalTitle = title?.isEmpty == true ? nil : title
                 return ChatSession(id: dto.id, title: finalTitle)
             }
             await MainActor.run {
                 self.sessions = mapped
+                self.isLoadingSessions = false
                 print("📱 Updated local sessions list with \(mapped.count) sessions")
+                self.saveCachedSessions()
             }
         } catch {
             // Suppress "cancelled" (-999) which occurs when a previous in-flight request is cancelled by a new one or view lifecycle
             if let nsError = error as NSError?, nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
                 print("⏭️ Load sessions cancelled (expected during rapid refresh) — ignoring")
+                await MainActor.run { self.isLoadingSessions = false }
                 return
             }
             print("❌ Failed to load sessions: \(error)")
+            await MainActor.run { self.isLoadingSessions = false }
         }
     }
 
@@ -181,10 +188,7 @@ class SlideOutSidebarViewModel: ObservableObject {
 
     // MARK: - Clear and reload sessions (for debugging)
     func clearAndReloadSessions() async {
-        print("🔄 Clearing local sessions and reloading from backend...")
-        await MainActor.run {
-            self.sessions.removeAll()
-        }
+        // No longer clearing to avoid empty-state flicker; just reload
         await loadSessions()
     }
 
@@ -274,5 +278,34 @@ extension ChatSession {
     init(id: UUID = UUID(), title: String?) {
         self.id = id
         self.title = title
+    }
+}
+
+// MARK: - Local Cache
+extension SlideOutSidebarViewModel {
+    private var cacheURL: URL {
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        return dir.appendingPathComponent("chat_sessions_cache.json")
+    }
+
+    private func loadCachedSessions() {
+        do {
+            let url = cacheURL
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            let data = try Data(contentsOf: url)
+            let decoded = try JSONDecoder().decode([ChatSession].self, from: data)
+            self.sessions = decoded
+        } catch {
+            print("⚠️ Failed to load cached sessions: \(error)")
+        }
+    }
+
+    private func saveCachedSessions() {
+        do {
+            let data = try JSONEncoder().encode(self.sessions)
+            try data.write(to: cacheURL, options: .atomic)
+        } catch {
+            print("⚠️ Failed to save cached sessions: \(error)")
+        }
     }
 }
