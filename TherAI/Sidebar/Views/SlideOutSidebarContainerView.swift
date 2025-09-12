@@ -69,6 +69,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                         profileNamespace: profileNamespace
                     )
                     .transition(.opacity)
+                    .zIndex(2) // ensure above emblem to avoid ghosting on fast dismiss
                     .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: viewModel.showSettingsOverlay)
                 }
             }
