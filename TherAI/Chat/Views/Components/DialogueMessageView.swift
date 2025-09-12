@@ -12,22 +12,31 @@ struct DialogueMessageView: View {
                     Spacer()
                 }
 
-                VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 8) {
-                    Text(message.content)
-                        .font(.body)
-                        .foregroundColor(isFromCurrentUser ? .white : .primary)
-                        .multilineTextAlignment(.leading)
+                VStack(alignment: isFromCurrentUser ? .trailing : .leading, spacing: 4) {
+                    // AI/partner message: plain text for non-user, bubble only for current user to keep affordance
+                    if isFromCurrentUser {
+                        Text(message.content)
+                            .font(.body)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.blue)
+                            )
+                    } else {
+                        Text(message.content)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                    }
 
-                    // Timestamp
                     Text(formatTimestamp(message.createdAt))
                         .font(.caption)
-                        .foregroundColor(isFromCurrentUser ? .white.opacity(0.7) : .secondary)
+                        .foregroundColor(.secondary)
                 }
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(isFromCurrentUser ? Color.blue : Color(.systemGray6))
-                )
 
                 if !isFromCurrentUser {
                     Spacer()

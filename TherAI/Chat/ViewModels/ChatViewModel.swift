@@ -13,6 +13,7 @@ class ChatViewModel: ObservableObject {
     private let backend = BackendService.shared
     private let authService = AuthService.shared
     private var currentTask: Task<Void, Never>?
+    private var fallbackTask: Task<Void, Never>?
 
     init(sessionId: UUID? = nil) {
         self.sessionId = sessionId
@@ -22,8 +23,10 @@ class ChatViewModel: ObservableObject {
     func loadHistory() async {
         do {
             guard let sid = sessionId else { self.messages = []; return }
-            let session = try await authService.client.auth.session
-            let accessToken = session.accessToken
+            guard let accessToken = await authService.getAccessToken() else {
+                print("ACCESS_TOKEN: <nil>")
+                return
+            }
             let dtos = try await backend.fetchMessages(sessionId: sid, accessToken: accessToken)
             guard let userId = authService.currentUser?.id else { return }
             let mapped = dtos.map { ChatMessage(dto: $0, currentUserId: userId) }
@@ -47,15 +50,18 @@ class ChatViewModel: ObservableObject {
 
         // Cancel any existing task (this allows interrupting current AI response)
         currentTask?.cancel()
-        
+
         // Add placeholder AI message that will be replaced or removed
         let placeholderMessage = ChatMessage(content: "", isFromUser: false)
         messages.append(placeholderMessage)
-        
-        currentTask = Task {
-            do {
-                let session = try await authService.client.auth.session
-                let accessToken = session.accessToken
+
+        let wasNewSession = (self.sessionId == nil)
+        currentTask = Task { [weak self] in
+            guard let self = self else { return }
+            guard let accessToken = await authService.getAccessToken() else {
+                print("ACCESS_TOKEN: <nil>")
+                return
+            }
                 // Build chat history from current messages (excluding the just-added user message and placeholder)
                 let chatHistory = self.messages.dropLast(2).map { message in
                     ChatHistoryMessage(
@@ -64,31 +70,71 @@ class ChatViewModel: ObservableObject {
                     )
                 }
 
-                let result = try await backend.sendChatMessage(messageToSend, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken)
-                
-                // Check if task was cancelled
-                guard !Task.isCancelled else { 
-                    await MainActor.run {
-                        // Remove the placeholder message if cancelled
-                        if !self.messages.isEmpty && self.messages.last?.content.isEmpty == true {
-                            self.messages.removeLast()
+                var accumulated = ""
+                let stream = backend.streamChatMessage(messageToSend, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken)
+
+                // Fallback timer: if no token received after 6s, call non-stream API
+                self.fallbackTask?.cancel()
+                self.fallbackTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 6_000_000_000)
+                    guard let self = self, !Task.isCancelled else { return }
+                    if let result = try? await self.backend.sendChatMessage(messageToSend, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken) {
+                        await MainActor.run {
+                            if self.sessionId == nil { self.sessionId = result.sessionId }
+                            if !self.messages.isEmpty {
+                                let last = self.messages[self.messages.count - 1]
+                                self.messages[self.messages.count - 1] = ChatMessage(id: last.id, content: result.response, isFromUser: last.isFromUser, timestamp: last.timestamp)
+                            }
+                            self.isLoading = false
+                        }
+                    } else {
+                        await MainActor.run {
+                            if !self.messages.isEmpty {
+                                let last = self.messages[self.messages.count - 1]
+                                self.messages[self.messages.count - 1] = ChatMessage(id: last.id, content: "Error: request failed", isFromUser: last.isFromUser, timestamp: last.timestamp)
+                            }
+                            self.isLoading = false
                         }
                     }
-                    return 
-                }
-                
-                let wasNew = self.sessionId == nil
-                if wasNew { self.sessionId = result.sessionId }
-                
-                await MainActor.run {
-                    // Replace the placeholder with the actual response
-                    if !self.messages.isEmpty {
-                        self.messages[self.messages.count - 1] = ChatMessage(content: result.response, isFromUser: false)
-                    }
-                    self.isLoading = false
                 }
 
-                if wasNew, let sid = self.sessionId {
+                for await event in stream {
+                    guard !Task.isCancelled else { break }
+                    switch event {
+                    case .session(let sid):
+                        if self.sessionId == nil { self.sessionId = sid }
+                        self.fallbackTask?.cancel()
+                    case .token(let token):
+                        self.fallbackTask?.cancel()
+                        accumulated += token
+                        await MainActor.run {
+                            if !self.messages.isEmpty {
+                                let lastIndex = self.messages.count - 1
+                                let last = self.messages[lastIndex]
+                                let updated = ChatMessage(id: last.id, content: accumulated, isFromUser: last.isFromUser, timestamp: last.timestamp)
+                                var newMessages = self.messages
+                                newMessages[lastIndex] = updated
+                                self.messages = newMessages
+                                print("[ChatVM] token update length=\(accumulated.count)")
+                            }
+                        }
+                    case .done:
+                        await MainActor.run { self.isLoading = false }
+                        self.fallbackTask?.cancel()
+                    case .error(let message):
+                        await MainActor.run {
+                            if !self.messages.isEmpty {
+                                self.messages[self.messages.count - 1] = ChatMessage(content: "Error: \(message)", isFromUser: false)
+                            }
+                            self.isLoading = false
+                        }
+                        self.fallbackTask?.cancel()
+                    default:
+                        break
+                    }
+                }
+
+                if wasNewSession, let sid = self.sessionId {
                     NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
                         "sessionId": sid,
                         "title": "Session"
@@ -99,34 +145,14 @@ class ChatViewModel: ObservableObject {
                         "sessionId": sid
                     ])
                 }
-            } catch {
-                // Check if task was cancelled
-                guard !Task.isCancelled else { 
-                    await MainActor.run {
-                        // Remove the placeholder message if cancelled
-                        if !self.messages.isEmpty && self.messages.last?.content.isEmpty == true {
-                            self.messages.removeLast()
-                        }
-                    }
-                    return 
-                }
-                
-                let errorMessage = ChatMessage(content: "Error: \(error.localizedDescription)", isFromUser: false)
-                await MainActor.run {
-                    // Replace the placeholder with error message
-                    if !self.messages.isEmpty {
-                        self.messages[self.messages.count - 1] = errorMessage
-                    }
-                    self.isLoading = false
-                }
-            }
         }
     }
-    
+
     func stopGeneration() {
         currentTask?.cancel()
+        fallbackTask?.cancel()
         isLoading = false
-        
+
         // Remove the placeholder AI message if it exists
         if !messages.isEmpty && messages.last?.content.isEmpty == true {
             messages.removeLast()

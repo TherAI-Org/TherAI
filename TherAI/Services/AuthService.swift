@@ -110,7 +110,9 @@ class AuthService: ObservableObject {
     func getAccessToken() async -> String? {
         do {
             let session = try await client.auth.session
-            return session.accessToken
+            let token = session.accessToken
+            print("ACCESS_TOKEN: \(token)")
+            return token
         } catch {
             return nil
         }

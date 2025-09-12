@@ -1,5 +1,8 @@
 import uuid
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import iterate_in_threadpool
+import json
 from ..Models.requests import (
     DialogueRequestBody,
     DialogueRequestResponse,
@@ -352,3 +355,187 @@ async def mark_request_accepted_endpoint(request_id: uuid.UUID, current_user: di
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error marking request as accepted: {str(e)}")
+
+
+@router.post("/request/stream")
+async def create_dialogue_request_stream(request: DialogueRequestBody, current_user: dict = Depends(get_current_user)):
+    """Stream the AI-generated dialogue message (SSE) and persist at the end with linking logic."""
+    try:
+        user_uuid = uuid.UUID(current_user.get("sub"))
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+    try:
+        # Guard: ensure the provided session belongs to the caller
+        try:
+            await assert_session_owned_by_user(user_id=user_uuid, session_id=request.session_id)
+        except Exception:
+            raise HTTPException(status_code=403, detail="Session does not belong to the current user or does not exist")
+
+        # Check link status and compute context
+        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+        if not linked or not relationship_id:
+            raise HTTPException(status_code=400, detail="User is not linked to a partner")
+
+        partner_user_id = await get_partner_user_id(user_id=user_uuid)
+        if not partner_user_id:
+            raise HTTPException(status_code=400, detail="Could not find partner for the linked relationship")
+
+        # Current user's personal history (from provided session)
+        try:
+            current_personal_history = await list_messages_for_session(
+                user_id=user_uuid,
+                session_id=request.session_id,
+                limit=50
+            )
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to retrieve personal chat history for session {request.session_id}: {str(e)}")
+
+        other_partner_history = await get_partner_chat_history(user_id=user_uuid)
+        dialogue_history = await get_dialogue_history_for_context(user_id=user_uuid)
+
+        # Determine or create the dialogue session mapping for this (relationship, source personal session)
+        linked_session = await get_linked_session_by_relationship_and_source_session(
+            relationship_id=relationship_id,
+            source_session_id=request.session_id
+        )
+
+        if not linked_session:
+            new_dialogue = await create_new_dialogue_session(relationship_id=relationship_id)
+            dialogue_session_id = uuid.UUID(new_dialogue["id"])
+            await create_linked_session(
+                relationship_id=relationship_id,
+                user_a_id=user_uuid,
+                user_b_id=partner_user_id,
+                user_a_personal_session_id=request.session_id,
+                user_b_personal_session_id=None,
+                dialogue_session_id=dialogue_session_id
+            )
+            first_time_link = True
+        else:
+            try:
+                dialogue_session_id = uuid.UUID(linked_session["dialogue_session_id"])  # type: ignore[index]
+            except Exception:
+                raise HTTPException(status_code=500, detail="Linked session missing dialogue_session_id")
+            first_time_link = False
+
+        partner_joined = False
+        if not first_time_link:
+            partner_joined = bool(linked_session.get("user_b_personal_session_id"))
+
+        # Build prompt input similar to DialogueAgent.generate_dialogue_response
+        name_context = "Partner's name: Unknown\n"
+        current_context = "Current partner's personal thoughts:\n" + "".join([
+            ("User" if msg.get("role") == "user" else "AI Assistant") + f": {msg.get('content', '')}\n" for msg in current_personal_history
+        ])
+        other_context = ""
+        if other_partner_history:
+            other_context = "\nOther partner's personal thoughts:\n" + "".join([
+                ("User" if msg.get("role") == "user" else "AI Assistant") + f": {msg.get('content', '')}\n" for msg in other_partner_history
+            ])
+        dialogue_context_text = ""
+        if dialogue_history:
+            dialogue_context_text = "\nPrevious dialogue between partners:\n" + "".join([
+                ("Partner" if msg.get('message_type') == 'request' else "AI Mediator") + f": {msg.get('content', '')}\n" for msg in dialogue_history
+            ])
+        full_context = f"{name_context}\n{current_context}{other_context}{dialogue_context_text}\n\nPlease facilitate this conversation between partners."
+
+        input_messages = [
+            {"role": "system", "content": dialogue_agent.dialogue_prompt},
+            {"role": "user", "content": full_context}
+        ]
+
+        def iter_sse():
+            # Anti-buffering prelude
+            yield (":" + " " * 2048 + "\n\n").encode()
+            # Send dialogue_session_id to client first
+            yield f"event: dialogue_session\ndata: {json.dumps(str(dialogue_session_id))}\n\n".encode()
+            parts = []
+            try:
+                print(f"[SSE] /dialogue stream start dialogue_session_id={dialogue_session_id}")
+                with dialogue_agent.client.responses.stream(model=dialogue_agent.model, input=input_messages) as stream:  # type: ignore[attr-defined]
+                    try:
+                        for delta in stream.text_deltas:  # type: ignore[attr-defined]
+                            try:
+                                if delta:
+                                    parts.append(delta)
+                                    yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
+                            except Exception:
+                                continue
+                    except Exception:
+                        for event in stream:
+                            try:
+                                ev_type = getattr(event, "type", "")
+                                if ev_type.endswith("output_text.delta"):
+                                    delta = getattr(event, "delta", "") or ""
+                                    if delta:
+                                        parts.append(delta)
+                                        yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
+                                elif ev_type.endswith("error"):
+                                    err = getattr(event, "error", None)
+                                    if err:
+                                        yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
+                            except Exception:
+                                continue
+
+                    final = stream.get_final_response()
+                    final_text = getattr(final, "output_text", None) or "".join(parts)
+                    print(f"[SSE] /dialogue stream completed tokens={len(parts)} final_len={len(final_text)}")
+
+                # If nothing streamed, at least emit the final text once
+                if not parts and final_text:
+                    yield f"event: token\ndata: {json.dumps(final_text)}\n\n".encode()
+
+                # Persist dialogue message and (possibly) create a pending request
+                try:
+                    import asyncio
+                    if first_time_link or not partner_joined:
+                        dialogue_request = asyncio.run(create_dialogue_request(
+                            sender_user_id=user_uuid,
+                            recipient_user_id=uuid.UUID(str(partner_user_id)),
+                            sender_session_id=request.session_id,
+                            request_content=final_text,
+                            relationship_id=relationship_id
+                        ))
+                        req_id = dialogue_request["id"]
+                        asyncio.run(create_dialogue_message(
+                            dialogue_session_id=dialogue_session_id,
+                            request_id=uuid.UUID(req_id),
+                            content=final_text,
+                            sender_user_id=user_uuid,
+                            message_type="request"
+                        ))
+                        yield f"event: request\ndata: {json.dumps(req_id)}\n\n".encode()
+                    else:
+                        asyncio.run(create_dialogue_message(
+                            dialogue_session_id=dialogue_session_id,
+                            request_id=None,
+                            content=final_text,
+                            sender_user_id=user_uuid,
+                            message_type="request"
+                        ))
+                except Exception as e:
+                    yield f"event: warn\ndata: {json.dumps(f'Persist failed: {e}')}\n\n".encode()
+
+                yield b"event: done\ndata: {}\n\n"
+                print(f"[SSE] /dialogue stream done sent dialogue_session_id={dialogue_session_id}")
+            except Exception as e:
+                print(f"[SSE] /dialogue stream error: {e}")
+                yield f"event: error\ndata: {json.dumps(str(e))}\n\n".encode()
+
+        return StreamingResponse(
+            iterate_in_threadpool(iter_sse()),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                "Content-Encoding": "identity",
+                "Content-Type": "text/event-stream; charset=utf-8",
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error streaming dialogue request: {str(e)}")
