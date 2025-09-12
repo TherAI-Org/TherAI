@@ -20,7 +20,7 @@ struct SlideOutSidebarView: View {
                     }
                 }) {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 22, weight: .medium))
                         .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
 
@@ -30,14 +30,11 @@ struct SlideOutSidebarView: View {
                     let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
                     impactFeedback.impactOccurred()
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                        viewModel.startNewChat()
-                        viewModel.isChatsExpanded = true
-                        selectedTab = .chat
                         isOpen = false
                     }
                 }) {
-                    Image(systemName: "square.and.pencil")
-                        .font(.system(size: 20, weight: .medium))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 22, weight: .medium))
                         .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                 }
             }
@@ -51,8 +48,33 @@ struct SlideOutSidebarView: View {
 
             // Sections
             VStack(spacing: 10) {
-                // Chats Section (expandable list of sessions)
-                SectionHeader(title: "Chats", isExpanded: viewModel.isChatsExpanded) {
+                // New Conversation Button
+                Button(action: {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                        viewModel.startNewChat()
+                        viewModel.isChatsExpanded = true
+                        selectedTab = .chat
+                        isOpen = false
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        Text("New Conversation")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                }
+                .buttonStyle(PlainButtonStyle())
+                
+                // Sessions Section (expandable list of sessions)
+                SectionHeader(title: "Sessions", isExpanded: viewModel.isChatsExpanded) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                         viewModel.isChatsExpanded.toggle()
                     }
@@ -74,7 +96,7 @@ struct SlideOutSidebarView: View {
                                             Image(systemName: "message")
                                                 .font(.system(size: 16, weight: .medium))
                                                 .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                            Text(session.title ?? "Chat")
+                                            Text(session.title ?? "Session")
                                                 .font(.system(size: 16, weight: .regular))
                                                 .foregroundColor(.primary)
                                             Spacer()
@@ -106,22 +128,29 @@ struct SlideOutSidebarView: View {
                                     }
                                 }
                             } else {
-                                // Empty state
-                                VStack(spacing: 8) {
+                                // Minimalistic empty state
+                                VStack(spacing: 16) {
                                     Image(systemName: "message")
-                                        .font(.system(size: 24, weight: .light))
+                                        .font(.system(size: 32, weight: .light))
                                         .foregroundColor(.secondary)
-                                    Text("No chats yet")
-                                        .font(.system(size: 14, weight: .medium))
+                                    
+                                    Text("No sessions yet")
+                                        .font(.system(size: 18, weight: .medium))
                                         .foregroundColor(.secondary)
                                 }
-                                .padding(.vertical, 20)
+                                .padding(.vertical, 40)
                             }
                         }
                         .padding(.horizontal, 0)
                     }
                     .refreshable {
                         await viewModel.refreshSessions()
+                    }
+                    .onAppear {
+                        // Clear and reload sessions when sidebar appears to ensure we have latest from backend
+                        Task {
+                            await viewModel.clearAndReloadSessions()
+                        }
                     }
                     .frame(maxHeight: 300) // Limit height to prevent taking up too much space
                     .background(Color.clear)
@@ -195,7 +224,7 @@ private struct SectionHeader: View {
         Button(action: onTap) {
             HStack(spacing: 12) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.primary)
 
                 Spacer()
