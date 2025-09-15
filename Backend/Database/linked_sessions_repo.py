@@ -20,11 +20,15 @@ async def create_linked_session(*, relationship_id: uuid.UUID, user_a_id: uuid.U
         "dialogue_session_id": str(dialogue_session_id),
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    def _insert():
-        return supabase.table(LINKED_SESSIONS_TABLE).insert(payload).execute()
-    res = await run_in_threadpool(_insert)
+    def _upsert():
+        return supabase.table(LINKED_SESSIONS_TABLE).upsert(
+            payload,
+            on_conflict = "relationship_id,user_a_personal_session_id",
+        ).execute()
+
+    res = await run_in_threadpool(_upsert)
     if getattr(res, "error", None):
-        raise RuntimeError(f"Supabase insert linked session failed: {res.error}")
+        raise RuntimeError(f"Supabase upsert linked session failed: {res.error}")
     return res.data[0]
 
 # Finds, for a given relationship and personal session, the linked row that points to the shared dialogue session (or returns None)
