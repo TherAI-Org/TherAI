@@ -13,27 +13,25 @@ class DialogueAgent:
             raise ValueError("Missing OPENAI_MODEL in environment")
         self.model = model
 
-        # Load unified dialogue prompt (handles both greeting and continuation)
         dialogue_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "DialoguePrompt.txt"
-        with open(dialogue_prompt_path, "r", encoding="utf-8") as f:
+        with open(dialogue_prompt_path, "r", encoding = "utf-8") as f:
             self.dialogue_prompt = f.read().strip()
 
     def generate_dialogue_response(self, current_partner_history: list, other_partner_history: list = None,
-                                  dialogue_history: list = None, partner_name: str = None) -> str:
-        """Generate dialogue message handling both first-time and continuation scenarios"""
+                                   dialogue_history: list = None, user_a_id = None) -> str:
         try:
-            # Build context from current partner's personal chat
-            current_context = "Current partner's personal thoughts:\n"
+            # Build context from current user personal chat
+            current_context = "Current partner's chat:\n"
             for msg in current_partner_history:
-                role = "User" if msg.get("role") == "user" else "AI Assistant"
+                role = "User" if msg.get("role") == "user" else "Assistant"
                 current_context += f"{role}: {msg.get('content', '')}\n"
 
-            # Build other partner's context if available
+            # Build context from partner's personal chat
             other_context = ""
             if other_partner_history:
-                other_context = "\nOther partner's personal thoughts:\n"
+                other_context = "\nOther partner's chat:\n"
                 for msg in other_partner_history:
-                    role = "User" if msg.get("role") == "user" else "AI Assistant"
+                    role = "User" if msg.get("role") == "user" else "Assistant"
                     other_context += f"{role}: {msg.get('content', '')}\n"
 
             # Build dialogue context if available
@@ -41,14 +39,21 @@ class DialogueAgent:
             if dialogue_history:
                 dialogue_context_text = "\nPrevious dialogue between partners:\n"
                 for msg in dialogue_history:
-                    sender = "Partner" if msg.get('message_type') == 'request' else "AI Mediator"
-                    dialogue_context_text += f"{sender}: {msg.get('content', '')}\n"
+                    try:
+                        sender_id = str(msg.get('sender_user_id')) if msg.get('sender_user_id') is not None else None
+                        a_id = str(user_a_id) if user_a_id is not None else None
+                    except Exception:
+                        sender_id = msg.get('sender_user_id')
+                        a_id = str(user_a_id) if user_a_id is not None else None
 
-            # Add partner name context
-            name_context = f"Partner's name: {partner_name}\n" if partner_name else "Partner's name: Unknown\n"
+                    if sender_id and a_id and sender_id == a_id:
+                        label = "Partner A:"
+                    else:
+                        label = "Partner B:"
 
-            # Combine all context
-            full_context = f"{name_context}\n{current_context}{other_context}{dialogue_context_text}\n\nPlease facilitate this conversation between partners."
+                    dialogue_context_text += f"{label}: {msg.get('content', '')}\n"
+
+            full_context = f"{current_context}{other_context}{dialogue_context_text}"
 
             input_messages = [
                 {"role": "system", "content": self.dialogue_prompt},
@@ -56,13 +61,12 @@ class DialogueAgent:
             ]
 
             response = self.client.responses.create(
-                model=self.model,
-                input=input_messages,
+                model = self.model,
+                input = input_messages,
             )
 
             if hasattr(response, "output_text") and response.output_text:
                 return response.output_text.strip()
-
             parts = []
             for block in getattr(response, "output", []) or []:
                 if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
@@ -70,9 +74,8 @@ class DialogueAgent:
             if parts:
                 return "".join(parts).strip()
 
-            return "I'd like to help facilitate this conversation between you and your partner."
+            return ""
 
         except Exception as e:
             print(f"OpenAI API error in dialogue generation: {e}")
-            return f"I'm here to help you and your partner understand each other better."
-
+            return ""

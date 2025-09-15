@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import get_current_user
 from ..Models.requests import CreateLinkInviteResponse, AcceptLinkInviteRequest, AcceptLinkInviteResponse, UnlinkResponse, LinkStatusResponse
-from ..Database.link_repository import accept_link_invite, unlink_relationship_for_user, get_link_status_for_user, get_or_create_link_invite
+from ..Database.link_repo import accept_link_invite, unlink_relationship_for_user, get_link_status_for_user, get_or_create_link_invite
 
 router = APIRouter(prefix = "/link")
 
