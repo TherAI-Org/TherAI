@@ -14,13 +14,10 @@ from ..Models.requests import (
 )
 from ..Agents.dialogue import DialogueAgent
 from ..auth import get_current_user
-from ..Database.chat_repository import list_messages_for_session, get_partner_chat_history
-from ..Database.dialogue_repository import (
-    get_or_create_dialogue_session,
+from ..Database.chat_repo import list_messages_for_session
+from ..Database.dialogue_repo import (
     create_dialogue_request,
     create_dialogue_message,
-    get_dialogue_history_for_context,
-    get_dialogue_messages,
     get_pending_requests_for_user,
     mark_request_as_delivered,
     mark_request_as_accepted,
@@ -28,14 +25,10 @@ from ..Database.dialogue_repository import (
     list_dialogue_messages_by_session,
     create_new_dialogue_session,
 )
-from ..Database.link_repository import get_link_status_for_user, get_partner_user_id
+from ..Database.link_repo import get_link_status_for_user, get_partner_user_id
 from ..Database.linked_sessions_repository import (
     create_linked_session,
-    get_linked_session_by_relationship,
-    linked_session_exists,
-    update_linked_session_partner_session,
     get_linked_session_by_relationship_and_source_session,
-    linked_session_exists_for_session,
     update_linked_session_partner_session_for_source,
 )
 from ..Database.session_repository import create_session, assert_session_owned_by_user, get_or_create_default_session
@@ -80,19 +73,6 @@ async def create_dialogue_request_endpoint(request: DialogueRequestBody, current
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to retrieve personal chat history for session {request.session_id}: {str(e)}")
 
-        # Get partner's personal chat history
-        partner_personal_history = await get_partner_chat_history(user_id=user_uuid)
-
-        # Get existing dialogue history
-        dialogue_history = await get_dialogue_history_for_context(user_id=user_uuid)
-
-        # Generate dialogue message using comprehensive context
-        dialogue_content = dialogue_agent.generate_dialogue_response(
-            current_partner_history=current_personal_history,
-            other_partner_history=partner_personal_history,
-            dialogue_history=dialogue_history
-        )
-
         # Determine or create the dialogue session mapping for this (relationship, source personal session)
         linked_session = await get_linked_session_by_relationship_and_source_session(
             relationship_id=relationship_id,
@@ -119,6 +99,44 @@ async def create_dialogue_request_endpoint(request: DialogueRequestBody, current
             except Exception:
                 raise HTTPException(status_code=500, detail="Linked session missing dialogue_session_id")
             first_time_link = False
+
+        # Get partner's personal chat history scoped to the mapped partner session (if available)
+        partner_personal_history = []
+        try:
+            # Determine which column holds the partner's personal session for the current user
+            current_user_id_str = str(user_uuid)
+            partner_session_id_str = None
+            if linked_session:
+                if linked_session.get("user_a_id") == current_user_id_str:
+                    partner_session_id_str = linked_session.get("user_b_personal_session_id")
+                elif linked_session.get("user_b_id") == current_user_id_str:
+                    partner_session_id_str = linked_session.get("user_a_personal_session_id")
+
+            if partner_session_id_str:
+                partner_personal_history = await list_messages_for_session(
+                    user_id = partner_user_id,
+                    session_id = uuid.UUID(partner_session_id_str),
+                    limit = 50,
+                )
+        except Exception:
+            partner_personal_history = []
+
+        # Get existing dialogue history scoped to this dialogue session
+        dialogue_history = await list_dialogue_messages_by_session(dialogue_session_id=dialogue_session_id, limit=30)
+
+        # Generate dialogue message using comprehensive context (label past messages as Partner A/B)
+        if linked_session:
+            a_id = uuid.UUID(linked_session["user_a_id"])  # type: ignore[index]
+        else:
+            # First-time link path: we just created the link above
+            a_id = user_uuid
+
+        dialogue_content = dialogue_agent.generate_dialogue_response(
+            current_partner_history=current_personal_history,
+            other_partner_history=partner_personal_history,
+            dialogue_history=dialogue_history,
+            user_a_id=a_id,
+        )
 
         # Determine whether partner has already joined (accepted)
         partner_joined = False
@@ -392,9 +410,6 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to retrieve personal chat history for session {request.session_id}: {str(e)}")
 
-        other_partner_history = await get_partner_chat_history(user_id=user_uuid)
-        dialogue_history = await get_dialogue_history_for_context(user_id=user_uuid)
-
         # Determine or create the dialogue session mapping for this (relationship, source personal session)
         linked_session = await get_linked_session_by_relationship_and_source_session(
             relationship_id=relationship_id,
@@ -424,6 +439,35 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
         if not first_time_link:
             partner_joined = bool(linked_session.get("user_b_personal_session_id"))
 
+        # Load dialogue history scoped to this dialogue session for prompt context
+        dialogue_history = await list_dialogue_messages_by_session(dialogue_session_id=dialogue_session_id, limit=30)
+
+        # Resolve A/B ids for labeling (mirror non-stream logic)
+        if linked_session:
+            a_id_str = linked_session["user_a_id"]  # type: ignore[index]
+        else:
+            a_id_str = str(user_uuid)
+
+        # Load partner's personal chat history from the mapped partner session (if available)
+        other_partner_history = []
+        try:
+            current_user_id_str = str(user_uuid)
+            partner_session_id_str = None
+            if linked_session:
+                if linked_session.get("user_a_id") == current_user_id_str:
+                    partner_session_id_str = linked_session.get("user_b_personal_session_id")
+                elif linked_session.get("user_b_id") == current_user_id_str:
+                    partner_session_id_str = linked_session.get("user_a_personal_session_id")
+
+            if partner_session_id_str:
+                other_partner_history = await list_messages_for_session(
+                    user_id = partner_user_id,
+                    session_id = uuid.UUID(partner_session_id_str),
+                    limit = 50,
+                )
+        except Exception:
+            other_partner_history = []
+
         # Build prompt input similar to DialogueAgent.generate_dialogue_response
         name_context = "Partner's name: Unknown\n"
         current_context = "Current partner's personal thoughts:\n" + "".join([
@@ -436,9 +480,15 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
             ])
         dialogue_context_text = ""
         if dialogue_history:
-            dialogue_context_text = "\nPrevious dialogue between partners:\n" + "".join([
-                ("Partner" if msg.get('message_type') == 'request' else "AI Mediator") + f": {msg.get('content', '')}\n" for msg in dialogue_history
-            ])
+            lines = []
+            for msg in dialogue_history:
+                sender_id = str(msg.get('sender_user_id')) if msg.get('sender_user_id') is not None else None
+                if sender_id == a_id_str:
+                    label = "Partner A:"
+                else:
+                    label = "Partner B:"
+                lines.append(f"{label} {msg.get('content', '')}\n")
+            dialogue_context_text = "\nPrevious dialogue between partners:\n" + "".join(lines)
         full_context = f"{name_context}\n{current_context}{other_context}{dialogue_context_text}\n\nPlease facilitate this conversation between partners."
 
         input_messages = [

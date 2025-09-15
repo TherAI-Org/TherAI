@@ -14,10 +14,9 @@ def _utc_in_hours_iso(hours: int) -> str:
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
-# Return True if the user appears in `paired_accounts` on either side
+# Return True if the user appears in 'paired_accounts' on either side
 async def is_user_linked(*, user_id: uuid.UUID) -> bool:
     user_id_str = str(user_id)
-
     def _select_rel_by_partner_a():
         return (supabase
                 .table(RELATIONSHIPS_TABLE)
@@ -34,13 +33,11 @@ async def is_user_linked(*, user_id: uuid.UUID) -> bool:
                 .limit(1)
                 .execute()
                 )
-
     res_a = await run_in_threadpool(_select_rel_by_partner_a)
     if getattr(res_a, "error", None):
         raise RuntimeError(f"Supabase select relationship failed: {res_a.error}")
     if res_a.data:
         return True
-
     res_b = await run_in_threadpool(_select_rel_by_partner_b)
     if getattr(res_b, "error", None):
         raise RuntimeError(f"Supabase select relationship failed: {res_b.error}")
@@ -50,7 +47,6 @@ async def is_user_linked(*, user_id: uuid.UUID) -> bool:
 async def _create_link_invite(*, inviter_user_id: uuid.UUID, expires_in_hours: int = 24) -> dict:
     if await is_user_linked(user_id = inviter_user_id):
         raise PermissionError("You are already linked to a partner. Please unlink first.")
-
     invite_token = uuid.uuid4().hex
     payload = {
         "invite_user_id": str(inviter_user_id),
@@ -60,7 +56,6 @@ async def _create_link_invite(*, inviter_user_id: uuid.UUID, expires_in_hours: i
         "invitee_user_id": None,
         "paired_account_id": None,
     }
-
     def _insert():
         return supabase.table(RELATIONSHIP_LINKS_TABLE).insert(payload).execute()
     res = await run_in_threadpool(_insert)
@@ -71,7 +66,6 @@ async def _create_link_invite(*, inviter_user_id: uuid.UUID, expires_in_hours: i
 # Return an existing, unexpired, unused invite for the inviter if present
 async def get_unexpired_invite_for_user(*, inviter_user_id: uuid.UUID) -> dict | None:
     user_id_str = str(inviter_user_id)
-
     def _select():
         return (
             supabase
@@ -84,7 +78,6 @@ async def get_unexpired_invite_for_user(*, inviter_user_id: uuid.UUID) -> dict |
             .limit(1)
             .execute()
         )
-
     res = await run_in_threadpool(_select)
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase select unexpired invite failed: {res.error}")
@@ -229,10 +222,8 @@ async def get_link_status_for_user(*, user_id: uuid.UUID) -> tuple[bool, Optiona
         return False, None
     return True, uuid.UUID(relationship["id"])  # type: ignore[index]
 
-
 # Get partner's user_id from relationship
 async def get_partner_user_id(*, user_id: uuid.UUID) -> Optional[uuid.UUID]:
-    """Get the partner's user_id for a given user"""
     user_id_str = str(user_id)
 
     def _select_rel_by_partner_a():
@@ -273,4 +264,5 @@ async def get_partner_user_id(*, user_id: uuid.UUID) -> Optional[uuid.UUID]:
         return uuid.UUID(relationship["partner_a_user_id"])
 
     return None
+
 
