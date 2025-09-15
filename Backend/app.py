@@ -10,7 +10,7 @@ from .auth import get_current_user
 from .Database.chat_repo import save_message, list_messages_for_session
 from .Database.dialogue_repo import list_dialogue_messages_by_session
 from .Database.link_repo import get_link_status_for_user, get_partner_user_id
-from .Database.linked_sessions_repository import get_linked_session_by_relationship_and_source_session
+from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
 from .Database.session_repository import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user
 from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router

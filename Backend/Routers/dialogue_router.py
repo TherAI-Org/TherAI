@@ -26,7 +26,7 @@ from ..Database.dialogue_repo import (
     create_new_dialogue_session,
 )
 from ..Database.link_repo import get_link_status_for_user, get_partner_user_id
-from ..Database.linked_sessions_repository import (
+from ..Database.linked_sessions_repo import (
     create_linked_session,
     get_linked_session_by_relationship_and_source_session,
     update_linked_session_partner_session_for_source,

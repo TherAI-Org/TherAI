@@ -50,7 +50,6 @@ async def update_linked_session_partner_session_for_source(*, relationship_id: u
     relationship_id_str = str(relationship_id)
     source_session_id_str = str(source_session_id)
     partner_session_id_str = str(partner_session_id)
-
     def _update():
         return (supabase
                 .table(LINKED_SESSIONS_TABLE)
@@ -59,7 +58,6 @@ async def update_linked_session_partner_session_for_source(*, relationship_id: u
                 .eq("user_a_personal_session_id", source_session_id_str)
                 .execute()
                 )
-
     res = await run_in_threadpool(_update)
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase update linked session partner session by source failed: {res.error}")
