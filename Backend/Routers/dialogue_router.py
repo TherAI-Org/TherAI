@@ -323,6 +323,26 @@ async def mark_request_delivered_endpoint(request_id: uuid.UUID, current_user: d
         raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
     try:
+        # Authorization: only the intended recipient within the same relationship can mark delivered
+        dialogue_request = await get_dialogue_request_by_id(request_id=request_id)
+        if not dialogue_request:
+            raise HTTPException(status_code=404, detail="Dialogue request not found")
+
+        # Verify caller is linked and relationship matches
+        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+        if not linked or not relationship_id:
+            raise HTTPException(status_code=403, detail="User is not linked to a partner")
+        try:
+            req_rel = uuid.UUID(dialogue_request["relationship_id"])  # type: ignore[index]
+        except Exception:
+            raise HTTPException(status_code=500, detail="Dialogue request missing relationship_id")
+        if req_rel != relationship_id:
+            raise HTTPException(status_code=404, detail="Dialogue request not found")
+
+        # Verify caller is the recipient of this request
+        if dialogue_request.get("recipient_user_id") != str(user_uuid):
+            raise HTTPException(status_code=404, detail="Dialogue request not found")
+
         await mark_request_as_delivered(request_id=request_id)
         return {"success": True}
 
@@ -339,16 +359,28 @@ async def mark_request_accepted_endpoint(request_id: uuid.UUID, current_user: di
         raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
     try:
-        # Mark request as accepted
-        await mark_request_as_accepted(request_id=request_id)
-
-        # Get the dialogue request to find the relationship
+        # Load the request for authorization and context
         dialogue_request = await get_dialogue_request_by_id(request_id=request_id)
         if not dialogue_request:
             raise HTTPException(status_code=404, detail="Dialogue request not found")
 
-        # Get the relationship ID from the request
-        relationship_id = uuid.UUID(dialogue_request["relationship_id"])
+        # Verify caller is linked and relationship matches
+        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+        if not linked or not relationship_id:
+            raise HTTPException(status_code=403, detail="User is not linked to a partner")
+        try:
+            req_rel = uuid.UUID(dialogue_request["relationship_id"])  # type: ignore[index]
+        except Exception:
+            raise HTTPException(status_code=500, detail="Dialogue request missing relationship_id")
+        if req_rel != relationship_id:
+            raise HTTPException(status_code=404, detail="Dialogue request not found")
+
+        # Verify caller is the recipient of this request
+        if dialogue_request.get("recipient_user_id") != str(user_uuid):
+            raise HTTPException(status_code=404, detail="Dialogue request not found")
+
+        # Mark request as accepted
+        await mark_request_as_accepted(request_id=request_id)
 
         # Find the specific linked row for this source personal session
         try:
