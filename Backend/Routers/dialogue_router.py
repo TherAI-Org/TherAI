@@ -36,7 +36,7 @@ from ..Database.linked_sessions_repo import (
     get_linked_session_by_relationship_and_source_session,
     update_linked_session_partner_session_for_source,
 )
-from ..Database.session_repo import create_session, assert_session_owned_by_user, get_or_create_default_session
+from ..Database.session_repo import create_session, assert_session_owned_by_user
 
 router = APIRouter(prefix="/dialogue", tags=["dialogue"])
 
