@@ -70,6 +70,17 @@ class ChatViewModel: ObservableObject {
                 print("ACCESS_TOKEN: <nil>")
                 return
             }
+                // Ensure we have a stable session id before sending to avoid backend auto-creating new sessions
+                if self.sessionId == nil {
+                    do {
+                        let dto = try await self.backend.createEmptySession(accessToken: accessToken)
+                        await MainActor.run { self.sessionId = dto.id }
+                        print("[ChatVM] Pre-created personal session id=\(dto.id) before streaming send")
+                    } catch {
+                        print("[ChatVM] Failed to pre-create session: \(error)")
+                    }
+                }
+
                 // Build chat history from current messages (excluding the just-added user message and placeholder)
                 let chatHistory = self.messages.dropLast(2).map { message in
                     ChatHistoryMessage(

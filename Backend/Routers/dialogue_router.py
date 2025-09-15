@@ -42,9 +42,9 @@ router = APIRouter(prefix="/dialogue", tags=["dialogue"])
 
 dialogue_agent = DialogueAgent()
 
+# Create a dialogue request with auto-linking logic
 @router.post("/request", response_model=DialogueRequestResponse)
 async def create_dialogue_request_endpoint(request: DialogueRequestBody, current_user: dict = Depends(get_current_user)):
-    """Create a dialogue request with auto-linking logic"""
     try:
         user_uuid = uuid.UUID(current_user.get("sub"))
     except Exception:
@@ -250,14 +250,13 @@ async def get_dialogue_messages_endpoint(source_session_id: uuid.UUID, current_u
                         dialogue_session_id=uuid.UUID(linked_session["dialogue_session_id"])  # type: ignore[index]
                     )
                 else:
-                    return DialogueMessagesResponse(messages=[], dialogue_session_id=uuid.uuid4())
+                    raise HTTPException(status_code=500, detail="Linked session missing dialogue_session_id")
 
         # Determine dialogue_session_id for this source session scope
         if linked_session and linked_session.get("dialogue_session_id"):
             dialogue_session_id = uuid.UUID(linked_session["dialogue_session_id"])
         else:
-            # Fallback: should not happen if the link exists; generate a stable id
-            dialogue_session_id = uuid.UUID(linked_session["dialogue_session_id"]) if linked_session else uuid.uuid4()  # type: ignore[index]
+            raise HTTPException(status_code=404, detail="Dialogue session not found for this personal session")
 
         # Get dialogue messages for that dialogue session
         messages = await list_dialogue_messages_by_session(dialogue_session_id=dialogue_session_id, limit=100)
