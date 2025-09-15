@@ -3,6 +3,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 import json
+import asyncio
+
 from ..Models.requests import (
     DialogueRequestBody,
     DialogueRequestResponse,
@@ -24,6 +26,9 @@ from ..Database.dialogue_repo import (
     get_dialogue_request_by_id,
     list_dialogue_messages_by_session,
     create_new_dialogue_session,
+    get_active_request_for_relationship,
+    update_dialogue_request_content,
+    update_latest_request_message_content,
 )
 from ..Database.link_repo import get_link_status_for_user, get_partner_user_id
 from ..Database.linked_sessions_repo import (
@@ -31,8 +36,7 @@ from ..Database.linked_sessions_repo import (
     get_linked_session_by_relationship_and_source_session,
     update_linked_session_partner_session_for_source,
 )
-from ..Database.session_repository import create_session, assert_session_owned_by_user, get_or_create_default_session
-import asyncio
+from ..Database.session_repo import create_session, assert_session_owned_by_user, get_or_create_default_session
 
 router = APIRouter(prefix="/dialogue", tags=["dialogue"])
 
@@ -144,8 +148,32 @@ async def create_dialogue_request_endpoint(request: DialogueRequestBody, current
             partner_joined = bool(linked_session.get("user_b_personal_session_id"))
 
         if first_time_link or not partner_joined:
-            # FIRST TIME (or partner not yet accepted): create a pending dialogue request
-            try:
+            # Single active request policy with overwrite semantics
+            active_request = await get_active_request_for_relationship(relationship_id=relationship_id)
+            if active_request:
+                try:
+                    existing_sender_session = uuid.UUID(active_request.get("sender_session_id"))  # type: ignore[arg-type]
+                except Exception:
+                    existing_sender_session = None
+                if existing_sender_session and existing_sender_session != request.session_id:
+                    raise HTTPException(status_code=400, detail="Another session already has an active request for this relationship")
+
+                # Overwrite existing request and update latest request-type dialogue message
+                await update_dialogue_request_content(
+                    request_id=uuid.UUID(active_request["id"]),
+                    request_content=dialogue_content,
+                )
+                await update_latest_request_message_content(
+                    dialogue_session_id=dialogue_session_id,
+                    content=dialogue_content,
+                )
+                return DialogueRequestResponse(
+                    success=True,
+                    request_id=uuid.UUID(active_request["id"]),
+                    dialogue_session_id=dialogue_session_id,
+                )
+            else:
+                # Create a new pending request and initial request message
                 dialogue_request = await create_dialogue_request(
                     sender_user_id=user_uuid,
                     recipient_user_id=partner_user_id,
@@ -153,26 +181,18 @@ async def create_dialogue_request_endpoint(request: DialogueRequestBody, current
                     request_content=dialogue_content,
                     relationship_id=relationship_id
                 )
-            except ValueError as e:
-                if "A pending request already exists" in str(e):
-                    raise HTTPException(status_code=400, detail="A dialogue request is already pending for this relationship")
-                else:
-                    raise HTTPException(status_code=400, detail=str(e))
-
-            # Create dialogue message linked to the request
-            await create_dialogue_message(
-                dialogue_session_id=dialogue_session_id,
-                request_id=uuid.UUID(dialogue_request["id"]),
-                content=dialogue_content,
-                sender_user_id=user_uuid,
-                message_type="request"
-            )
-
-            return DialogueRequestResponse(
-                success=True,
-                request_id=uuid.UUID(dialogue_request["id"]),
-                dialogue_session_id=dialogue_session_id
-            )
+                await create_dialogue_message(
+                    dialogue_session_id=dialogue_session_id,
+                    request_id=uuid.UUID(dialogue_request["id"]),
+                    content=dialogue_content,
+                    sender_user_id=user_uuid,
+                    message_type="request"
+                )
+                return DialogueRequestResponse(
+                    success=True,
+                    request_id=uuid.UUID(dialogue_request["id"]),
+                    dialogue_session_id=dialogue_session_id,
+                )
         else:
             # SUBSEQUENT SENDS after partner has joined: no pending request; just add dialogue message
             await create_dialogue_message(
@@ -543,7 +563,38 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
                 # Persist dialogue message and (possibly) create a pending request
                 try:
                     if first_time_link or not partner_joined:
-                        try:
+                        # Overwrite-or-create semantics under single active request policy
+                        fut_active = asyncio.run_coroutine_threadsafe(
+                            get_active_request_for_relationship(relationship_id=relationship_id),
+                            loop,
+                        )
+                        active_request = fut_active.result()
+                        if active_request:
+                            existing_sender_session = None
+                            try:
+                                existing_sender_session = uuid.UUID(active_request.get("sender_session_id"))  # type: ignore[arg-type]
+                            except Exception:
+                                pass
+                            if existing_sender_session and existing_sender_session != request.session_id:
+                                raise Exception("Another session already has an active request for this relationship")
+
+                            asyncio.run_coroutine_threadsafe(
+                                update_dialogue_request_content(
+                                    request_id=uuid.UUID(active_request["id"]),
+                                    request_content=final_text,
+                                ),
+                                loop,
+                            ).result()
+                            asyncio.run_coroutine_threadsafe(
+                                update_latest_request_message_content(
+                                    dialogue_session_id=dialogue_session_id,
+                                    content=final_text,
+                                ),
+                                loop,
+                            ).result()
+                            print(f"[SSE] Overwrote active request request_id={active_request['id']} dialogue_session_id={dialogue_session_id}")
+                            yield f"event: request\ndata: {json.dumps(active_request['id'])}\n\n".encode()
+                        else:
                             fut_req = asyncio.run_coroutine_threadsafe(
                                 create_dialogue_request(
                                     sender_user_id=user_uuid,
@@ -557,7 +608,7 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
                             dialogue_request = fut_req.result()
                             req_id = dialogue_request["id"]
 
-                            fut_msg = asyncio.run_coroutine_threadsafe(
+                            asyncio.run_coroutine_threadsafe(
                                 create_dialogue_message(
                                     dialogue_session_id=dialogue_session_id,
                                     request_id=uuid.UUID(req_id),
@@ -566,28 +617,9 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
                                     message_type="request"
                                 ),
                                 loop,
-                            )
-                            fut_msg.result()
-
-                            print(f"[SSE] Persisted dialogue request and message request_id={req_id} dialogue_session_id={dialogue_session_id}")
+                            ).result()
+                            print(f"[SSE] Created new request and message request_id={req_id} dialogue_session_id={dialogue_session_id}")
                             yield f"event: request\ndata: {json.dumps(req_id)}\n\n".encode()
-                        except Exception as ee:
-                            # If a pending request already exists for this relationship, still persist the message without a new request
-                            if "pending request already exists" in str(ee).lower():
-                                fut_msg = asyncio.run_coroutine_threadsafe(
-                                    create_dialogue_message(
-                                        dialogue_session_id=dialogue_session_id,
-                                        request_id=None,
-                                        content=final_text,
-                                        sender_user_id=user_uuid,
-                                        message_type="request"
-                                    ),
-                                    loop,
-                                )
-                                fut_msg.result()
-                                print(f"[SSE] Pending request exists — persisted dialogue message without new request dialogue_session_id={dialogue_session_id}")
-                            else:
-                                raise
                     else:
                         fut_msg = asyncio.run_coroutine_threadsafe(
                             create_dialogue_message(
