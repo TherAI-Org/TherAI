@@ -11,7 +11,7 @@ struct MainLinkView: View {
         _viewModel = StateObject(wrappedValue: LinkViewModel(accessTokenProvider: accessTokenProvider))
     }
 
-    // Convenience initializer for previews
+    // Ignore this - for Previews
     init(viewModel: LinkViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
@@ -39,12 +39,7 @@ struct MainLinkView: View {
 
             case .shareReady(let url):
                 MinimalCardView {
-                    VStack(spacing: 12) {
-                        Text("Invite link ready")
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-
-                        HStack(spacing: 10) {
+                    HStack(spacing: 10) {
                             Image(systemName: "link")
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
@@ -70,17 +65,16 @@ struct MainLinkView: View {
 
                             // Share button
                             ShareLink(item: url) { IconButtonLabelView(systemName: "square.and.arrow.up") }
-                        }
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(.systemBackground))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.black.opacity(0.1), lineWidth: 1)
-                                )
-                        )
                     }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemBackground))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            )
+                    )
                 }
 
             case .accepting:
@@ -139,8 +133,6 @@ struct MainLinkView: View {
     }
 }
 
-// MARK: - Helpers
-
 private func truncatedDisplay(for url: URL) -> String {
     let host = url.host ?? ""
     let path = url.path
@@ -150,18 +142,8 @@ private func truncatedDisplay(for url: URL) -> String {
 }
 
 #if DEBUG
-struct MainLinkView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            MainLinkView(viewModel: .preview(state: .idle))
-                .previewDisplayName("Idle")
-                .padding()
-
-            MainLinkView(viewModel: .preview(state: .shareReady(url: URL(string: "https://example.com/invite/abc123")!)))
-                .previewDisplayName("Share Ready")
-                .padding()
-        }
-        .previewLayout(.sizeThatFits)
-    }
+#Preview(traits: .sizeThatFitsLayout) {
+    MainLinkView(viewModel: .preview(state: .shareReady(url: URL(string: "https://example.com/invite/abc123")!)))
+        .padding()
 }
 #endif

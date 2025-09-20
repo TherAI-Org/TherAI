@@ -31,6 +31,7 @@ class SessionDTO(BaseModel):
     id: UUID
     user_id: UUID
     title: Optional[str] = None
+    last_message_at: Optional[str] = None
 
 class SessionsResponse(BaseModel):
     sessions: list[SessionDTO]

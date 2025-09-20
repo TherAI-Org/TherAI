@@ -333,6 +333,7 @@ async def get_sessions(current_user: dict = Depends(get_current_user)):
                 id=uuid.UUID(r["id"]),
                 user_id=uuid.UUID(r["user_id"]),
                 title=r.get("title"),
+                last_message_at=r.get("last_message_at"),
             )
             for r in rows
         ]
