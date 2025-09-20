@@ -4,6 +4,7 @@ import UIKit
 struct SlideOutSidebarContainerView<Content: View>: View {
 
     @StateObject private var viewModel = SlideOutSidebarViewModel()
+
     @Namespace private var profileNamespace
 
     @Environment(\.scenePhase) private var scenePhase

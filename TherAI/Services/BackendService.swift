@@ -250,6 +250,7 @@ private struct MessagesResponseBody: Codable {
 struct ChatSessionDTO: Codable {
     let id: UUID
     let title: String?
+    let last_message_at: String?
 }
 
 private struct SessionsResponseBody: Codable {
