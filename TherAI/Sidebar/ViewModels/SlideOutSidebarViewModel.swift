@@ -162,7 +162,7 @@ class SlideOutSidebarViewModel: ObservableObject {
             let mapped = dtos.map { dto in
                 let title = dto.title?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let finalTitle = title?.isEmpty == true ? nil : title
-                return ChatSession(id: dto.id, title: finalTitle)
+                return ChatSession(id: dto.id, title: finalTitle, lastUsedISO8601: dto.last_message_at)
             }
             await MainActor.run {
                 self.sessions = mapped
