@@ -21,7 +21,7 @@ struct ProfileButtonView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 44, height: 44)
+                        .frame(width: 50, height: 50)
                         .overlay(
                             Circle()
                                 .stroke(Color.white.opacity(0.8), lineWidth: 1)
@@ -45,7 +45,7 @@ struct ProfileButtonView: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 44, height: 44)
+                        .frame(width: 50, height: 50)
                         .overlay(
                             Circle()
                                 .stroke(Color.white.opacity(0.8), lineWidth: 1)
