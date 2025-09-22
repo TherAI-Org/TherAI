@@ -167,7 +167,8 @@ class ChatViewModel: ObservableObject {
                 }
                 if let sid = self.sessionId {
                     NotificationCenter.default.post(name: .chatMessageSent, object: nil, userInfo: [
-                        "sessionId": sid
+                        "sessionId": sid,
+                        "messageContent": messageToSend
                     ])
                 }
         }

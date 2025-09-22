@@ -14,27 +14,10 @@ struct ContentView: View {
         Group {
             if authService.isAuthenticated {
                 SlideOutSidebarContainerView {
-                    MainContentView()
+                    MainAppView()
                 }
             } else {
                 AuthView()
-            }
-        }
-    }
-}
-
-// MARK: - Main Content View
-struct MainContentView: View {
-    @EnvironmentObject private var sidebarViewModel: SlideOutSidebarViewModel
-    
-    var body: some View {
-        Group {
-            switch sidebarViewModel.selectedTab {
-            case .chat:
-                ChatView(sessionId: sidebarViewModel.activeSessionId)
-                    .id(sidebarViewModel.chatViewKey)
-            case .profile:
-                ProfileView()
             }
         }
     }

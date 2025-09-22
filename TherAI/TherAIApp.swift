@@ -10,24 +10,28 @@ import Supabase
 
 @main
 struct TherAIApp: App {
+
     @StateObject private var auth = AuthService.shared
     @StateObject private var linkVM = LinkViewModel(accessTokenProvider: {
-        // Obtain current access token from Supabase
         let session = try await AuthService.shared.client.auth.session
         return session.accessToken
     })
+    @StateObject private var navigationViewModel = SidebarNavigationViewModel()
+    @StateObject private var sessionsViewModel = ChatSessionsViewModel()
+
     @AppStorage(PreferenceKeys.appearancePreference) private var appearance: String = "System"
+
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(linkVM)
+                .environmentObject(navigationViewModel)
+                .environmentObject(sessionsViewModel)
                 .preferredColorScheme(
                     appearance == "Light" ? .light : appearance == "Dark" ? .dark : nil
                 )
                 .onOpenURL { url in
-                    // Handle OAuth authentication callbacks
                     AuthService.shared.client.auth.handle(url)
-                    // Handle universal links for partner invites
                     let base = AuthService.getInfoPlistValue(for: "SHARE_LINK_BASE_URL") as? String
                     let configuredHost = base.flatMap { URL(string: $0)?.host }
                     if url.host == configuredHost || url.path.hasPrefix("/link") {
@@ -43,22 +47,23 @@ struct TherAIApp: App {
                     }
                 }
                 .onChange(of: auth.isAuthenticated) { _, isAuthed in
-                    // If user just signed in and we have a pending invite token, accept it
-                    if isAuthed, let token = linkVM.pendingInviteToken, !token.isEmpty {
+                    if isAuthed, let token = linkVM.pendingInviteToken, !token.isEmpty {  // If user just signed in and we have a pending invite token, accept it
                         Task {
                             await linkVM.acceptInvite(using: token)
                             linkVM.pendingInviteToken = nil
                         }
                     }
-                    // When the user becomes authenticated, ensure link is ready right away
-                    if isAuthed {
-                        Task { await linkVM.ensureInviteReady() }
+                    if isAuthed {  // When the user becomes authenticated, ensure link is ready right away
+                        Task {
+                            await linkVM.ensureInviteReady()
+                            sessionsViewModel.startObserving()
+                        }
                     }
                 }
                 .task {
-                    // On cold start, if already authenticated, ensure link is ready immediately
-                    if auth.isAuthenticated {
+                    if auth.isAuthenticated {  // On cold start, if already authenticated, ensure link is ready immediately
                         await linkVM.ensureInviteReady()
+                        sessionsViewModel.startObserving()
                     }
                 }
         }

@@ -2,7 +2,8 @@ import SwiftUI
 
 struct ChatView: View {
 
-    @EnvironmentObject private var sidebarViewModel: SlideOutSidebarViewModel
+    @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
+    @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
 
     @StateObject private var viewModel: ChatViewModel
     @StateObject private var dialogueViewModel = DialogueViewModel()
@@ -71,11 +72,11 @@ struct ChatView: View {
                         if wasNew {
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                 if let sid = viewModel.sessionId {
-                                    let newSession = ChatSession(id: sid, title: "Chat")
-                                    if !sidebarViewModel.sessions.contains(where: { $0.id == newSession.id }) {
-                                        sidebarViewModel.sessions.insert(newSession, at: 0)
+                                    let newSession = ChatSession(id: sid, title: "Chat", lastUsedISO8601: nil)
+                                    if !sessionsViewModel.sessions.contains(where: { $0.id == newSession.id }) {
+                                        sessionsViewModel.sessions.insert(newSession, at: 0)
                                     }
-                                    sidebarViewModel.activeSessionId = sid
+                                    sessionsViewModel.activeSessionId = sid
                                 }
                             }
                         }
@@ -104,7 +105,7 @@ struct ChatView: View {
         }
         .onAppear {
             // Keep swipe state and picker mode in sync on appear
-            if sidebarViewModel.isDialogueOpen {
+            if navigationViewModel.isDialogueOpen {
                 selectedMode = .dialogue
             }
             // Auto-focus input on first appear when in Personal mode
@@ -112,17 +113,17 @@ struct ChatView: View {
                 if selectedMode == .personal { isInputFocused = true }
             }
         }
-        .onChange(of: sidebarViewModel.dragOffset) { _, newValue in
+        .onChange(of: navigationViewModel.dragOffset) { _, newValue in
             handleSidebarDragChanged(newValue)
         }
-        .onChange(of: sidebarViewModel.isOpen) { _, newValue in
+        .onChange(of: navigationViewModel.isOpen) { _, newValue in
             handleSidebarIsOpenChanged(newValue)
         }
         .onAppear { configureCallbacksOnAppear() }
-        .onChange(of: sidebarViewModel.activeSessionId) { _, newSessionId in
+        .onChange(of: sessionsViewModel.activeSessionId) { _, newSessionId in
             handleActiveSessionChanged(newSessionId)
         }
-        .onChange(of: sidebarViewModel.isDialogueOpen) { _, newValue in
+        .onChange(of: navigationViewModel.isDialogueOpen) { _, newValue in
             // Swiping left/right toggles this flag; mirror it to the picker mode
             if newValue {
                 // Dismiss keyboard immediately when entering dialogue
@@ -132,7 +133,7 @@ struct ChatView: View {
                 }
                 // Load messages for current active session when entering dialogue
                 Task {
-                    if let sid = sidebarViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
+                    if let sid = sessionsViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
                 }
             } else {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
@@ -146,9 +147,9 @@ struct ChatView: View {
                 withAnimation(nil) { isInputFocused = false }
                 Task {
                     // Always use the currently active personal session to scope dialogue
-                    if let sid = sidebarViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
+                    if let sid = sessionsViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
                 }
-                if !sidebarViewModel.isDialogueOpen { sidebarViewModel.openDialogue() }
+                if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
             } else if newMode == .personal {
                 // If personal mode is selected while the stored session is the dialogue session,
                 // clear it so sending creates a fresh personal session for this user.
@@ -156,7 +157,7 @@ struct ChatView: View {
                     viewModel.sessionId = nil
                     Task { await viewModel.loadHistory() }
                 }
-                if sidebarViewModel.isDialogueOpen { sidebarViewModel.closeDialogue() }
+                if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
                 // Only auto-focus if we did not just come from Dialogue mode
                 if oldMode != .dialogue {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -188,7 +189,7 @@ struct ChatView: View {
         HStack {
             Button(action: {
                 Haptics.impact(.medium)
-                sidebarViewModel.openSidebar()
+                navigationViewModel.openSidebar()
             }) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 20, weight: .medium))
@@ -231,11 +232,11 @@ struct ChatView: View {
 
     private func configureCallbacksOnAppear() {
         // Set up sidebar callback to switch to dialogue mode
-        sidebarViewModel.onSwitchToDialogue = {
+        sessionsViewModel.onSwitchToDialogue = {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
                 selectedMode = .dialogue
             }
-            if !sidebarViewModel.isDialogueOpen { sidebarViewModel.openDialogue() }
+            if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
         }
 
         // Allow the dialogue stream to request switching the UI to Dialogue
@@ -243,7 +244,7 @@ struct ChatView: View {
 
         // Set up callback to refresh pending requests when dialogue requests are accepted
         dialogueViewModel.onRefreshPendingRequests = {
-            Task { await sidebarViewModel.loadPendingRequests() }
+            Task { await sessionsViewModel.loadPendingRequests() }
         }
 
         // Only check if this is a dialogue session if there's an active session
@@ -261,7 +262,7 @@ struct ChatView: View {
             }
             // Load messages for current active session when entering dialogue
             Task {
-                if let sid = sidebarViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
+                if let sid = sessionsViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
             }
         } else {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
@@ -274,9 +275,9 @@ struct ChatView: View {
         if newMode == .dialogue {
             Task {
                 // Always use the currently active personal session to scope dialogue
-                if let sid = sidebarViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
+                if let sid = sessionsViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
             }
-            if !sidebarViewModel.isDialogueOpen { sidebarViewModel.openDialogue() }
+            if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
         } else if newMode == .personal {
             // If personal mode is selected while the stored session is the dialogue session,
             // clear it so sending creates a fresh personal session for this user.
@@ -284,7 +285,7 @@ struct ChatView: View {
                 viewModel.sessionId = nil
                 Task { await viewModel.loadHistory() }
             }
-            if sidebarViewModel.isDialogueOpen { sidebarViewModel.closeDialogue() }
+            if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
         }
     }
 
@@ -309,7 +310,7 @@ struct ChatView: View {
 
     private func sendToPartner() async {
         // Resolve session id; if missing, auto-create a personal session first
-        var resolvedSessionId = viewModel.sessionId ?? sidebarViewModel.activeSessionId
+        var resolvedSessionId = viewModel.sessionId ?? sessionsViewModel.activeSessionId
         if resolvedSessionId == nil {
             do {
                 guard let accessToken = await AuthService.shared.getAccessToken() else {
@@ -320,11 +321,11 @@ struct ChatView: View {
                 resolvedSessionId = dto.id
                 await MainActor.run {
                     viewModel.sessionId = dto.id
-                    let session = ChatSession(id: dto.id, title: dto.title)
-                    if !sidebarViewModel.sessions.contains(where: { $0.id == session.id }) {
-                        sidebarViewModel.sessions.insert(session, at: 0)
+                    let session = ChatSession(id: dto.id, title: dto.title, lastUsedISO8601: nil)
+                    if !sessionsViewModel.sessions.contains(where: { $0.id == session.id }) {
+                        sessionsViewModel.sessions.insert(session, at: 0)
                     }
-                    sidebarViewModel.activeSessionId = dto.id
+                    sessionsViewModel.activeSessionId = dto.id
                     NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
                         "sessionId": dto.id,
                         "title": dto.title ?? "Chat"
@@ -350,6 +351,7 @@ struct ChatView: View {
 
 #Preview {
     ChatView()
-        .environmentObject(SlideOutSidebarViewModel())
+        .environmentObject(SidebarNavigationViewModel())
+        .environmentObject(ChatSessionsViewModel())
 }
 

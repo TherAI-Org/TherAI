@@ -3,7 +3,8 @@ import UIKit
 
 struct SlideOutSidebarContainerView<Content: View>: View {
 
-    @StateObject private var viewModel = SlideOutSidebarViewModel()
+    @StateObject private var navigationViewModel = SidebarNavigationViewModel()
+    @StateObject private var sessionsViewModel = ChatSessionsViewModel()
 
     @Namespace private var profileNamespace
 
@@ -22,12 +23,12 @@ struct SlideOutSidebarContainerView<Content: View>: View {
             let width: CGFloat = proxy.size.width
             let blurIntensity: CGFloat = {
                 let widthD = Double(width)
-                if viewModel.isOpen {
-                    let dragProgress = abs(Double(viewModel.dragOffset)) / max(widthD, 1.0)
+                if navigationViewModel.isOpen {
+                    let dragProgress = abs(Double(navigationViewModel.dragOffset)) / max(widthD, 1.0)
                     let value = max(0.0, 10.0 - (dragProgress * 20.0))
                     return CGFloat(value)
                 } else {
-                    let dragProgress = Double(viewModel.dragOffset) / max(widthD, 1.0)
+                    let dragProgress = Double(navigationViewModel.dragOffset) / max(widthD, 1.0)
                     let value = min(abs(dragProgress) * 20.0, 10.0)
                     return CGFloat(value)
                 }
@@ -36,82 +37,82 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 // Main Content - slides completely off screen when sidebar is open
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .offset(x: viewModel.isOpen ? width + viewModel.dragOffset : viewModel.dragOffset)
+                    .offset(x: navigationViewModel.isOpen ? width + navigationViewModel.dragOffset : navigationViewModel.dragOffset)
                     .blur(radius: min(blurIntensity, 6))
-                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: viewModel.isOpen)
-                    .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: viewModel.dragOffset)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.isOpen)
+                    .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.dragOffset)
 
                 // Slide-out Sidebar - slides in from left to fully replace main content
                 SlideOutSidebarView(
-                    selectedTab: $viewModel.selectedTab,
-                    isOpen: $viewModel.isOpen,
+                    isOpen: $navigationViewModel.isOpen,
                     profileNamespace: profileNamespace
                 )
-                .offset(x: viewModel.isOpen ? viewModel.dragOffset : -width + viewModel.dragOffset)
-                .blur(radius: (viewModel.showProfileOverlay || viewModel.showSettingsOverlay) ? 8 : 0)
-                .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: viewModel.isOpen)
-                .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: viewModel.dragOffset)
+                .offset(x: navigationViewModel.isOpen ? navigationViewModel.dragOffset : -width + navigationViewModel.dragOffset)
+                .blur(radius: (navigationViewModel.showProfileOverlay || navigationViewModel.showSettingsOverlay) ? 8 : 0)
+                .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.isOpen)
+                .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.dragOffset)
 
                 // Profile Overlay on top of slide-out menu
-                if viewModel.showProfileOverlay {
+                if navigationViewModel.showProfileOverlay {
                     ProfileOverlayView(
-                        isPresented: $viewModel.showProfileOverlay,
+                        isPresented: $navigationViewModel.showProfileOverlay,
                         profileNamespace: profileNamespace
                     )
                     // Keep a single animation driver to avoid freeze during matchedGeometry
                     .transition(.opacity)
-                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: viewModel.showProfileOverlay)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showProfileOverlay)
                 }
 
                 // Settings Overlay on top of slide-out menu
-                if viewModel.showSettingsOverlay {
+                if navigationViewModel.showSettingsOverlay {
                     SettingsOverlayView(
-                        isPresented: $viewModel.showSettingsOverlay,
+                        isPresented: $navigationViewModel.showSettingsOverlay,
                         profileNamespace: profileNamespace
                     )
                     .transition(.opacity)
                     .zIndex(2) // ensure above emblem to avoid ghosting on fast dismiss
-                    .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: viewModel.showSettingsOverlay)
+                    .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showSettingsOverlay)
                 }
             }
             .contentShape(Rectangle())
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        guard !viewModel.showProfileOverlay && !viewModel.showSettingsOverlay else { return }
+                        guard !navigationViewModel.showProfileOverlay && !navigationViewModel.showSettingsOverlay else { return }
                         // Clamp to reduce layout thrash on rapid drags
                         let clamped = max(min(value.translation.width, width), -width)
-                        viewModel.handleDragGesture(clamped, width: width)
+                        navigationViewModel.handleDragGesture(clamped, width: width)
                     }
                     .onEnded { value in
-                        guard !viewModel.showProfileOverlay && !viewModel.showSettingsOverlay else { return }
-                        viewModel.handleSwipeGesture(value.translation.width, velocity: value.velocity.width, width: width)
+                        guard !navigationViewModel.showProfileOverlay && !navigationViewModel.showSettingsOverlay else { return }
+                        navigationViewModel.handleSwipeGesture(value.translation.width, velocity: value.velocity.width, width: width)
                     }
             )
         }
-        .environmentObject(viewModel)
+        .environmentObject(navigationViewModel)
+        .environmentObject(sessionsViewModel)
         .onAppear {
-            viewModel.startObserving()
-            viewModel.dragOffset = 0
+            sessionsViewModel.startObserving()
+            navigationViewModel.dragOffset = 0
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .inactive, .background:
                 // Ensure no residual drag offset when app goes to background/recent apps
-                withAnimation(nil) { viewModel.dragOffset = 0 }
+                withAnimation(nil) { navigationViewModel.dragOffset = 0 }
             case .active:
                 // Reset any leftover offset immediately (no animation) and refresh data
-                withAnimation(nil) { viewModel.dragOffset = 0 }
-                Task { await viewModel.refreshSessions() }
+                withAnimation(nil) { navigationViewModel.dragOffset = 0 }
+                Task { await sessionsViewModel.refreshSessions() }
             @unknown default:
-                withAnimation(nil) { viewModel.dragOffset = 0 }
+                withAnimation(nil) { navigationViewModel.dragOffset = 0 }
             }
         }
         // Deprecated in favor of in-place overlay
-        .sheet(isPresented: $viewModel.showSettingsSheet) {
+        .sheet(isPresented: $navigationViewModel.showSettingsSheet) {
             SettingsView()
         }
-        .sheet(isPresented: $viewModel.showLinkSheet) {
+        .sheet(isPresented: $navigationViewModel.showLinkSheet) {
             MainLinkView(viewModel: linkVM)
         }
     }
@@ -123,7 +124,10 @@ struct SlideOutSidebarContainerView<Content: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.blue.opacity(0.1))
     }
-    .environmentObject(SlideOutSidebarViewModel())
+    .environmentObject(LinkViewModel(accessTokenProvider: {
+        // Mock access token for preview
+        return "mock-access-token"
+    }))
 }
 
 // MARK: - Profile Overlay View
@@ -465,6 +469,3 @@ private struct SettingsOverlayView: View {
         .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
     }
 }
-
-// MARK: - Dialogue Panel View (right-side)
-// Dialogue panel view removed; ChatView already provides dialogue mode
