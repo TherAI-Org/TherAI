@@ -30,8 +30,9 @@ struct ChatView: View {
                 if viewModel.messages.isEmpty {
                     PersonalEmptyStateView(prompt: viewModel.emptyPrompt)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, 0) // Ensure no horizontal padding affects text alignment
                 } else {
-                    MessagesListView(messages: viewModel.messages)
+                    MessagesListView(messages: viewModel.messages, isInputFocused: $isInputFocused)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
@@ -141,6 +142,14 @@ struct ChatView: View {
                 }
             }
         }
+        .onChange(of: isInputFocused) { _, newValue in
+            // Trigger scroll adjustment when keyboard focus changes
+            if !viewModel.messages.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    NotificationCenter.default.post(name: .scrollToBottom, object: nil)
+                }
+            }
+        }
         .onChange(of: selectedMode) { oldMode, newMode in
             if newMode == .dialogue {
                 // Ensure keyboard hides instantly when switching modes via picker/programmatically
@@ -172,15 +181,19 @@ struct ChatView: View {
 
     @ViewBuilder
     private var mainStack: some View {
-        VStack(spacing: 0) {
-            headerBar
-            .padding(.horizontal, 16)
-            .padding(.vertical, 2)
-            .background(Color(.systemBackground))
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                headerBar
+                .padding(.horizontal, 16)
+                .padding(.vertical, 2)
+                .background(Color(.systemBackground))
 
-            contentView
-
+                contentView
+            }
+            
+            // Overlay the input area on top of the chat content
             inputArea
+                .background(Color.clear) // Ensure no background on the container
         }
     }
 
