@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SectionHeaderView: View {
+
     let title: String
     let isExpanded: Bool
     let onTap: () -> Void

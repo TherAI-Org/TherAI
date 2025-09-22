@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PendingRequestRowView: View {
+
     let request: DialogueViewModel.DialogueRequest
 
     var body: some View {
