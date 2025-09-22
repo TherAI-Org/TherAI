@@ -39,6 +39,14 @@ class ChatViewModel: ObservableObject {
             guard let userId = authService.currentUser?.id else { return }
             let mapped = dtos.map { ChatMessage(dto: $0, currentUserId: userId) }
             self.messages = mapped
+            
+            // Trigger scroll to bottom after loading messages - multiple attempts to ensure it works
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                NotificationCenter.default.post(name: .scrollToBottom, object: nil)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                NotificationCenter.default.post(name: .scrollToBottom, object: nil)
+            }
         } catch {
             // Optionally keep messages empty on failure
             print("Failed to load history: \(error)")
