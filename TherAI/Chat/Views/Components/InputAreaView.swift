@@ -70,18 +70,20 @@ struct InputAreaView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(Color(uiColor: .secondarySystemBackground))
-                .shadow(
-                    color: Color.black.opacity(0.04),
-                    radius: 8,
-                    x: 0,
-                    y: 2
-                )
+            Group {
+                if #available(iOS 26.0, *) {
+                    // iOS 26+ Liquid Glass effect using .glassEffect()
+                    Color.clear
+                        .glassEffect()
+                        .cornerRadius(cornerRadius)
+                } else {
+                    // Transparent fallback for older iOS versions
+                    Color.clear
+                }
+            }
         )
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .background(Color(uiColor: .systemBackground))
         .animation(.easeInOut(duration: 0.2), value: isInputFocused.wrappedValue)
     }
 }

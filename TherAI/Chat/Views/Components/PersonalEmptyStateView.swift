@@ -5,19 +5,22 @@ struct PersonalEmptyStateView: View {
     @State private var isVisible: Bool = false
 
     var body: some View {
-        VStack {
-            Spacer()
-            Text(prompt)
-                .font(Typography.displaySoft)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
-                .opacity(isVisible ? 1 : 0)
-                .offset(y: isVisible ? 0 : 6)
-                .animation(.spring(response: 0.7, dampingFraction: 0.88).delay(0.15), value: isVisible)
-            Spacer()
+        GeometryReader { geometry in
+            VStack {
+                Spacer()
+                Text(prompt)
+                    .font(Typography.displaySoft)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.horizontal, 28)
+                    .opacity(isVisible ? 1 : 0)
+                    .offset(y: isVisible ? 0 : 6)
+                    .animation(.spring(response: 0.7, dampingFraction: 0.88).delay(0.15), value: isVisible)
+                Spacer()
+            }
+            .frame(height: geometry.size.height)
         }
-        .ignoresSafeArea(.keyboard) // Keep centered when keyboard appears
         .onAppear {
             // Trigger appear animation when view shows
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
