@@ -96,24 +96,6 @@ class ChatSessionsViewModel: ObservableObject {
         await loadSessions()
     }
 
-    func deleteSession(_ id: UUID) async {
-        do {
-            let session = try await AuthService.shared.client.auth.session
-            let accessToken = session.accessToken
-            try await BackendService.shared.deleteSession(sessionId: id, accessToken: accessToken)
-
-            await MainActor.run {
-                self.sessions.removeAll { $0.id == id }
-                if self.activeSessionId == id {
-                    self.activeSessionId = self.sessions.first?.id
-                }
-                self.saveCachedSessions()
-            }
-        } catch {
-            print("❌ Failed to delete session: \(error)")
-        }
-    }
-
     func loadPendingRequests() async {
         do {
             let session = try await AuthService.shared.client.auth.session

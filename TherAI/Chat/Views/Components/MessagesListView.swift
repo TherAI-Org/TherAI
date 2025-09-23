@@ -62,7 +62,7 @@ struct MessagesListView: View {
                 }
             }
             // Handle keyboard appearance/disappearance
-            .onChange(of: isInputFocused) { _, newValue in
+            .onChange(of: isInputFocused.wrappedValue) { _, newValue in
                 guard autoScrollEnabled, !messages.isEmpty else { return }
                 if let lastMessage = messages.last {
                     if newValue {
