@@ -39,7 +39,7 @@ class ChatViewModel: ObservableObject {
             guard let userId = authService.currentUser?.id else { return }
             let mapped = dtos.map { ChatMessage(dto: $0, currentUserId: userId) }
             self.messages = mapped
-            
+
             // Trigger scroll to bottom after loading messages - multiple attempts to ensure it works
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 NotificationCenter.default.post(name: .scrollToBottom, object: nil)
@@ -56,11 +56,12 @@ class ChatViewModel: ObservableObject {
     func sendMessage() {
         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        // Add user message
-        let userMessage = ChatMessage(content: inputText, isFromUser: true)
+        // Add user message (trimmed for display)
+        let trimmedMessage = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let userMessage = ChatMessage(content: trimmedMessage, isFromUser: true)
         messages.append(userMessage)
 
-        let messageToSend = inputText
+        let messageToSend = trimmedMessage
         inputText = ""  // Clear input text
         isLoading = true
 

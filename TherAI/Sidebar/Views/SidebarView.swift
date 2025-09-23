@@ -16,6 +16,12 @@ struct SlideOutSidebarView: View {
 
     let profileNamespace: Namespace.ID
 
+    private func shouldShowLastMessage(_ content: String?) -> Bool {
+        guard let content = content else { return false }
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmed.isEmpty && trimmed.uppercased() != "NULL"
+    }
+
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -259,7 +265,7 @@ struct SlideOutSidebarView: View {
                                                     .font(.system(size: 12))
                                                     .foregroundColor(.secondary)
                                             }
-                                            Text(session.lastMessageContent?.isEmpty == false ? session.lastMessageContent! : "No messages yet")
+                                            Text(shouldShowLastMessage(session.lastMessageContent) ? session.lastMessageContent! : "No messages yet")
                                                 .font(.system(size: 14))
                                                 .foregroundColor(.secondary)
                                                 .lineLimit(1)
@@ -269,13 +275,6 @@ struct SlideOutSidebarView: View {
                                         .padding(.vertical, 12)
                                     }
                                     .buttonStyle(PlainButtonStyle())
-                                    .contextMenu {
-                                        Button(role: .destructive) {
-                                            Task { await sessionsViewModel.deleteSession(session.id) }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
                                 }
                             }
                         }
