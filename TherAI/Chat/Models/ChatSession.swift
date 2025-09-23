@@ -1,10 +1,16 @@
 import Foundation
 
 struct ChatSession: Identifiable, Hashable, Equatable, Codable {
+    static let defaultTitle = "New Chat"
+
     let id: UUID
     var title: String?
     var lastUsedISO8601: String?
     var lastMessageContent: String?
+
+    var displayTitle: String {
+        return title ?? Self.defaultTitle
+    }
 
     init(dto: ChatSessionDTO) {
         self.id = dto.id

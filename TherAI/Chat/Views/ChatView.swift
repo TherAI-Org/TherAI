@@ -67,19 +67,7 @@ struct ChatView: View {
                     isLoading: $viewModel.isLoading,
                     isInputFocused: $isInputFocused,
                     send: {
-                        let wasNew = viewModel.sessionId == nil
                         viewModel.sendMessage()
-                        if wasNew {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                if let sid = viewModel.sessionId {
-                                    let newSession = ChatSession(id: sid, title: "Chat", lastUsedISO8601: nil)
-                                    if !sessionsViewModel.sessions.contains(where: { $0.id == newSession.id }) {
-                                        sessionsViewModel.sessions.insert(newSession, at: 0)
-                                    }
-                                    sessionsViewModel.activeSessionId = sid
-                                }
-                            }
-                        }
                     },
                     stop: {
                         viewModel.stopGeneration()
@@ -328,7 +316,7 @@ struct ChatView: View {
                     sessionsViewModel.activeSessionId = dto.id
                     NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
                         "sessionId": dto.id,
-                        "title": dto.title ?? "Chat"
+                        "title": dto.title ?? ChatSession.defaultTitle
                     ])
                 }
                 print("[ChatView] Auto-created session for Send to Partner: \(dto.id)")
@@ -340,12 +328,8 @@ struct ChatView: View {
         guard let sessionId = resolvedSessionId else { print("[ChatView] sendToPartner aborted: missing sessionId after auto-create"); return }
 
         // Convert chat messages to chat history format
-        let chatHistory = viewModel.messages.map { message in
-            ChatHistoryMessage(role: message.isFromUser ? "user" : "assistant", content: message.content)
-        }
-
-        print("[ChatView] sendToPartner invoked for sessionId=\(sessionId) with \(chatHistory.count) history msgs")
-        await dialogueViewModel.sendToPartner(sessionId: sessionId, chatHistory: chatHistory)
+        print("[ChatView] sendToPartner invoked for sessionId=\(sessionId)")
+        await dialogueViewModel.sendToPartner(sessionId: sessionId)
     }
 }
 

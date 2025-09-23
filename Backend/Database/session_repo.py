@@ -41,6 +41,12 @@ async def list_sessions_for_user(*, user_id: uuid.UUID, limit: int = 100, offset
         raise RuntimeError(f"Supabase select sessions failed: {res.error}")
     if not hasattr(res, 'data'):
         raise RuntimeError("Supabase select sessions returned invalid response")
+
+    # Add last_message_content field to each session (it's now stored in the database)
+    for session in res.data or []:
+        original_content = session.get("last_message_content")
+        session["last_message_content"] = original_content
+
     return res.data or []
 
 # Bump the session's last_message_at timestamp to now (needed to order sessions by recent activity)

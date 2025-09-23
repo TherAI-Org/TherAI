@@ -7,7 +7,7 @@ import json
 from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
 from .Agents.personal import PersonalAgent
 from .auth import get_current_user
-from .Database.chat_repo import save_message, list_messages_for_session
+from .Database.chat_repo import save_message, list_messages_for_session, update_session_last_message
 from .Database.dialogue_repo import list_dialogue_messages_by_session
 from .Database.link_repo import get_link_status_for_user, get_partner_user_id
 from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
@@ -45,6 +45,9 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
             session_uuid = uuid.UUID(session_row["id"])
 
         await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)
+
+        # Update the session's last_message_content for sidebar preview
+        await update_session_last_message(session_id = session_uuid, content = request.message)
 
         # Convert chat history to the format expected by the chat agent
         chat_history_for_agent = None
@@ -142,6 +145,9 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
 
         # Persist user message immediately
         await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)
+
+        # Update the session's last_message_content for sidebar preview
+        await update_session_last_message(session_id = session_uuid, content = request.message)
 
         # Convert chat history to the format expected by the chat agent
         chat_history_for_agent = None
@@ -327,6 +333,7 @@ async def get_sessions(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
 
     rows = await list_sessions_for_user(user_id=user_uuid, limit=100, offset=0)
+
     return SessionsResponse(
         sessions=[
             SessionDTO(
@@ -334,6 +341,7 @@ async def get_sessions(current_user: dict = Depends(get_current_user)):
                 user_id=uuid.UUID(r["user_id"]),
                 title=r.get("title"),
                 last_message_at=r.get("last_message_at"),
+                last_message_content=r.get("last_message_content"),
             )
             for r in rows
         ]

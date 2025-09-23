@@ -42,8 +42,180 @@ router = APIRouter(prefix="/dialogue", tags=["dialogue"])
 
 dialogue_agent = DialogueAgent()
 
+# Constants
+MAX_CONTEXT_MESSAGES = 15
+MAX_DIALOGUE_HISTORY = 30
+
+# Private helper functions
+async def _validate_user_and_session(user_uuid: uuid.UUID, session_id: uuid.UUID) -> None:
+    """Validate user authentication and session ownership."""
+    try:
+        await assert_session_owned_by_user(user_id=user_uuid, session_id=session_id)
+    except Exception:
+        raise HTTPException(status_code=403, detail="Session does not belong to the current user or does not exist")
+
+async def _get_relationship_info(user_uuid: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
+    """Get relationship and partner information for the user."""
+    # Check if user is linked to a partner
+    linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+    if not linked or not relationship_id:
+        raise HTTPException(status_code=400, detail="User is not linked to a partner")
+
+    # Get partner's user_id
+    partner_user_id = await get_partner_user_id(user_id=user_uuid)
+    if not partner_user_id:
+        raise HTTPException(status_code=400, detail="Could not find partner for the linked relationship")
+
+    return relationship_id, partner_user_id
+
+async def _get_partner_history(linked_session: dict, partner_user_id: uuid.UUID, user_uuid: uuid.UUID) -> list:
+    """Get partner's personal chat history if available."""
+    if not linked_session:
+        return []
+
+    try:
+        current_user_id_str = str(user_uuid)
+        partner_session_id_str = None
+
+        if linked_session.get("user_a_id") == current_user_id_str:
+            partner_session_id_str = linked_session.get("user_b_personal_session_id")
+        elif linked_session.get("user_b_id") == current_user_id_str:
+            partner_session_id_str = linked_session.get("user_a_personal_session_id")
+
+        if partner_session_id_str:
+            return await list_messages_for_session(
+                user_id=partner_user_id,
+                session_id=uuid.UUID(partner_session_id_str),
+                limit=MAX_CONTEXT_MESSAGES,
+            )
+    except Exception:
+        pass
+
+    return []
+
+async def _get_dialogue_context(user_uuid: uuid.UUID, session_id: uuid.UUID, partner_user_id: uuid.UUID, relationship_id: uuid.UUID) -> tuple[list, list, list, uuid.UUID, bool, uuid.UUID]:
+    """Gather all context needed for dialogue generation."""
+    # Get current user's personal chat history
+    try:
+        current_personal_history = await list_messages_for_session(
+            user_id=user_uuid,
+            session_id=session_id,
+            limit=MAX_CONTEXT_MESSAGES
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to retrieve personal chat history for session {session_id}: {str(e)}")
+
+    # Get or create dialogue session
+    linked_session = await get_linked_session_by_relationship_and_source_session(
+        relationship_id=relationship_id,
+        source_session_id=session_id
+    )
+
+    if not linked_session:
+        # First time: create dialogue session and link
+        new_dialogue = await create_new_dialogue_session(relationship_id=relationship_id)
+        dialogue_session_id = uuid.UUID(new_dialogue["id"])
+
+        await create_linked_session(
+            relationship_id=relationship_id,
+            user_a_id=user_uuid,
+            user_b_id=partner_user_id,
+            user_a_personal_session_id=session_id,
+            user_b_personal_session_id=None,  # set on acceptance
+            dialogue_session_id=dialogue_session_id
+        )
+        first_time_link = True
+        a_id = user_uuid
+    else:
+        try:
+            dialogue_session_id = uuid.UUID(linked_session["dialogue_session_id"])
+        except Exception:
+            raise HTTPException(status_code=500, detail="Linked session missing dialogue_session_id")
+        first_time_link = False
+        a_id = uuid.UUID(linked_session["user_a_id"])
+
+    # Get partner's personal chat history
+    partner_personal_history = await _get_partner_history(linked_session, partner_user_id, user_uuid)
+
+    # Get dialogue history
+    dialogue_history = await list_dialogue_messages_by_session(
+        dialogue_session_id=dialogue_session_id,
+        limit=MAX_DIALOGUE_HISTORY
+    )
+
+    return current_personal_history, partner_personal_history, dialogue_history, dialogue_session_id, first_time_link, a_id
+
+async def _handle_request_creation(user_uuid: uuid.UUID, session_id: uuid.UUID, partner_user_id: uuid.UUID,
+                                 relationship_id: uuid.UUID, dialogue_session_id: uuid.UUID,
+                                 dialogue_content: str, first_time_link: bool, linked_session: dict) -> DialogueRequestResponse:
+    """Handle the creation or update of dialogue requests."""
+    partner_joined = False
+    if not first_time_link and linked_session:
+        partner_joined = bool(linked_session.get("user_b_personal_session_id"))
+
+    if first_time_link or not partner_joined:
+        # Check for active request and handle single request policy
+        active_request = await get_active_request_for_relationship(relationship_id=relationship_id)
+        if active_request:
+            try:
+                existing_sender_session = uuid.UUID(active_request.get("sender_session_id"))
+            except Exception:
+                existing_sender_session = None
+            if existing_sender_session and existing_sender_session != session_id:
+                raise HTTPException(status_code=400, detail="Another session already has an active request for this relationship")
+
+            # Overwrite existing request
+            await update_dialogue_request_content(
+                request_id=uuid.UUID(active_request["id"]),
+                request_content=dialogue_content,
+            )
+            await update_latest_request_message_content(
+                dialogue_session_id=dialogue_session_id,
+                content=dialogue_content,
+            )
+            return DialogueRequestResponse(
+                success=True,
+                request_id=uuid.UUID(active_request["id"]),
+                dialogue_session_id=dialogue_session_id,
+            )
+        else:
+            # Create new request
+            dialogue_request = await create_dialogue_request(
+                sender_user_id=user_uuid,
+                recipient_user_id=partner_user_id,
+                sender_session_id=session_id,
+                request_content=dialogue_content,
+                relationship_id=relationship_id
+            )
+            await create_dialogue_message(
+                dialogue_session_id=dialogue_session_id,
+                request_id=uuid.UUID(dialogue_request["id"]),
+                content=dialogue_content,
+                sender_user_id=user_uuid,
+                message_type="request"
+            )
+            return DialogueRequestResponse(
+                success=True,
+                request_id=uuid.UUID(dialogue_request["id"]),
+                dialogue_session_id=dialogue_session_id,
+            )
+    else:
+        # Partner has joined: just add dialogue message
+        await create_dialogue_message(
+            dialogue_session_id=dialogue_session_id,
+            request_id=None,
+            content=dialogue_content,
+            sender_user_id=user_uuid,
+            message_type="request"
+        )
+        return DialogueRequestResponse(
+            success=True,
+            request_id=dialogue_session_id,
+            dialogue_session_id=dialogue_session_id
+        )
+
 # Create a dialogue request with auto-linking logic
-@router.post("/request", response_model=DialogueRequestResponse)
+@router.post("/request", response_model = DialogueRequestResponse)
 async def create_dialogue_request_endpoint(request: DialogueRequestBody, current_user: dict = Depends(get_current_user)):
     try:
         user_uuid = uuid.UUID(current_user.get("sub"))
@@ -51,90 +223,24 @@ async def create_dialogue_request_endpoint(request: DialogueRequestBody, current
         raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
     try:
-        # Debug/guard: ensure the provided session belongs to the caller
-        try:
-            await assert_session_owned_by_user(user_id=user_uuid, session_id=request.session_id)
-        except Exception:
-            raise HTTPException(status_code=403, detail="Session does not belong to the current user or does not exist")
+        # Validate user and session
+        await _validate_user_and_session(user_uuid, request.session_id)
 
-        # Check if user is linked to a partner
-        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
-        if not linked or not relationship_id:
-            raise HTTPException(status_code=400, detail="User is not linked to a partner")
+        # Get relationship and partner info
+        relationship_id, partner_user_id = await _get_relationship_info(user_uuid)
 
-        # Get partner's user_id
-        partner_user_id = await get_partner_user_id(user_id=user_uuid)
-        if not partner_user_id:
-            raise HTTPException(status_code=400, detail="Could not find partner for the linked relationship")
+        # Gather dialogue context
+        current_personal_history, partner_personal_history, dialogue_history, dialogue_session_id, first_time_link, a_id = await _get_dialogue_context(
+            user_uuid, request.session_id, partner_user_id, relationship_id
+        )
 
-        # Get current user's personal chat history from the specified session
-        try:
-            current_personal_history = await list_messages_for_session(
-                user_id=user_uuid,
-                session_id=request.session_id,
-                limit=50
-            )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to retrieve personal chat history for session {request.session_id}: {str(e)}")
-
-        # Determine or create the dialogue session mapping for this (relationship, source personal session)
+        # Get linked session for partner joined check
         linked_session = await get_linked_session_by_relationship_and_source_session(
             relationship_id=relationship_id,
             source_session_id=request.session_id
         )
 
-        if not linked_session:
-            # First send from this personal session: create a fresh dialogue session and link
-            new_dialogue = await create_new_dialogue_session(relationship_id=relationship_id)
-            dialogue_session_id = uuid.UUID(new_dialogue["id"])
-
-            await create_linked_session(
-                relationship_id=relationship_id,
-                user_a_id=user_uuid,
-                user_b_id=partner_user_id,
-                user_a_personal_session_id=request.session_id,
-                user_b_personal_session_id=None,  # set on acceptance
-                dialogue_session_id=dialogue_session_id
-            )
-            first_time_link = True
-        else:
-            try:
-                dialogue_session_id = uuid.UUID(linked_session["dialogue_session_id"])  # type: ignore[index]
-            except Exception:
-                raise HTTPException(status_code=500, detail="Linked session missing dialogue_session_id")
-            first_time_link = False
-
-        # Get partner's personal chat history scoped to the mapped partner session (if available)
-        partner_personal_history = []
-        try:
-            # Determine which column holds the partner's personal session for the current user
-            current_user_id_str = str(user_uuid)
-            partner_session_id_str = None
-            if linked_session:
-                if linked_session.get("user_a_id") == current_user_id_str:
-                    partner_session_id_str = linked_session.get("user_b_personal_session_id")
-                elif linked_session.get("user_b_id") == current_user_id_str:
-                    partner_session_id_str = linked_session.get("user_a_personal_session_id")
-
-            if partner_session_id_str:
-                partner_personal_history = await list_messages_for_session(
-                    user_id = partner_user_id,
-                    session_id = uuid.UUID(partner_session_id_str),
-                    limit = 50,
-                )
-        except Exception:
-            partner_personal_history = []
-
-        # Get existing dialogue history scoped to this dialogue session
-        dialogue_history = await list_dialogue_messages_by_session(dialogue_session_id=dialogue_session_id, limit=30)
-
-        # Generate dialogue message using comprehensive context (label past messages as Partner A/B)
-        if linked_session:
-            a_id = uuid.UUID(linked_session["user_a_id"])  # type: ignore[index]
-        else:
-            # First-time link path: we just created the link above
-            a_id = user_uuid
-
+        # Generate dialogue content
         dialogue_content = dialogue_agent.generate_dialogue_response(
             current_partner_history=current_personal_history,
             other_partner_history=partner_personal_history,
@@ -142,73 +248,11 @@ async def create_dialogue_request_endpoint(request: DialogueRequestBody, current
             user_a_id=a_id,
         )
 
-        # Determine whether partner has already joined (accepted)
-        partner_joined = False
-        if not first_time_link:
-            partner_joined = bool(linked_session.get("user_b_personal_session_id"))
-
-        if first_time_link or not partner_joined:
-            # Single active request policy with overwrite semantics
-            active_request = await get_active_request_for_relationship(relationship_id=relationship_id)
-            if active_request:
-                try:
-                    existing_sender_session = uuid.UUID(active_request.get("sender_session_id"))  # type: ignore[arg-type]
-                except Exception:
-                    existing_sender_session = None
-                if existing_sender_session and existing_sender_session != request.session_id:
-                    raise HTTPException(status_code=400, detail="Another session already has an active request for this relationship")
-
-                # Overwrite existing request and update latest request-type dialogue message
-                await update_dialogue_request_content(
-                    request_id=uuid.UUID(active_request["id"]),
-                    request_content=dialogue_content,
-                )
-                await update_latest_request_message_content(
-                    dialogue_session_id=dialogue_session_id,
-                    content=dialogue_content,
-                )
-                return DialogueRequestResponse(
-                    success=True,
-                    request_id=uuid.UUID(active_request["id"]),
-                    dialogue_session_id=dialogue_session_id,
-                )
-            else:
-                # Create a new pending request and initial request message
-                dialogue_request = await create_dialogue_request(
-                    sender_user_id=user_uuid,
-                    recipient_user_id=partner_user_id,
-                    sender_session_id=request.session_id,
-                    request_content=dialogue_content,
-                    relationship_id=relationship_id
-                )
-                await create_dialogue_message(
-                    dialogue_session_id=dialogue_session_id,
-                    request_id=uuid.UUID(dialogue_request["id"]),
-                    content=dialogue_content,
-                    sender_user_id=user_uuid,
-                    message_type="request"
-                )
-                return DialogueRequestResponse(
-                    success=True,
-                    request_id=uuid.UUID(dialogue_request["id"]),
-                    dialogue_session_id=dialogue_session_id,
-                )
-        else:
-            # SUBSEQUENT SENDS after partner has joined: no pending request; just add dialogue message
-            await create_dialogue_message(
-                dialogue_session_id=dialogue_session_id,
-                request_id=None,
-                content=dialogue_content,
-                sender_user_id=user_uuid,
-                message_type="request"
-            )
-
-            # Return a placeholder request_id (dialogue_session_id) to satisfy client schema
-            return DialogueRequestResponse(
-                success=True,
-                request_id=dialogue_session_id,
-                dialogue_session_id=dialogue_session_id
-            )
+        # Handle request creation/update
+        return await _handle_request_creation(
+            user_uuid, request.session_id, partner_user_id, relationship_id,
+            dialogue_session_id, dialogue_content, first_time_link, linked_session
+        )
 
     except HTTPException:
         raise
@@ -395,7 +439,7 @@ async def mark_request_accepted_endpoint(request_id: uuid.UUID, current_user: di
             raise HTTPException(status_code=404, detail="Linked session for this chat not found")
 
         # Create a personal session for partner B (if not already created by another path)
-        partner_session = await create_session(user_id=user_uuid, title="Chat")
+        partner_session = await create_session(user_id=user_uuid, title="New Chat")
         partner_session_id = uuid.UUID(partner_session["id"])
 
         # Update only this linked row with partner B's personal session id

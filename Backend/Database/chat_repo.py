@@ -4,6 +4,7 @@ from starlette.concurrency import run_in_threadpool
 from .supabase_client import supabase
 
 TABLE_NAME = "user_chat_messages"
+SESSIONS_TABLE = "user_chat_sessions"
 
 # Save a chat message of a specific user and session
 async def save_message(*, user_id: uuid.UUID, session_id: uuid.UUID, role: str, content: str) -> dict:
@@ -39,3 +40,17 @@ async def list_messages_for_session(*, user_id: uuid.UUID, session_id: uuid.UUID
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase select failed: {res.error}")
     return res.data
+
+# Update the session's last_message_content when a user message is saved
+async def update_session_last_message(*, session_id: uuid.UUID, content: str) -> None:
+    def _update():
+        return (
+            supabase
+            .table(SESSIONS_TABLE)
+            .update({"last_message_content": content})
+            .eq("id", str(session_id))
+            .execute()
+        )
+    res = await run_in_threadpool(_update)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Failed to update session last_message_content: {res.error}")

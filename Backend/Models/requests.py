@@ -32,6 +32,7 @@ class SessionDTO(BaseModel):
     user_id: UUID
     title: Optional[str] = None
     last_message_at: Optional[str] = None
+    last_message_content: Optional[str] = None
 
 class SessionsResponse(BaseModel):
     sessions: list[SessionDTO]
@@ -62,7 +63,6 @@ class LinkStatusResponse(BaseModel):
 class DialogueRequestBody(BaseModel):
     message: str
     session_id: UUID
-    chat_history: Optional[list[ChatHistoryMessage]] = None
 
 class DialogueRequestResponse(BaseModel):
     success: bool

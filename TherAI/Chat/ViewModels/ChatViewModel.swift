@@ -63,7 +63,7 @@ class ChatViewModel: ObservableObject {
         let placeholderMessage = ChatMessage(content: "", isFromUser: false)
         messages.append(placeholderMessage)
 
-        let wasNewSession = (self.sessionId == nil)
+        let _ = (self.sessionId == nil) // Track if this was a new session
         currentTask = Task { [weak self] in
             guard let self = self else { return }
             guard let accessToken = await authService.getAccessToken() else {
@@ -74,7 +74,17 @@ class ChatViewModel: ObservableObject {
                 if self.sessionId == nil {
                     do {
                         let dto = try await self.backend.createEmptySession(accessToken: accessToken)
-                        await MainActor.run { self.sessionId = dto.id }
+                        await MainActor.run {
+                            self.sessionId = dto.id
+                            // Notify immediately when session is created, with timestamp and message preview
+                            let currentTime = ISO8601DateFormatter().string(from: Date())
+                            NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
+                                "sessionId": dto.id,
+                                "title": ChatSession.defaultTitle,
+                                "lastUsedISO8601": currentTime,
+                                "lastMessageContent": messageToSend
+                            ])
+                        }
                         print("[ChatVM] Pre-created personal session id=\(dto.id) before streaming send")
                     } catch {
                         print("[ChatVM] Failed to pre-create session: \(error)")
@@ -159,12 +169,7 @@ class ChatViewModel: ObservableObject {
                     self.isLoading = false
                 }
 
-                if wasNewSession, let sid = self.sessionId {
-                    NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
-                        "sessionId": sid,
-                        "title": "Session"
-                    ])
-                }
+                // Session creation notification is now sent immediately when session is created above
                 if let sid = self.sessionId {
                     NotificationCenter.default.post(name: .chatMessageSent, object: nil, userInfo: [
                         "sessionId": sid,

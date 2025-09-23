@@ -251,6 +251,7 @@ struct ChatSessionDTO: Codable {
     let id: UUID
     let title: String?
     let last_message_at: String?
+    let last_message_content: String?
 }
 
 private struct SessionsResponseBody: Codable {
@@ -536,7 +537,11 @@ extension BackendService {
             throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
         // Decode the response so caller can navigate to the correct dialogue
-        struct AcceptDialogueResponse: Codable { let success: Bool; let partner_session_id: UUID; let dialogue_session_id: UUID }
+        struct AcceptDialogueResponse: Codable {
+            let success: Bool
+            let partner_session_id: UUID
+            let dialogue_session_id: UUID
+        }
         let decoded = try jsonDecoder.decode(AcceptDialogueResponse.self, from: data)
         return (decoded.partner_session_id, decoded.dialogue_session_id)
     }

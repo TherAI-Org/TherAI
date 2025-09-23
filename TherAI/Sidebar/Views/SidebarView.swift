@@ -206,7 +206,7 @@ struct SlideOutSidebarView: View {
                     let lower = term.lowercased()
                     let filteredSessions = sessionsViewModel.sessions.filter { session in
                         if lower.isEmpty { return true }
-                        return (session.title ?? "Session").lowercased().contains(lower)
+                        return session.displayTitle.lowercased().contains(lower)
                     }
 
                     // Search feedback - only show when searching and has search term
@@ -251,7 +251,7 @@ struct SlideOutSidebarView: View {
                                     }) {
                                         VStack(alignment: .leading, spacing: 12) {
                                             HStack {
-                                                Text(session.title ?? "Session")
+                                                Text(session.displayTitle)
                                                     .font(.system(size: 18, weight: .regular))
                                                     .foregroundColor(.primary)
                                                 Spacer()
@@ -259,7 +259,7 @@ struct SlideOutSidebarView: View {
                                                     .font(.system(size: 12))
                                                     .foregroundColor(.secondary)
                                             }
-                                            Text(session.lastMessageContent ?? "")
+                                            Text(session.lastMessageContent?.isEmpty == false ? session.lastMessageContent! : "No messages yet")
                                                 .font(.system(size: 14))
                                                 .foregroundColor(.secondary)
                                                 .lineLimit(1)

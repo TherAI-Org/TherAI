@@ -65,7 +65,12 @@ class ChatSessionsViewModel: ObservableObject {
             let mapped = dtos.map { dto in
                 let title = dto.title?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let finalTitle = title?.isEmpty == true ? nil : title
-                return ChatSession(id: dto.id, title: finalTitle, lastUsedISO8601: dto.last_message_at)
+                return ChatSession(
+                    id: dto.id,
+                    title: finalTitle,
+                    lastUsedISO8601: dto.last_message_at,
+                    lastMessageContent: dto.last_message_content
+                )
             }
             await MainActor.run {
                 self.sessions = mapped
@@ -136,7 +141,12 @@ class ChatSessionsViewModel: ObservableObject {
             guard let self = self else { return }
             if let sid = note.userInfo?["sessionId"] as? UUID {
                 if !self.sessions.contains(where: { $0.id == sid }) {
-                    let session = ChatSession(id: sid, title: note.userInfo?["title"] as? String ?? "Chat", lastUsedISO8601: nil, lastMessageContent: nil)
+                    let session = ChatSession(
+                        id: sid,
+                        title: note.userInfo?["title"] as? String ?? ChatSession.defaultTitle,
+                        lastUsedISO8601: note.userInfo?["lastUsedISO8601"] as? String,
+                        lastMessageContent: note.userInfo?["lastMessageContent"] as? String
+                    )
                     self.sessions.insert(session, at: 0)
                 }
             }
@@ -166,17 +176,13 @@ class ChatSessionsViewModel: ObservableObject {
                request.senderUserId != currentUserId {
                 let (partnerSessionId, _) = try await BackendService.shared.markRequestAsAccepted(requestId: request.id, accessToken: accessToken)
 
-                let personalSession = ChatSession(id: partnerSessionId, title: "Chat", lastUsedISO8601: nil)
-
                 await MainActor.run {
                     self.pendingRequests.removeAll { $0.id == request.id }
-
-                    if !self.sessions.contains(where: { $0.id == partnerSessionId }) {
-                        self.sessions.insert(personalSession, at: 0)
-                    }
-
                     self.activeSessionId = partnerSessionId
                 }
+
+                // Refresh sessions to get the latest data including timestamps
+                await loadSessions()
 
                 await MainActor.run { self.onSwitchToDialogue?() }
                 await loadPendingRequests()

@@ -129,7 +129,7 @@ class DialogueViewModel: ObservableObject {
         }
     }
 
-    func sendToPartner(sessionId: UUID, chatHistory: [ChatHistoryMessage]) async {
+    func sendToPartner(sessionId: UUID) async {
         isLoading = true
         errorMessage = nil
         isStreaming = true
@@ -141,8 +141,7 @@ class DialogueViewModel: ObservableObject {
 
             let request = DialogueRequestBody(
                 message: "",
-                sessionId: sessionId,
-                chatHistory: chatHistory
+                sessionId: sessionId
             )
 
             var accumulated = ""
@@ -317,12 +316,10 @@ class DialogueViewModel: ObservableObject {
 struct DialogueRequestBody: Codable {
     let message: String
     let sessionId: UUID
-    let chatHistory: [ChatHistoryMessage]?
 
     enum CodingKeys: String, CodingKey {
         case message
         case sessionId = "session_id"
-        case chatHistory = "chat_history"
     }
 }
 
