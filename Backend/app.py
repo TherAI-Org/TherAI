@@ -60,7 +60,6 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
         # AUTO-ENHANCED CONTEXT: Get linked session context automatically
         dialogue_context = None
         partner_context = None
-        linked_session = None
 
         try:
             linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
@@ -68,7 +67,6 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
                 # Get dialogue history scoped per-dialogue session if mapping exists for this session
                 try:
                     mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
-                    linked_session = mapped
                     if mapped and mapped.get("dialogue_session_id"):
                         dialogue_context = await list_dialogue_messages_by_session(dialogue_session_id=uuid.UUID(mapped["dialogue_session_id"]), limit=30)
                 except Exception:
@@ -77,8 +75,6 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
                 # Get partner's personal chat history, but scoped to the mapped row for this source session
                 try:
                     mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
-                    # Update cached linked_session if available
-                    linked_session = mapped if mapped else linked_session
                     partner_session_id_str = None
                     if mapped:
                         cur_id = str(user_uuid)
@@ -238,12 +234,9 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                     input_messages.append({"role": "system", "content": partner_text.strip()})
                 input_messages.append({"role": "user", "content": request.message})
 
-                # Use the agent's generation controls if available
                 with personal_agent.client.responses.stream(
                     model=personal_agent.model,
                     input=input_messages,
-                    max_output_tokens=getattr(personal_agent, "max_output_tokens", None),
-                    temperature=getattr(personal_agent, "temperature", None),
                 ) as stream:  # type: ignore[attr-defined]
                     used_iterator = False
                     try:
