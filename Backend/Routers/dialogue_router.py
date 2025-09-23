@@ -584,7 +584,6 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
                     label = "Partner B:"
                 lines.append(f"{label} {msg.get('content', '')}\n")
             dialogue_context_text = "\nPrevious dialogue between partners:\n" + "".join(lines)
-        # Align with DialoguePrompt: do not add extra instructions; provide only context
         full_context = f"{name_context}\n{current_context}{other_context}{dialogue_context_text}"
 
         input_messages = [
