@@ -59,14 +59,24 @@ struct SlideOutSidebarView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(
-                    LinearGradient(
-                        colors: [
-                            Color(white: colorScheme == .dark ? 0.14 : 0.945),
-                            Color(white: colorScheme == .dark ? 0.17 : 0.965)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
+                    Group {
+                        if #available(iOS 26.0, *) {
+                            // iOS 26+ Liquid Glass effect using .glassEffect()
+                            Color.clear
+                                .glassEffect()
+                                .clipShape(Capsule())
+                        } else {
+                            // Fallback for older iOS versions
+                            LinearGradient(
+                                colors: [
+                                    Color(white: colorScheme == .dark ? 0.14 : 0.945),
+                                    Color(white: colorScheme == .dark ? 0.17 : 0.965)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        }
+                    }
                 )
 
                 .clipShape(Capsule())
@@ -170,42 +180,47 @@ struct SlideOutSidebarView: View {
                             .padding(.horizontal, 16)
                         }
 
-                        Button(action: {
-                            Haptics.impact(.medium)
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
-                                sessionsViewModel.startNewChat()
-                                navigationViewModel.selectedTab = .chat
-                                isOpen = false
+                        VStack(spacing: 0) {
+                            Button(action: {
+                                Haptics.impact(.medium)
+                                withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
+                                    sessionsViewModel.startNewChat()
+                                    navigationViewModel.selectedTab = .chat
+                                    isOpen = false
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "square.and.pencil")
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                    Text("New Conversation")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.primary)
+                                        .offset(y: 2)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
                             }
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                Text("New Conversation")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.primary)
-                                    .offset(y: 2)
+
+                            Divider()
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 8)
+                                .padding(.bottom, 4)
+
+                            // Conversations header
+                            HStack(spacing: 12) {
+                                Text("Conversations")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.secondary)
                                 Spacer()
                             }
                             .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
+                            .padding(.top, 12)
                         }
-
-                        Divider()
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 8)
-                            .padding(.bottom, 4)
-
-                        // Conversations header
-                        HStack(spacing: 12) {
-                            Text("Conversations")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
+                        .offset(y: isSearching ? -120 : 0)
+                        .opacity(isSearching ? 0 : 1)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
                     }
 
                     let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -281,6 +296,8 @@ struct SlideOutSidebarView: View {
                         .padding(.top, 4)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 20)
+                        .offset(y: isSearching ? -20 : 0)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 80)
@@ -369,9 +386,14 @@ struct SlideOutSidebarView: View {
                     endPoint: .bottom
                 )
             )
-            .ignoresSafeArea(.keyboard, edges: .bottom)    // CHANGE: opt this overlay out of keyboard avoidance
-            .padding(.bottom, -geometry.safeAreaInsets.bottom)      // CHANGE: cancel the keyboard's bottom inset so it won't rise
-            .zIndex(1)
+            .ignoresSafeArea(.keyboard, edges: .bottom)    // Opt out of keyboard avoidance
+            .ignoresSafeArea(.container, edges: .bottom)   // Ignore container safe area
+            .padding(.bottom, -geometry.safeAreaInsets.bottom)      // Cancel the keyboard's bottom inset so it won't rise
+            .zIndex(10)  // Higher z-index to ensure it stays on top
+            .allowsHitTesting(true)  // Ensure buttons remain interactive
+            .offset(y: isSearching ? 100 : 0)  // Smoothly hide when searching
+            .opacity(isSearching ? 0 : 1)      // Fade out when searching
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearching)
         }
         }
     }
