@@ -63,18 +63,32 @@ struct MainStatCardView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
                 .background(
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(.systemBackground),
-                                    Color(.systemBackground).opacity(0.95)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
+                    Group {
+                        if #available(iOS 26.0, *) {
+                            // iOS 26+ Liquid Glass effect
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(.clear)
+                                .glassEffect()
+                        } else {
+                            // Fallback for older iOS versions
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(.systemBackground).opacity(0.8),
+                                            Color(.systemBackground).opacity(0.6)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18)
+                                        .fill(.ultraThinMaterial)
+                                )
+                        }
+                    }
+                    .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
                 )
             }
             .buttonStyle(PlainButtonStyle())
@@ -99,8 +113,19 @@ struct MainStatCardView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemGray6).opacity(0.3))
+                    Group {
+                        if #available(iOS 26.0, *) {
+                            // iOS 26+ Liquid Glass effect for expanded content
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.clear)
+                                .glassEffect()
+                        } else {
+                            // Fallback for older iOS versions
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.ultraThinMaterial)
+                                .opacity(0.6)
+                        }
+                    }
                 )
                 .padding(.top, 8)
             }
@@ -120,8 +145,19 @@ struct MainStatCardView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemGray6).opacity(0.3))
+                    Group {
+                        if #available(iOS 26.0, *) {
+                            // iOS 26+ Liquid Glass effect for hidden background
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.clear)
+                                .glassEffect()
+                        } else {
+                            // Fallback for older iOS versions
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(.ultraThinMaterial)
+                                .opacity(0.6)
+                        }
+                    }
                 )
                 .padding(.top, 8)
                 .fixedSize(horizontal: false, vertical: true)

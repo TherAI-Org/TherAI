@@ -108,18 +108,32 @@ struct RelationshipHeaderView: View {
         .padding(.vertical, 20)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(.systemBackground),
-                            Color(.systemBackground).opacity(0.95)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+            Group {
+                if #available(iOS 26.0, *) {
+                    // iOS 26+ Liquid Glass effect
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(.clear)
+                        .glassEffect()
+                } else {
+                    // Fallback for older iOS versions
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(.ultraThinMaterial)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(.systemBackground).opacity(0.8),
+                                            Color(.systemBackground).opacity(0.6)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        )
+                }
+            }
+            .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 8)
         )
     }
 }
