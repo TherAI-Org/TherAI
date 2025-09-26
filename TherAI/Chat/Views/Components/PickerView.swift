@@ -15,15 +15,25 @@ struct PickerView: View {
             Spacer()
 
             ZStack {
-                RoundedRectangle(cornerRadius: 28)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 200, height: 48)
+                Group {
+                    if #available(iOS 26.0, *) {
+                        // iOS 26+ Liquid Glass effect using .glassEffect()
+                        Color.clear
+                            .glassEffect()
+                            .cornerRadius(28)
+                            .frame(width: 200, height: 48)
+                    } else {
+                        // Transparent fallback for older iOS versions
+                        Color.clear
+                            .frame(width: 200, height: 48)
+                    }
+                }
 
                 RoundedRectangle(cornerRadius: 24)
                     .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
                     .frame(width: 90, height: 36)
-                    .offset(x: selectedMode == .personal ? -48 : 48)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedMode)
+                .offset(x: selectedMode == .personal ? -48 : 48)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedMode)
 
                 HStack(spacing: 8) {
                     ForEach(ChatMode.allCases, id: \.self) { mode in
