@@ -63,32 +63,9 @@ struct MainStatCardView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
                 .background(
-                    Group {
-                        if #available(iOS 26.0, *) {
-                            // iOS 26+ Liquid Glass effect
-                            RoundedRectangle(cornerRadius: 18)
-                                .fill(.clear)
-                                .glassEffect()
-                        } else {
-                            // Fallback for older iOS versions
-                            RoundedRectangle(cornerRadius: 18)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(.systemBackground).opacity(0.8),
-                                            Color(.systemBackground).opacity(0.6)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .background(
-                                    RoundedRectangle(cornerRadius: 18)
-                                        .fill(.ultraThinMaterial)
-                                )
-                        }
-                    }
-                    .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color(.systemBackground))
+                        .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
                 )
             }
             .buttonStyle(PlainButtonStyle())
@@ -112,21 +89,6 @@ struct MainStatCardView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)
-                .background(
-                    Group {
-                        if #available(iOS 26.0, *) {
-                            // iOS 26+ Liquid Glass effect for expanded content
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.clear)
-                                .glassEffect()
-                        } else {
-                            // Fallback for older iOS versions
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(.ultraThinMaterial)
-                                .opacity(0.6)
-                        }
-                    }
-                )
                 .padding(.top, 8)
             }
             .frame(height: expandedContentHeight * expansionProgress, alignment: .top)
