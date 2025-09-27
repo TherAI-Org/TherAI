@@ -15,12 +15,14 @@ from .Database.session_repo import create_session, list_sessions_for_user, touch
 from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
 from .Routers.dialogue_router import router as dialogue_router
+from .Routers.profile_router import router as profile_router
 
 app = FastAPI()
 
 app.include_router(aasa_router)
 app.include_router(link_router)
 app.include_router(dialogue_router)
+app.include_router(profile_router)
 
 personal_agent = PersonalAgent()
 
@@ -101,6 +103,14 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
             a_id = uuid.UUID(linked_session["user_a_id"]) if linked_session else user_uuid  # type: ignore[index]
         except Exception:
             a_id = user_uuid
+
+        # Optional focus snippet: prepend a short instruction as a system message
+        if getattr(request, "focus_snippet", None):
+            focus_text = f"Focus on this snippet from the conversation: \n\n\"{request.focus_snippet}\"\n\nExplain and answer the user's question in relation to it."
+            injected_history = chat_history_for_agent or []
+            injected_history = injected_history[:]  # shallow copy
+            injected_history.insert(0, {"role": "system", "content": focus_text})
+            chat_history_for_agent = injected_history
 
         response = personal_agent.generate_response(
             request.message,
@@ -207,6 +217,10 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             try:
                 print(f"[SSE] /chat stream start session_id={session_uuid}")
                 input_messages = [{"role": "system", "content": personal_agent.system_prompt}] if hasattr(personal_agent, "system_prompt") else []
+                # Optional focus snippet: inject before user message if provided
+                if getattr(request, "focus_snippet", None):
+                    focus_text = f"Focus on this snippet from the conversation: \n\n\"{request.focus_snippet}\"\n\nExplain and answer the user's question in relation to it."
+                    input_messages.append({"role": "system", "content": focus_text})
                 if chat_history_for_agent:
                     for msg in chat_history_for_agent:
                         role = "user" if msg.get("role") == "user" else "assistant"
