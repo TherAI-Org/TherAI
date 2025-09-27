@@ -11,6 +11,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[UUID] = None
     chat_history: Optional[list[ChatHistoryMessage]] = None
+    focus_snippet: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -102,3 +103,12 @@ class AcceptDialogueResponse(BaseModel):
     success: bool
     partner_session_id: UUID
     dialogue_session_id: UUID
+
+# Dialogue insight
+class DialogueInsightRequest(BaseModel):
+    source_session_id: UUID
+    dialogue_message_id: Optional[UUID] = None
+    dialogue_message_content: Optional[str] = None
+
+class DialogueInsightResponse(BaseModel):
+    insight: str
