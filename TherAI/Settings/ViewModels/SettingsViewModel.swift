@@ -4,6 +4,7 @@ import SwiftUI
 enum SettingsDestination: Hashable {
     case link
     case appearance
+    case avatar
 }
 
 extension SettingsDestination: Identifiable {
@@ -13,6 +14,8 @@ extension SettingsDestination: Identifiable {
             return "link"
         case .appearance:
             return "appearance"
+        case .avatar:
+            return "avatar"
         }
     }
 }
@@ -23,6 +26,8 @@ class SettingsViewModel: ObservableObject {
     @Published var settingsSections: [SettingsSection] = []
     @Published var destination: SettingsDestination? = nil
     @Published var showAppearanceDialog: Bool = false
+    @Published var isUploadingAvatar: Bool = false
+    @Published var avatarURL: String? = nil
     var currentAppearance: String {
         UserDefaults.standard.string(forKey: PreferenceKeys.appearancePreference) ?? "System"
     }
@@ -99,6 +104,7 @@ class SettingsViewModel: ObservableObject {
                 icon: "person.circle",
                 gradient: [Color.indigo, Color.blue],
                 settings: [
+                    SettingItem(title: "Change Avatar", subtitle: "Upload a new profile photo", type: .action, icon: "person.crop.circle.badge.plus"),
                     SettingItem(title: "Account Settings", subtitle: "Manage your account", type: .navigation, icon: "person.crop.circle"),
                     SettingItem(title: "Sign Out", subtitle: "Sign out of your account", type: .action, icon: "rectangle.portrait.and.arrow.right")
                 ]
@@ -132,7 +138,7 @@ class SettingsViewModel: ObservableObject {
             UserDefaults.standard.set(settingsData.autoScrollEnabled, forKey: PreferenceKeys.autoScrollEnabled)
         case ("Chat Settings", "Message Sound"):
             settingsData.messageSoundEnabled.toggle()
-        
+
         default:
             break
         }
@@ -146,6 +152,8 @@ class SettingsViewModel: ObservableObject {
         let setting = section.settings[settingIndex]
 
         switch setting.title {
+        case "Change Avatar":
+            destination = .avatar
         case "Sign Out":
             Task {
                 await AuthService.shared.signOut()
@@ -186,6 +194,23 @@ class SettingsViewModel: ObservableObject {
         let setting = section.settings[settingIndex]
         if section.title == "App Settings" && setting.title == "Appearance" {
             selectAppearance(value)
+        }
+    }
+}
+
+extension SettingsViewModel {
+    func uploadAvatar(data: Data) async {
+        guard !data.isEmpty else { return }
+        isUploadingAvatar = true
+        defer { isUploadingAvatar = false }
+        do {
+            guard let token = await AuthService.shared.getAccessToken() else { return }
+            let result = try await BackendService.shared.uploadAvatar(imageData: data, contentType: "image/jpeg", accessToken: token)
+            await MainActor.run {
+                self.avatarURL = result.url
+            }
+        } catch {
+            print("Avatar upload failed: \(error)")
         }
     }
 }

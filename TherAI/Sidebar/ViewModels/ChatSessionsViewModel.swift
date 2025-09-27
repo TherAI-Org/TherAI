@@ -8,6 +8,8 @@ class ChatSessionsViewModel: ObservableObject {
     @Published var pendingRequests: [DialogueViewModel.DialogueRequest] = []
     @Published var activeSessionId: UUID? = nil
     @Published var chatViewKey: UUID = UUID()
+    @Published var myAvatarURL: String? = nil
+    @Published var partnerAvatarURL: String? = nil
 
     var onSwitchToDialogue: (() -> Void)?
     var onRefreshPendingRequests: (() -> Void)?
@@ -63,11 +65,9 @@ class ChatSessionsViewModel: ObservableObject {
             let dtos = try await BackendService.shared.fetchSessions(accessToken: accessToken)
             print("📋 Fetched \(dtos.count) sessions from backend")
             let mapped = dtos.map { dto in
-                let title = dto.title?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let finalTitle = title?.isEmpty == true ? nil : title
                 return ChatSession(
                     id: dto.id,
-                    title: finalTitle,
+                    title: dto.title,
                     lastUsedISO8601: dto.last_message_at,
                     lastMessageContent: dto.last_message_content
                 )
@@ -116,6 +116,7 @@ class ChatSessionsViewModel: ObservableObject {
         Task {
             await loadSessions()
             await loadPendingRequests()
+            await loadPairedAvatars()
         }
 
         // Session created
@@ -123,9 +124,11 @@ class ChatSessionsViewModel: ObservableObject {
             guard let self = self else { return }
             if let sid = note.userInfo?["sessionId"] as? UUID {
                 if !self.sessions.contains(where: { $0.id == sid }) {
+                    let rawTitle = (note.userInfo?["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let title = rawTitle
                     let session = ChatSession(
                         id: sid,
-                        title: note.userInfo?["title"] as? String ?? ChatSession.defaultTitle,
+                        title: title,
                         lastUsedISO8601: note.userInfo?["lastUsedISO8601"] as? String,
                         lastMessageContent: note.userInfo?["lastMessageContent"] as? String
                     )
@@ -147,6 +150,20 @@ class ChatSessionsViewModel: ObservableObject {
             }
         }
         observers.append(sent)
+    }
+
+    func loadPairedAvatars() async {
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+            let res = try await BackendService.shared.fetchPairedAvatars(accessToken: accessToken)
+            await MainActor.run {
+                self.myAvatarURL = res.me.url
+                self.partnerAvatarURL = res.partner.url
+            }
+        } catch {
+            print("Failed to load avatars: \(error)")
+        }
     }
 
     private func acceptPendingRequest(_ request: DialogueViewModel.DialogueRequest) async {

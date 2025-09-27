@@ -18,7 +18,7 @@ struct BackendService {
         print("🌐 BackendService: Initialized with base URL: \(url)")
     }
 
-    func sendChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String) async throws -> (response: String, sessionId: UUID) {
+    func sendChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String, focusSnippet: String? = nil) async throws -> (response: String, sessionId: UUID) {
         let url = baseURL
             .appendingPathComponent("chat")
             .appendingPathComponent("sessions")
@@ -29,7 +29,7 @@ struct BackendService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         // Do not advertise SSE for the non-streaming endpoint
 
-        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory)
+        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory, focus_snippet: focusSnippet)
         request.httpBody = try jsonEncoder.encode(payload)
 
         let (data, response): (Data, URLResponse)
@@ -65,7 +65,7 @@ struct BackendService {
         case error(String)
     }
 
-    func streamChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String) -> AsyncStream<StreamEvent> {
+    func streamChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String, focusSnippet: String? = nil) -> AsyncStream<StreamEvent> {
         var request = URLRequest(url: baseURL
             .appendingPathComponent("chat")
             .appendingPathComponent("sessions")
@@ -75,7 +75,7 @@ struct BackendService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory)
+        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory, focus_snippet: focusSnippet)
         request.httpBody = try? jsonEncoder.encode(payload)
 
         return SSEService.shared.stream(request: request)
@@ -93,6 +93,52 @@ struct BackendService {
         request.httpBody = try? jsonEncoder.encode(requestBody)
 
         return SSEService.shared.stream(request: request)
+    }
+
+    func streamDialogueInsight(sourceSessionId: UUID, dialogueMessageId: UUID?, dialogueMessageContent: String?, accessToken: String) -> AsyncStream<StreamEvent> {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("dialogue")
+            .appendingPathComponent("insight")
+            .appendingPathComponent("stream"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        let payload = DialogueInsightRequestBody(
+            source_session_id: sourceSessionId,
+            dialogue_message_id: dialogueMessageId,
+            dialogue_message_content: dialogueMessageContent
+        )
+        request.httpBody = try? jsonEncoder.encode(payload)
+        return SSEService.shared.stream(request: request)
+    }
+
+    func requestDialogueInsight(sourceSessionId: UUID, dialogueMessageId: UUID?, dialogueMessageContent: String?, accessToken: String) async throws -> String {
+        let url = baseURL
+            .appendingPathComponent("dialogue")
+            .appendingPathComponent("insight")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let payload = DialogueInsightRequestBody(
+            source_session_id: sourceSessionId,
+            dialogue_message_id: dialogueMessageId,
+            dialogue_message_content: dialogueMessageContent
+        )
+        request.httpBody = try jsonEncoder.encode(payload)
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        struct InsightBody: Codable { let insight: String }
+        let decoded = try jsonDecoder.decode(InsightBody.self, from: data)
+        return decoded.insight
     }
 
     func fetchMessages(sessionId: UUID, accessToken: String) async throws -> [ChatMessageDTO] {
@@ -202,6 +248,7 @@ private struct ChatRequestBody: Codable {
     let message: String
     let session_id: UUID?
     let chat_history: [ChatHistoryMessage]?
+    let focus_snippet: String?
 }
 
 private struct ChatResponseBody: Codable {
@@ -218,6 +265,12 @@ struct ChatMessageDTO: Codable {
     let content: String
 }
 
+private struct DialogueInsightRequestBody: Codable {
+    let source_session_id: UUID
+    let dialogue_message_id: UUID?
+    let dialogue_message_content: String?
+}
+
 private struct MessagesResponseBody: Codable {
     let messages: [ChatMessageDTO]
 }
@@ -227,6 +280,83 @@ struct ChatSessionDTO: Codable {
     let title: String?
     let last_message_at: String?
     let last_message_content: String?
+}
+
+// MARK: - Profile Avatar API
+extension BackendService {
+    func uploadAvatar(imageData: Data, contentType: String, accessToken: String) async throws -> (path: String, url: String?) {
+        let url = baseURL
+            .appendingPathComponent("profile")
+            .appendingPathComponent("avatar")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let boundary = "Boundary-\(UUID().uuidString)"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        var body = Data()
+        let filename = "avatar"
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(contentType)\r\n\r\n".data(using: .utf8)!)
+        body.append(imageData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        struct UploadRes: Codable { let path: String?; let url: String? }
+        let decoded = try jsonDecoder.decode(UploadRes.self, from: data)
+        return (decoded.path ?? "", decoded.url)
+    }
+
+    func fetchAvatarURL(accessToken: String) async throws -> (path: String?, url: String?) {
+        let url = baseURL
+            .appendingPathComponent("profile")
+            .appendingPathComponent("avatar")
+            .appendingPathComponent("url")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        struct UrlRes: Codable { let path: String?; let url: String? }
+        let decoded = try jsonDecoder.decode(UrlRes.self, from: data)
+        return (decoded.path, decoded.url)
+    }
+
+    struct PairedAvatars: Codable { struct Entry: Codable { let url: String?; let source: String } ; let me: Entry; let partner: Entry }
+    func fetchPairedAvatars(accessToken: String) async throws -> PairedAvatars {
+        let url = baseURL
+            .appendingPathComponent("profile")
+            .appendingPathComponent("avatars")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(PairedAvatars.self, from: data)
+    }
 }
 
 private struct SessionsResponseBody: Codable {
