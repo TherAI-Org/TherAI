@@ -5,6 +5,7 @@ struct InputAreaView: View {
 
     @Binding var inputText: String
     @Binding var isLoading: Bool
+    @Binding var focusSnippet: String?
 
     let isInputFocused: FocusState<Bool>.Binding
     let send: () -> Void
@@ -18,52 +19,76 @@ struct InputAreaView: View {
         let cornerRadius: CGFloat = 24
         let sendSize: CGFloat = 28
 
-        HStack(spacing: 12) {
-            TextField("Share what's on your mind", text: $inputText)
-                .font(Typography.body)
-                .foregroundColor(.primary)
-                .onSubmit {
-                    guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    Haptics.impact(.light)
-                    send()
+        VStack(alignment: .leading, spacing: 8) {
+            if let snippet = focusSnippet, !snippet.isEmpty {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "quote.opening")
+                        .foregroundColor(.secondary)
+                    Text(snippet)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(3)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 8)
+                    Button(action: { withAnimation { focusSnippet = nil } }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .focused(isInputFocused)
-
-            Button(action: {
-                Haptics.impact(.light)
-
-                if isLoading {
-                    stop()
-                } else {
-                    send()
-                }
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(isSendDisabled ?
-                              Color(uiColor: .systemGray5) :
-                              Color(red: 0.4, green: 0.2, blue: 0.6))
-                        .frame(width: sendSize, height: sendSize)
-
-                    Image(systemName: isLoading ? "stop.fill" : "arrow.up")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(isSendDisabled ? .secondary : .white)
-                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .disabled(isSendDisabled)
-            .scaleEffect(isSendDisabled ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isSendDisabled)
-            .contextMenu {
-                Button(action: {
-                    send()
-                }) {
-                    Label("Send to Personal", systemImage: "person.circle")
-                }
+
+            HStack(spacing: 12) {
+                TextField("Share what's on your mind", text: $inputText)
+                    .font(Typography.body)
+                    .foregroundColor(.primary)
+                    .onSubmit {
+                        guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                        Haptics.impact(.light)
+                        send()
+                    }
+                    .focused(isInputFocused)
 
                 Button(action: {
-                    onSendToPartner()
+                    Haptics.impact(.light)
+
+                    if isLoading {
+                        stop()
+                    } else {
+                        send()
+                    }
                 }) {
-                    Label("Send to Partner", systemImage: "heart.circle")
+                    ZStack {
+                        Circle()
+                            .fill(isSendDisabled ?
+                                  Color(uiColor: .systemGray5) :
+                                  Color(red: 0.4, green: 0.2, blue: 0.6))
+                            .frame(width: sendSize, height: sendSize)
+
+                        Image(systemName: isLoading ? "stop.fill" : "arrow.up")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(isSendDisabled ? .secondary : .white)
+                    }
+                }
+                .disabled(isSendDisabled)
+                .scaleEffect(isSendDisabled ? 0.9 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: isSendDisabled)
+                .contextMenu {
+                    Button(action: {
+                        send()
+                    }) {
+                        Label("Send to Personal", systemImage: "person.circle")
+                    }
+
+                    Button(action: {
+                        onSendToPartner()
+                    }) {
+                        Label("Send to Partner", systemImage: "heart.circle")
+                    }
                 }
             }
         }
@@ -90,9 +115,10 @@ struct InputAreaView: View {
 
 #Preview {
     @FocusState var isFocused: Bool
-    return InputAreaView(
+    InputAreaView(
         inputText: .constant(""),
         isLoading: .constant(false),
+        focusSnippet: .constant(nil),
         isInputFocused: $isFocused,
         send: {},
         stop: {},

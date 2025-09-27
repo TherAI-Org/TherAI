@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import UIKit
 
 struct SlideOutSidebarContainerView<Content: View>: View {
@@ -449,6 +450,12 @@ private struct SettingsOverlayView: View {
                                 viewModel.selectAppearance(option.rawValue)
                             }
                         )
+                    case .avatar:
+                        SettingsAvatarPickerView(viewModel: viewModel)
+                            .navigationTitle("Change Avatar")
+                            .navigationBarTitleDisplayMode(.inline)
+                    @unknown default:
+                        EmptyView()
                     }
                 }
             }

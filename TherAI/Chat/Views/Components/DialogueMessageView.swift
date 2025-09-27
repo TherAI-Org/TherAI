@@ -3,6 +3,7 @@ import SwiftUI
 struct DialogueMessageView: View {
     let message: DialogueViewModel.DialogueMessage
     let currentUserId: UUID?
+    var onDoubleTapPartnerMessage: ((DialogueViewModel.DialogueMessage) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,7 +52,10 @@ struct DialogueMessageView: View {
                                 RoundedRectangle(cornerRadius: 20)
                                     .fill(Color(.secondarySystemBackground))
                             )
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: 320, alignment: .leading)
+                            .onTapGesture(count: 2) {
+                                onDoubleTapPartnerMessage?(message)
+                            }
                     }
 
                     Text(formatTimestamp(message.createdAt))

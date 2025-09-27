@@ -5,56 +5,55 @@ struct ProfileButtonView: View {
     let profileNamespace: Namespace.ID
 
     var compact: Bool = false
+    @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
+
+    @ViewBuilder
+    private func avatarCircle(url: String?, fallback: String, size: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.26, green: 0.58, blue: 1.00),
+                            Color(red: 0.63, green: 0.32, blue: 0.98)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.8), lineWidth: size > 50 ? 2 : 1)
+                )
+
+            if let urlStr = url, let u = URL(string: urlStr) {
+                AsyncImage(url: u) { img in
+                    img.resizable().scaledToFill()
+                } placeholder: {
+                    Text(fallback)
+                        .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+            } else {
+                Text(fallback)
+                    .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+        }
+    }
 
     var body: some View {
         if compact {
             HStack {
                 ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.72, green: 0.37, blue: 0.98),
-                                    Color(red: 0.38, green: 0.65, blue: 1.00)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 50, height: 50)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.8), lineWidth: 1)
-                        )
-                        .overlay(
-                            Text("S")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        )
+                    avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 50)
                         .offset(x: 20)
                         .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.26, green: 0.58, blue: 1.00),
-                                    Color(red: 0.63, green: 0.32, blue: 0.98)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 50, height: 50)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.8), lineWidth: 1)
-                        )
-                        .overlay(
-                            Text("M")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        )
+                    avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 50)
                         .offset(x: -20)
                         .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
                 }
@@ -63,51 +62,11 @@ struct ProfileButtonView: View {
         } else {
             HStack {
                 ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.72, green: 0.37, blue: 0.98),
-                                    Color(red: 0.38, green: 0.65, blue: 1.00)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                        )
-                        .overlay(
-                            Text("S")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        )
+                    avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 56)
                         .offset(x: 24)
                         .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.26, green: 0.58, blue: 1.00),
-                                    Color(red: 0.63, green: 0.32, blue: 0.98)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.8), lineWidth: 2)
-                        )
-                        .overlay(
-                            Text("M")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        )
+                    avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 56)
                         .offset(x: -24)
                         .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
                 }

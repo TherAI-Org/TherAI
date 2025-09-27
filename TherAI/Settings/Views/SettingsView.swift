@@ -1,7 +1,9 @@
 import SwiftUI
+import PhotosUI
 
 struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
+    @State private var selectedAvatarItem: PhotosPickerItem? = nil
 
     @EnvironmentObject private var linkVM: LinkViewModel
 
@@ -72,6 +74,11 @@ struct SettingsView: View {
                             viewModel.selectAppearance(option.rawValue)
                         }
                     )
+                } else if destination == .avatar {
+                    // Placeholder screen for now; we can wire the picker later
+                    Text("Change Avatar")
+                        .font(.title2)
+                        .navigationBarTitleDisplayMode(.inline)
                 } else {
                     EmptyView()
                 }
@@ -80,6 +87,7 @@ struct SettingsView: View {
         }
         .background(Color.white.ignoresSafeArea())
         .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
+        // Destination is already handled inside the NavigationStack above
     }
 }
 

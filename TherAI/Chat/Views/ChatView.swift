@@ -46,8 +46,34 @@ struct ChatView: View {
                             ForEach(dialogueViewModel.messages) { message in
                                 DialogueMessageView(
                                     message: message,
-                                    currentUserId: UUID(uuidString: AuthService.shared.currentUser?.id.uuidString ?? "")
+                                    currentUserId: UUID(uuidString: AuthService.shared.currentUser?.id.uuidString ?? ""),
+                                    onDoubleTapPartnerMessage: { tapped in
+                                        Haptics.impact(.light)
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                                            selectedMode = .personal
+                                        }
+                                        if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
+                                        Task {
+                                            await viewModel.generateInsightFromDialogueMessage(message: tapped, sourceSessionId: sessionsViewModel.activeSessionId)
+                                        }
+                                    }
                                 )
+                                .contextMenu {
+                                    if message.isFromPartner {
+                                        Button(action: {
+                                            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                                                selectedMode = .personal
+                                            }
+                                            if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
+                                            viewModel.focusSnippet = message.content
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                                isInputFocused = true
+                                            }
+                                        }) {
+                                            Label("Ask TherAI", systemImage: "text.magnifyingglass")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -66,6 +92,7 @@ struct ChatView: View {
                 InputAreaView(
                     inputText: $viewModel.inputText,
                     isLoading: $viewModel.isLoading,
+                    focusSnippet: $viewModel.focusSnippet,
                     isInputFocused: $isInputFocused,
                     send: {
                         viewModel.sendMessage()
@@ -109,6 +136,14 @@ struct ChatView: View {
             handleSidebarIsOpenChanged(newValue)
         }
         .onAppear { configureCallbacksOnAppear() }
+        .onReceive(NotificationCenter.default.publisher(for: .init("AskTherAISelectedSnippet"))) { note in
+            if let snippet = note.userInfo?["snippet"] as? String {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { selectedMode = .personal }
+                if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
+                viewModel.focusSnippet = snippet
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { isInputFocused = true }
+            }
+        }
         .onChange(of: sessionsViewModel.activeSessionId) { _, newSessionId in
             handleActiveSessionChanged(newSessionId)
         }
@@ -161,7 +196,8 @@ struct ChatView: View {
                         isInputFocused = true
                     }
                 } else {
-                    withAnimation(nil) { isInputFocused = false }
+                    // When arriving from Dialogue (e.g., Ask TherAI), focus the input for immediate typing
+                    withAnimation(nil) { isInputFocused = true }
                 }
             }
         }
@@ -178,7 +214,6 @@ struct ChatView: View {
 
                 contentView
             }
-            
             // Overlay the input area on top of the chat content
             inputArea
                 .background(Color.clear) // Ensure no background on the container
