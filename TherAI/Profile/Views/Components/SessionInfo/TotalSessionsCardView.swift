@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TotalSessionsCardView: View {
     let totalSessions: Int
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 16) {
@@ -37,7 +38,7 @@ struct TotalSessionsCardView: View {
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
+                .fill(colorScheme == .light ? Color.white : Color(.systemGray6))
                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         )
     }
