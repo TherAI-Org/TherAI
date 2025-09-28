@@ -11,10 +11,10 @@ struct MinimalCardView<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.systemBackground))
+                    .fill(Color(.systemGray6))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.black.opacity(0.1), lineWidth: 1)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
                     )
             )
     }
