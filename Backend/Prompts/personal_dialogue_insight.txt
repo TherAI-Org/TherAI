@@ -13,4 +13,4 @@ Output requirements:
 - Briefly connect to any recent patterns from the personal chats when helpful
 - End with one supportive, actionable suggestion
 - Warm, candid, plain language
-- Return only the insight text (no headings or labels)
+- Always output using Markdown. Use bold for emphasis and short bullets only if necessary. Avoid headings (###) and code blocks.

@@ -95,6 +95,7 @@ struct ChatView: View {
                     focusSnippet: $viewModel.focusSnippet,
                     isInputFocused: $isInputFocused,
                     send: {
+                        isInputFocused = false
                         viewModel.sendMessage()
                     },
                     stop: {
