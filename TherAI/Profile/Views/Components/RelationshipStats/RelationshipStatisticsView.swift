@@ -5,6 +5,7 @@ struct RelationshipStatisticsView: View {
     let value: String
     let icon: String
     let color: Color
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 10) {
@@ -34,7 +35,7 @@ struct RelationshipStatisticsView: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(Color(.systemBackground))
+                .fill(colorScheme == .light ? Color.white : Color(.systemGray6))
                 .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
         )
     }
