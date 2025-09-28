@@ -185,8 +185,8 @@ async def unlink_relationship_for_user(*, user_id: uuid.UUID) -> bool:
         raise RuntimeError(f"Supabase delete relationship failed: {del_res.error}")
     return True
 
-# Return (linked, relationship_id) for the given user
-async def get_link_status_for_user(*, user_id: uuid.UUID) -> tuple[bool, Optional[uuid.UUID]]:
+# Return (linked, relationship_id, linked_at_iso) for the given user
+async def get_link_status_for_user(*, user_id: uuid.UUID) -> tuple[bool, Optional[uuid.UUID], Optional[str]]:
     user_id_str = str(user_id)
 
     def _select_rel_by_partner_a():
@@ -219,8 +219,9 @@ async def get_link_status_for_user(*, user_id: uuid.UUID) -> tuple[bool, Optiona
         relationship = rel_res_b.data[0] if rel_res_b.data else None
 
     if not relationship:
-        return False, None
-    return True, uuid.UUID(relationship["id"])  # type: ignore[index]
+        return False, None, None
+    linked_at_iso: Optional[str] = relationship.get("created_at") if isinstance(relationship, dict) else None
+    return True, uuid.UUID(relationship["id"]), linked_at_iso  # type: ignore[index]
 
 # Get partner's user_id from relationship
 async def get_partner_user_id(*, user_id: uuid.UUID) -> Optional[uuid.UUID]:
