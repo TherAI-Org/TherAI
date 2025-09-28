@@ -8,6 +8,7 @@ struct MainStatCardView: View {
 
     let isExpanded: Bool
     let onTap: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -64,7 +65,7 @@ struct MainStatCardView: View {
                 .padding(.vertical, 20)
                 .background(
                     RoundedRectangle(cornerRadius: 18)
-                        .fill(Color(.systemBackground))
+                        .fill(colorScheme == .light ? Color.white : Color(.systemGray6))
                         .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
                 )
             }
