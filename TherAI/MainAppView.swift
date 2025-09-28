@@ -18,7 +18,10 @@ struct MainAppView: View {
                 ChatView(sessionId: sessionsViewModel.activeSessionId)
                     .id(sessionsViewModel.chatViewKey)
             case .profile:
-                ProfileView()
+                // Profile is shown as an overlay via navigationViewModel.showProfileOverlay
+                // Render ChatView here to avoid presenting a separate Profile screen
+                ChatView(sessionId: sessionsViewModel.activeSessionId)
+                    .id(sessionsViewModel.chatViewKey)
             }
         }
     }
