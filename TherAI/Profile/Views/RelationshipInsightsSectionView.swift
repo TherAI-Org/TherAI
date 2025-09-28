@@ -39,6 +39,7 @@ struct RelationshipInsightsSectionView: View {
                     color: Color.pink
                 )
             }
+            .padding(.bottom, 16)
         }
     }
 }
