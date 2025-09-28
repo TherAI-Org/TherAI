@@ -69,7 +69,7 @@ struct MainLinkView: View {
                     .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemBackground))
+                            .fill(Color(.systemGray6))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
                                     .stroke(Color.black.opacity(0.1), lineWidth: 1)
