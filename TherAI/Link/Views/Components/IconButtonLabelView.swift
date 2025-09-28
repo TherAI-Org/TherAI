@@ -9,8 +9,8 @@ struct IconButtonLabelView: View {
             .frame(width: 34, height: 34)
             .background(
                 Circle()
-                    .fill(Color(.systemBackground))
-                    .overlay(Circle().stroke(Color.black.opacity(0.15), lineWidth: 1))
+                    .fill(Color(.systemGray6))
+                    .overlay(Circle().stroke(Color.primary.opacity(0.15), lineWidth: 1))
             )
     }
 }
