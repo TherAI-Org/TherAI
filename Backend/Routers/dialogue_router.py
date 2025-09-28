@@ -61,7 +61,7 @@ async def _validate_user_and_session(user_uuid: uuid.UUID, session_id: uuid.UUID
 async def _get_relationship_info(user_uuid: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
     """Get relationship and partner information for the user."""
     # Check if user is linked to a partner
-    linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+    linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
     if not linked or not relationship_id:
         raise HTTPException(status_code=400, detail="User is not linked to a partner")
 
@@ -274,7 +274,7 @@ async def get_dialogue_messages_endpoint(source_session_id: uuid.UUID, current_u
 
     try:
         # Check if user is linked to a partner
-        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+        linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
         if not linked or not relationship_id:
             raise HTTPException(status_code=400, detail="User is not linked to a partner")
 
@@ -376,7 +376,7 @@ async def mark_request_delivered_endpoint(request_id: uuid.UUID, current_user: d
             raise HTTPException(status_code=404, detail="Dialogue request not found")
 
         # Verify caller is linked and relationship matches
-        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+        linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
         if not linked or not relationship_id:
             raise HTTPException(status_code=403, detail="User is not linked to a partner")
         try:
@@ -412,7 +412,7 @@ async def mark_request_accepted_endpoint(request_id: uuid.UUID, current_user: di
             raise HTTPException(status_code=404, detail="Dialogue request not found")
 
         # Verify caller is linked and relationship matches
-        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+        linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
         if not linked or not relationship_id:
             raise HTTPException(status_code=403, detail="User is not linked to a partner")
         try:
@@ -491,7 +491,7 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
             raise HTTPException(status_code=403, detail="Session does not belong to the current user or does not exist")
 
         # Check link status and compute context
-        linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+        linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
         if not linked or not relationship_id:
             raise HTTPException(status_code=400, detail="User is not linked to a partner")
 
