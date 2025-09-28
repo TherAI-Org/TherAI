@@ -40,32 +40,7 @@ struct ProfileView: View {
                             // Profile Header Card
                             RelationshipHeaderView(relationshipHeader: data.relationshipHeader)
 
-                            // Edit Avatars Button
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    showingAvatarSelection = true
-                                }
-                            }) {
-                                HStack {
-                                    Image(systemName: "person.2.circle")
-                                        .font(.system(size: 16, weight: .medium))
-                                    Text("Edit Avatars")
-                                        .font(.system(size: 16, weight: .semibold))
-                                }
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 25)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [.pink, .blue],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                )
-                            }
+                            
 
                             // Premium Stats Cards
                             PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
