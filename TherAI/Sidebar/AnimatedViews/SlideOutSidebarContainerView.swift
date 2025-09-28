@@ -319,21 +319,45 @@ private struct ProfileOverlayView: View {
                 }
             }
             .overlay(
-                showingAvatarSelection ?
-                ZStack {
-                    Color.black.opacity(0.1)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = false }
+                Group {
+                    if showingAvatarSelection {
+                        ZStack {
+                            Color.black.opacity(0.1)
+                                .ignoresSafeArea()
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = false }
+                                }
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Spacer()
+                                    Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = false } }) {
+                                        Image(systemName: "xmark")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(.primary)
+                                            .padding(8)
+                                            .background(.ultraThinMaterial, in: Circle())
+                                    }
+                                }
+                                .padding(.top, 4)
+
+                                SettingsAvatarPickerView(viewModel: SettingsViewModel())
+                                    .frame(maxWidth: 520)
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .fill(Color(.systemBackground))
+                                    .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 10)
+                            )
+                            .padding(.horizontal, 24)
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.9).combined(with: .opacity),
+                                    removal: .scale(scale: 0.9).combined(with: .opacity)
+                                ))
                         }
-                    AvatarSelectionView(isPresented: $showingAvatarSelection)
-                        .transition(.asymmetric(
-                            insertion: .scale(scale: 0.9).combined(with: .opacity),
-                            removal: .scale(scale: 0.9).combined(with: .opacity)
-                        ))
+                        .animation(.easeInOut(duration: 0.25), value: showingAvatarSelection)
+                    }
                 }
-                .animation(.easeInOut(duration: 0.25), value: showingAvatarSelection)
-                : nil
             )
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: isPresented)
