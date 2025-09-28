@@ -25,10 +25,10 @@ struct MinimalButtonView: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(.systemBackground))
+                    .fill(Color(.systemGray6))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(role == .destructive ? Color.red.opacity(0.4) : Color.black.opacity(0.15), lineWidth: 1)
+                            .stroke(role == .destructive ? Color.red.opacity(0.4) : Color.primary.opacity(0.15), lineWidth: 1)
                     )
             )
         }
