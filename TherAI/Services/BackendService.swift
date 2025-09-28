@@ -475,7 +475,7 @@ extension BackendService {
         return decoded.unlinked
     }
 
-    func fetchLinkStatus(accessToken: String) async throws -> (linked: Bool, relationshipId: UUID?) {
+    func fetchLinkStatus(accessToken: String) async throws -> (linked: Bool, relationshipId: UUID?, linkedAt: Date?) {
         let url = baseURL
             .appendingPathComponent("link")
             .appendingPathComponent("status")
@@ -498,12 +498,19 @@ extension BackendService {
             throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
 
-        struct StatusBody: Codable { let success: Bool; let linked: Bool; let relationship_id: UUID? }
+        struct StatusBody: Codable { let success: Bool; let linked: Bool; let relationship_id: UUID?; let linked_at: String? }
         let decoded = try jsonDecoder.decode(StatusBody.self, from: data)
         guard decoded.success else {
             throw NSError(domain: "Backend", code: -3, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch link status"])
         }
-        return (decoded.linked, decoded.relationship_id)
+        var linkedDate: Date? = nil
+        if let iso = decoded.linked_at, !iso.isEmpty {
+            // Parse ISO8601 or RFC3339 from backend
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            linkedDate = formatter.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+        }
+        return (decoded.linked, decoded.relationship_id, linkedDate)
     }
 
     // MARK: - Dialogue Methods
