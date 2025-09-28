@@ -15,6 +15,7 @@ final class LinkViewModel: ObservableObject {
 
     @Published private(set) var state: LinkingState = .idle
     @Published var pendingInviteToken: String? = nil
+    @Published private(set) var linkedAt: Date? = nil
 
     private var accessTokenProvider: () async throws -> String
 
@@ -40,7 +41,8 @@ final class LinkViewModel: ObservableObject {
         do {
             let token = try await accessTokenProvider()
             try await BackendService.shared.acceptLinkInvite(inviteToken: inviteToken, accessToken: token)
-            state = .linked
+            // After accepting, refresh status to capture linkedAt
+            try await refreshStatus()
         } catch {
             state = .error(message: error.localizedDescription)
         }
@@ -60,21 +62,18 @@ final class LinkViewModel: ObservableObject {
     }
 
     @MainActor
-    func refreshStatus() async {
-        do {
-            let token = try await accessTokenProvider()
-            let status = try await BackendService.shared.fetchLinkStatus(accessToken: token)
-            state = status.linked ? .linked : .idle
-        } catch {
-            // Keep silent here to avoid flashing errors on load
-        }
+    func refreshStatus() async throws {
+        let token = try await accessTokenProvider()
+        let status = try await BackendService.shared.fetchLinkStatus(accessToken: token)
+        linkedAt = status.linkedAt
+        state = status.linked ? .linked : .idle
     }
 
     // Ensure there is always a shareable link ready if not linked
     @MainActor
     func ensureInviteReady() async {
         // First, refresh to know if we are linked
-        await refreshStatus()
+        do { try await refreshStatus() } catch {}
         switch state {
         case .linked, .shareReady:
             return
