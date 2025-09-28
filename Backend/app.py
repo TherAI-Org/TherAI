@@ -64,7 +64,7 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
         partner_context = None
 
         try:
-            linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+            linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
             if linked and relationship_id:
                 # Get dialogue history scoped per-dialogue session if mapping exists for this session
                 try:
@@ -172,7 +172,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
         partner_context = None
         linked_session = None
         try:
-            linked, relationship_id = await get_link_status_for_user(user_id=user_uuid)
+            linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
             if linked and relationship_id:
                 try:
                     mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
