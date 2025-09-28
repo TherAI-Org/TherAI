@@ -74,8 +74,8 @@ async def link_status(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
 
     try:
-        linked, rel_id = await get_link_status_for_user(user_id = user_uuid)
-        return LinkStatusResponse(success = True, linked = linked, relationship_id = rel_id)
+        linked, rel_id, linked_at = await get_link_status_for_user(user_id = user_uuid)
+        return LinkStatusResponse(success = True, linked = linked, relationship_id = rel_id, linked_at = linked_at)
     except Exception as e:
         raise HTTPException(status_code = 500, detail = f"Error fetching link status: {str(e)}")
 
