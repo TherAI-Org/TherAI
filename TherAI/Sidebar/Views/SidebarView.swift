@@ -4,6 +4,7 @@ struct SlideOutSidebarView: View {
 
     @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
     @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
+    @EnvironmentObject private var linkVM: LinkViewModel
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -296,7 +297,7 @@ struct SlideOutSidebarView: View {
                         .padding(.top, 4)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 20)
-                        .offset(y: isSearching ? -20 : 0)
+                        .offset(y: isSearching ? -8 : 0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
                 }
                 .padding(.top, 8)
@@ -327,15 +328,17 @@ struct SlideOutSidebarView: View {
                     .frame(height: 100) // This creates space for the gradient to start earlier
 
                 HStack {
-                    Button(action: {
-                        Haptics.impact(.medium)
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
-                            navigationViewModel.showProfileOverlay = true
+                    if case .linked = linkVM.state {
+                        Button(action: {
+                            Haptics.impact(.medium)
+                            withAnimation(.easeOut(duration: 0.22)) {
+                                navigationViewModel.showProfileOverlay = true
+                            }
+                        }) {
+                            ProfileButtonView(profileNamespace: profileNamespace, compact: true)
                         }
-                    }) {
-                        ProfileButtonView(profileNamespace: profileNamespace, compact: true)
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
 
                     Spacer()
 
@@ -439,6 +442,7 @@ struct SlideOutSidebarView: View {
             SlideOutSidebarView(isOpen: .constant(true), profileNamespace: ns)
                 .environmentObject(navigationViewModel)
                 .environmentObject(sessionsViewModel)
+                .environmentObject(LinkViewModel(accessTokenProvider: { "" }))
         }
     }
     return PreviewWithPending()
@@ -466,6 +470,7 @@ struct SlideOutSidebarView: View {
             SlideOutSidebarView(isOpen: .constant(true), profileNamespace: ns)
                 .environmentObject(navigationViewModel)
                 .environmentObject(sessionsViewModel)
+                .environmentObject(LinkViewModel(accessTokenProvider: { "" }))
         }
     }
     return PreviewNoPending()
