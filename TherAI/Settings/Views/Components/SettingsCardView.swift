@@ -34,7 +34,7 @@ struct SettingsCardView: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.systemBackground))
+                    .fill(Color(.systemGray6))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
