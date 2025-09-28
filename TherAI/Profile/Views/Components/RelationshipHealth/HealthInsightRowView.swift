@@ -41,7 +41,7 @@ struct HealthInsightRowView: View {
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemBackground))
+                .fill(Color(.systemGray6))
                 .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
         )
     }
