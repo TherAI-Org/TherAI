@@ -7,6 +7,7 @@ struct ExpandableSessionCardView: View {
     let gradient: [Color]
     let isExpanded: Bool
     let onTap: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: onTap) {
@@ -50,7 +51,7 @@ struct ExpandableSessionCardView: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color(.systemBackground))
+                    .fill(colorScheme == .light ? Color.white : Color(.systemGray6))
                     .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 3)
             )
         }
