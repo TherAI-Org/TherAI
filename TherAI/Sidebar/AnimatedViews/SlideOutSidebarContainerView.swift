@@ -19,6 +19,20 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         self.content = content()
     }
 
+    private var linkedMonthYear: String? {
+        switch linkVM.state {
+        case .linked:
+            if let date = linkVM.linkedAt {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "MMMM yyyy"
+                return formatter.string(from: date)
+            }
+            return nil
+        default:
+            return nil
+        }
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let width: CGFloat = proxy.size.width
@@ -57,7 +71,8 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 if navigationViewModel.showProfileOverlay {
                     ProfileOverlayView(
                         isPresented: $navigationViewModel.showProfileOverlay,
-                        profileNamespace: profileNamespace
+                        profileNamespace: profileNamespace,
+                        linkedMonthYear: linkedMonthYear
                     )
                     // Keep a single animation driver to avoid freeze during matchedGeometry
                     .transition(.opacity)
@@ -136,6 +151,7 @@ private struct ProfileOverlayView: View {
 
     @Binding var isPresented: Bool
     let profileNamespace: Namespace.ID
+    let linkedMonthYear: String?
 
     @State private var showContent = false
     @State private var showingAvatarSelection = false
@@ -219,15 +235,15 @@ private struct ProfileOverlayView: View {
                         .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 4)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
 
-                        // Together since capsule near avatars (appears with cards)
-                        if showTogetherCapsule {
+                        // Together since capsule near avatars (appears with cards when linked)
+                        if showTogetherCapsule, let monthYear = linkedMonthYear {
                             HStack {
                                 Spacer(minLength: 0)
                                 HStack(spacing: 6) {
                                     Image(systemName: "heart.fill")
                                         .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                                         .font(.system(size: 12))
-                                    Text("Together since \(data.relationshipHeader.relationshipStartMonthYear)")
+                                    Text("Together since \(monthYear)")
                                         .font(.system(size: 12, weight: .medium))
                                         .foregroundColor(.secondary)
                                 }
@@ -235,7 +251,7 @@ private struct ProfileOverlayView: View {
                                 .padding(.vertical, 6)
                                 .background(
                                     Capsule()
-                                        .fill(Color(.systemBackground))
+                                        .fill(Color(.systemGray6))
                                         .overlay(
                                             Capsule()
                                                 .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
@@ -248,27 +264,33 @@ private struct ProfileOverlayView: View {
                         }
 
                         if showCards {
-                            // Edit Avatars chip-sized card
-                            Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = true } }) {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "person.2.circle")
-                                        .font(.system(size: 16, weight: .medium))
-                                    Text("Edit Avatars")
-                                        .font(.system(size: 16, weight: .semibold))
+                            // Edit Avatars capsule centered
+                            HStack {
+                                Spacer(minLength: 0)
+                                Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = true } }) {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "person.2.circle")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                        Text("Edit Avatars")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(.primary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color(.systemGray6))
+                                            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
+                                            )
+                                    )
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color(.systemBackground))
-                                        .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 16)
-                                                .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
-                                        )
-                                )
+                                .buttonStyle(PlainButtonStyle())
+                                Spacer(minLength: 0)
                             }
-                            .buttonStyle(PlainButtonStyle())
 
                             PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
 
@@ -395,7 +417,7 @@ private struct SettingsOverlayView: View {
                                 .padding(.vertical, 6)
                                 .background(
                                     Capsule()
-                                        .fill(Color(.systemBackground))
+                                        .fill(Color(.systemGray6))
                                         .overlay(
                                             Capsule()
                                                 .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
