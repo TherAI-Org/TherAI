@@ -59,6 +59,7 @@ class LinkStatusResponse(BaseModel):
     success: bool
     linked: bool
     relationship_id: UUID | None = None
+    linked_at: str | None = None
 
 # Dialogue models
 class DialogueRequestBody(BaseModel):
