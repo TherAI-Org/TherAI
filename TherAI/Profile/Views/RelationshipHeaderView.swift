@@ -3,6 +3,16 @@ import SwiftUI
 struct RelationshipHeaderView: View {
 
     let relationshipHeader: RelationshipHeader
+    @EnvironmentObject private var linkVM: LinkViewModel
+
+    private var linkedMonthYear: String? {
+        guard let date = linkVM.linkedAt else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: date)
+    }
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 16) {
@@ -72,16 +82,16 @@ struct RelationshipHeaderView: View {
                 }
             }
 
-            VStack(spacing: 10) {
-                Text("Together since")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .tracking(0.5)
-
-                Text(relationshipHeader.relationshipStartMonthYear)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-                    .tracking(0.5)
+            if case .linked = linkVM.state, let monthYear = linkedMonthYear {
+                HStack(spacing: 6) {
+                    Image(systemName: "heart.fill")
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .font(.system(size: 14, weight: .medium))
+                    Text("Together since \(monthYear)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .tracking(0.5)
+                }
             }
 
             HStack(spacing: 6) {
@@ -109,28 +119,33 @@ struct RelationshipHeaderView: View {
         .frame(maxWidth: .infinity)
         .background(
             Group {
-                if #available(iOS 26.0, *) {
-                    // iOS 26+ Liquid Glass effect
+                if colorScheme == .light {
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(.clear)
-                        .glassEffect()
+                        .fill(Color.white)
                 } else {
-                    // Fallback for older iOS versions
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(.ultraThinMaterial)
-                        .background(
-                            RoundedRectangle(cornerRadius: 20)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(.systemBackground).opacity(0.8),
-                                            Color(.systemBackground).opacity(0.6)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
+                    if #available(iOS 26.0, *) {
+                        // iOS 26+ Liquid Glass effect
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(.clear)
+                            .glassEffect()
+                    } else {
+                        // Fallback for older iOS versions
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(.ultraThinMaterial)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color(.systemGray6).opacity(0.8),
+                                                Color(.systemGray6).opacity(0.6)
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
                                     )
-                                )
-                        )
+                            )
+                    }
                 }
             }
             .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 8)
