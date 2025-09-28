@@ -5,6 +5,7 @@ struct SessionsExpandedListView: View {
     let sessions: [CommunicationSession]
     let gradient: [Color]
     var expansionProgress: CGFloat = 1.0
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -57,18 +58,25 @@ struct SessionsExpandedListView: View {
             .clipped()
         }
         .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(.systemBackground),
-                            Color(.systemBackground).opacity(0.95)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+            Group {
+                if colorScheme == .light {
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(Color.white)
+                } else {
+                    RoundedRectangle(cornerRadius: 18)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(.systemGray6),
+                                    Color(.systemGray6).opacity(0.95)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+            }
+            .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
     }
 }
