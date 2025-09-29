@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ChatScreenView: View {
 
-    @Binding var selectedMode: PickerView.ChatMode
+    @Binding var selectedMode: ChatMode
     let isInputFocused: FocusState<Bool>.Binding
 
     @ObservedObject var chatViewModel: ChatViewModel
@@ -26,16 +26,22 @@ struct ChatScreenView: View {
             )
         }
         .safeAreaInset(edge: .bottom) {
-            ChatInputContainerView(
-                selectedMode: selectedMode,
-                inputText: $chatViewModel.inputText,
-                isLoading: $chatViewModel.isLoading,
-                focusSnippet: $chatViewModel.focusSnippet,
-                isInputFocused: isInputFocused,
-                send: { chatViewModel.sendMessage() },
-                stop: { chatViewModel.stopGeneration() },
-                onSendToPartner: onSendToPartner
-            )
+            Group {
+                if selectedMode == .personal {
+                    InputAreaView(
+                        inputText: $chatViewModel.inputText,
+                        isLoading: $chatViewModel.isLoading,
+                        focusSnippet: $chatViewModel.focusSnippet,
+                        isInputFocused: isInputFocused,
+                        send: { chatViewModel.sendMessage() },
+                        stop: { chatViewModel.stopGeneration() },
+                        onCreatedNewSession: { _ in },
+                        onSendToPartner: onSendToPartner
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.9), value: selectedMode)
+                }
+            }
             .background(Color(.systemBackground))
         }
         .overlay {

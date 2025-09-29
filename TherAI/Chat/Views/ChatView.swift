@@ -10,7 +10,7 @@ struct ChatView: View {
 
     @FocusState private var isInputFocused: Bool
 
-    @State private var selectedMode: PickerView.ChatMode = .personal
+    @State private var selectedMode: ChatMode = .personal
     @State private var dialogueSessionId: UUID? = nil
 
     private let initialSessionId: UUID?
@@ -23,18 +23,24 @@ struct ChatView: View {
     }
 
     var body: some View {
-        ChatScreenView(
+        let handleDoubleTapPartnerMessage: (DialogueViewModel.DialogueMessage) -> Void = { tapped in
+            Haptics.impact(.light)
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { selectedMode = .personal }
+            if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
+            Task { await viewModel.generateInsightFromDialogueMessage(message: tapped, sourceSessionId: sessionsViewModel.activeSessionId) }
+        }
+
+        let handleSendToPartner: () -> Void = {
+            Task { await ChatCoordinator.shared.sendToPartner(chatViewModel: viewModel, sessionsViewModel: sessionsViewModel, dialogueViewModel: dialogueViewModel) }
+        }
+
+        return ChatScreenView(
             selectedMode: $selectedMode,
             isInputFocused: $isInputFocused,
             chatViewModel: viewModel,
             dialogueViewModel: dialogueViewModel,
-            onDoubleTapPartnerMessage: { tapped in
-                Haptics.impact(.light)
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { selectedMode = .personal }
-                if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
-                Task { await viewModel.generateInsightFromDialogueMessage(message: tapped, sourceSessionId: sessionsViewModel.activeSessionId) }
-            },
-            onSendToPartner: { Task { await ChatCoordinator.shared.sendToPartner(chatViewModel: viewModel, sessionsViewModel: sessionsViewModel, dialogueViewModel: dialogueViewModel) } }
+            onDoubleTapPartnerMessage: handleDoubleTapPartnerMessage,
+            onSendToPartner: handleSendToPartner
         )
         .contentShape(Rectangle())
         .onTapGesture { isInputFocused = false }

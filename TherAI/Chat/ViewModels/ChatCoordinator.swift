@@ -17,11 +17,11 @@ struct ChatCoordinator {
     func handleActiveSessionChanged(
         _ newSessionId: UUID?,
         viewModel: ChatViewModel,
-        selectedMode: PickerView.ChatMode,
+        selectedMode: ChatMode,
         dialogueSessionId: UUID?,
         sessionsViewModel: ChatSessionsViewModel,
         dialogueViewModel: DialogueViewModel,
-        setSelectedMode: @escaping (PickerView.ChatMode) -> Void,
+        setSelectedMode: @escaping (ChatMode) -> Void,
         setDialogueSessionId: @escaping (UUID?) -> Void
     ) {
         if let sessionId = newSessionId {
@@ -38,7 +38,7 @@ struct ChatCoordinator {
         sessionsViewModel: ChatSessionsViewModel,
         navigationViewModel: SidebarNavigationViewModel,
         dialogueViewModel: DialogueViewModel,
-        setSelectedMode: @escaping (PickerView.ChatMode) -> Void,
+        setSelectedMode: @escaping (ChatMode) -> Void,
         refreshPending: @escaping () -> Void
     ) {
         sessionsViewModel.onSwitchToDialogue = {
@@ -57,11 +57,11 @@ struct ChatCoordinator {
 
     func handleIsDialogueOpenChanged(
         _ newValue: Bool,
-        selectedMode: PickerView.ChatMode,
+        selectedMode: ChatMode,
         navigationViewModel: SidebarNavigationViewModel,
         sessionsViewModel: ChatSessionsViewModel,
         dialogueViewModel: DialogueViewModel,
-        setSelectedMode: @escaping (PickerView.ChatMode) -> Void,
+        setSelectedMode: @escaping (ChatMode) -> Void,
         setInputFocused: @escaping (Bool) -> Void
     ) {
         if newValue {
@@ -80,15 +80,15 @@ struct ChatCoordinator {
     }
 
     func handleSelectedModeChanged(
-        oldMode: PickerView.ChatMode,
-        newMode: PickerView.ChatMode,
+        oldMode: ChatMode,
+        newMode: ChatMode,
         navigationViewModel: SidebarNavigationViewModel,
         sessionsViewModel: ChatSessionsViewModel,
         chatViewModel: ChatViewModel,
         dialogueViewModel: DialogueViewModel,
         dialogueSessionId: UUID?,
         setInputFocused: @escaping (Bool) -> Void,
-        setSelectedMode: @escaping (PickerView.ChatMode) -> Void
+        setSelectedMode: @escaping (ChatMode) -> Void
     ) {
         if newMode == .dialogue {
             setInputFocused(false)
@@ -119,7 +119,7 @@ struct ChatCoordinator {
     func handleAskTherAISelectedSnippet(
         snippet: String,
         navigationViewModel: SidebarNavigationViewModel,
-        setSelectedMode: @escaping (PickerView.ChatMode) -> Void,
+        setSelectedMode: @escaping (ChatMode) -> Void,
         setFocusSnippet: @escaping (String?) -> Void,
         setInputFocused: @escaping (Bool) -> Void
     ) {

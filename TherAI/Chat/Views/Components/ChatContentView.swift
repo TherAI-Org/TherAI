@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct ChatContentView: View {
-    let selectedMode: PickerView.ChatMode
+
+    let selectedMode: ChatMode
     let personalMessages: [ChatMessage]
     let dialogueMessages: [DialogueViewModel.DialogueMessage]
     let emptyPrompt: String

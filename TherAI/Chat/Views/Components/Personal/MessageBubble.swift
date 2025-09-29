@@ -44,10 +44,9 @@ struct MessageBubble: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: 320, alignment: .trailing)
             } else {
-                // AI message: render with MarkdownRendererView for ChatGPT-like formatting
                 MarkdownRendererView(markdown: message.content)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 4) // reduced horizontal padding
+                    .padding(.horizontal, 4)
                     .padding(.vertical, 4)
             }
         }
@@ -61,4 +60,5 @@ struct MessageBubble: View {
     }
     .padding()
 }
+
 
