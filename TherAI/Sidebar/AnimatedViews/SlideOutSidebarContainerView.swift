@@ -63,7 +63,8 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     profileNamespace: profileNamespace
                 )
                 .offset(x: navigationViewModel.isOpen ? navigationViewModel.dragOffset : -width + navigationViewModel.dragOffset)
-                .blur(radius: (navigationViewModel.showProfileOverlay || navigationViewModel.showSettingsOverlay) ? 8 : 0)
+                // Avoid heavy blur during overlay presentation to keep animations smooth
+                .blur(radius: 0)
                 .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.isOpen)
                 .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.dragOffset)
 
@@ -74,9 +75,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                         profileNamespace: profileNamespace,
                         linkedMonthYear: linkedMonthYear
                     )
-                    // Keep a single animation driver to avoid freeze during matchedGeometry
                     .transition(.opacity)
-                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showProfileOverlay)
                 }
 
                 // Settings Overlay on top of slide-out menu
@@ -87,7 +86,6 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     )
                     .transition(.opacity)
                     .zIndex(2) // ensure above emblem to avoid ghosting on fast dismiss
-                    .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showSettingsOverlay)
                 }
             }
             .contentShape(Rectangle())
@@ -153,6 +151,8 @@ private struct ProfileOverlayView: View {
     let profileNamespace: Namespace.ID
     let linkedMonthYear: String?
 
+    @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
+
     @State private var showContent = false
     @State private var showingAvatarSelection = false
     @State private var showCards = false
@@ -179,61 +179,17 @@ private struct ProfileOverlayView: View {
                             }
                         }
 
-                        // Animated avatars at top, positioned higher
+                        // Static avatars at top (no matchedGeometry), matching sidebar icon data
                         ZStack {
-                            // Partner (behind)
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.72, green: 0.37, blue: 0.98),
-                                            Color(red: 0.38, green: 0.65, blue: 1.00)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 84, height: 84)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.9), lineWidth: 2)
-                                )
-                                .overlay(
-                                    Text("S")
-                                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                                        .foregroundColor(.white)
-                                )
+                            avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 84)
                                 .offset(x: 30)
-                                .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
-                            // User (front)
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.26, green: 0.58, blue: 1.00),
-                                            Color(red: 0.63, green: 0.32, blue: 0.98)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 84, height: 84)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.9), lineWidth: 2)
-                                )
-                                .overlay(
-                                    Text("M")
-                                        .font(.system(size: 32, weight: .bold, design: .rounded))
-                                        .foregroundColor(.white)
-                                )
+                            avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 84)
                                 .offset(x: -30)
-                                .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
                         }
                         .padding(.top, -24)
                         .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 4)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(.opacity)
 
                         // Together since capsule near avatars (appears with cards when linked)
                         if showTogetherCapsule, let monthYear = linkedMonthYear {
@@ -264,34 +220,6 @@ private struct ProfileOverlayView: View {
                         }
 
                         if showCards {
-                            // Edit Avatars capsule centered
-                            HStack {
-                                Spacer(minLength: 0)
-                                Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = true } }) {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: "person.2.circle")
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                        Text("Edit Avatars")
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(.primary)
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color(.systemGray6))
-                                            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
-                                            .overlay(
-                                                Capsule()
-                                                    .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
-                                            )
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                Spacer(minLength: 0)
-                            }
-
                             PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
 
                             RelationshipInsightsSectionView()
@@ -303,16 +231,14 @@ private struct ProfileOverlayView: View {
                 .background(Color.clear)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            .padding(.bottom, 12)
+            .background(Color(.systemBackground).ignoresSafeArea())
             .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
             .onAppear {
                 showTogetherCapsule = false
                 showCards = false
-                // Reveal content only after avatar matchedGeometry animation settles
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-                    withAnimation(
-                        .spring(response: 0.28, dampingFraction: 0.94)
-                    ) {
+                // Reveal content promptly (no dependency on matchedGeometry)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    withAnimation(.spring(response: 0.38, dampingFraction: 0.92)) {
                         showTogetherCapsule = true
                         showCards = true
                     }
@@ -361,6 +287,44 @@ private struct ProfileOverlayView: View {
             )
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: isPresented)
+    }
+
+    @ViewBuilder
+    private func avatarCircle(url: String?, fallback: String, size: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.26, green: 0.58, blue: 1.00),
+                            Color(red: 0.63, green: 0.32, blue: 0.98)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.9), lineWidth: 2)
+                )
+
+            if let urlStr = url, let u = URL(string: urlStr) {
+                AsyncImage(url: u) { img in
+                    img.resizable().scaledToFill()
+                } placeholder: {
+                    Text(fallback)
+                        .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+            } else {
+                Text(fallback)
+                    .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+        }
     }
 }
 
@@ -506,7 +470,6 @@ private struct SettingsOverlayView: View {
                 }
             }
         }
-        .padding(.bottom, 12)
         .background(Color(.systemBackground).ignoresSafeArea())
         .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
         .onAppear {
