@@ -5,6 +5,7 @@ struct ProfileButtonView: View {
     let profileNamespace: Namespace.ID
 
     var compact: Bool = false
+    var useMatchedGeometry: Bool = true
     @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
 
     @ViewBuilder
@@ -51,11 +52,11 @@ struct ProfileButtonView: View {
                 ZStack {
                     avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 50)
                         .offset(x: 20)
-                        .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
+                        .conditionalMatchedGeometryEffect(use: useMatchedGeometry, id: "avatarPartner", in: profileNamespace)
 
                     avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 50)
                         .offset(x: -20)
-                        .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
+                        .conditionalMatchedGeometryEffect(use: useMatchedGeometry, id: "avatarUser", in: profileNamespace)
                 }
                 .padding(.leading, 16)
             }
@@ -64,11 +65,11 @@ struct ProfileButtonView: View {
                 ZStack {
                     avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 56)
                         .offset(x: 24)
-                        .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
+                        .conditionalMatchedGeometryEffect(use: useMatchedGeometry, id: "avatarPartner", in: profileNamespace)
 
                     avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 56)
                         .offset(x: -24)
-                        .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
+                        .conditionalMatchedGeometryEffect(use: useMatchedGeometry, id: "avatarUser", in: profileNamespace)
                 }
                 Spacer(minLength: 0)
             }
@@ -80,4 +81,13 @@ struct ProfileButtonView: View {
     }
 }
 
-
+private extension View {
+    @ViewBuilder
+    func conditionalMatchedGeometryEffect(use: Bool, id: String, in ns: Namespace.ID) -> some View {
+        if use {
+            self.matchedGeometryEffect(id: id, in: ns)
+        } else {
+            self
+        }
+    }
+}
