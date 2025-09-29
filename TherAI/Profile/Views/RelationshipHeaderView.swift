@@ -4,6 +4,7 @@ struct RelationshipHeaderView: View {
 
     let relationshipHeader: RelationshipHeader
     @EnvironmentObject private var linkVM: LinkViewModel
+    @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
 
     private var linkedMonthYear: String? {
         guard let date = linkVM.linkedAt else { return nil }
@@ -17,69 +18,8 @@ struct RelationshipHeaderView: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack(spacing: -20) {
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.blue.opacity(0.3), .pink.opacity(0.3)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 70, height: 70)
-
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 64, height: 64)
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.blue, .blue.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Text("M")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        )
-                }
-
-                ZStack {
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.pink.opacity(0.3), .blue.opacity(0.3)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 70, height: 70)
-
-                    Circle()
-                        .fill(.white)
-                        .frame(width: 64, height: 64)
-                        .shadow(color: .black.opacity(0.15), radius: 4, x: 0, y: 2)
-
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.pink, .pink.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 56, height: 56)
-                        .overlay(
-                            Text("S")
-                                .font(.system(size: 24, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        )
-                }
+                avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 70)
+                avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 70)
             }
 
             if case .linked = linkVM.state, let monthYear = linkedMonthYear {
@@ -150,6 +90,46 @@ struct RelationshipHeaderView: View {
             }
             .shadow(color: .black.opacity(0.15), radius: 16, x: 0, y: 8)
         )
+    }
+}
+
+private extension RelationshipHeaderView {
+    @ViewBuilder
+    func avatarCircle(url: String?, fallback: String, size: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.26, green: 0.58, blue: 1.00),
+                            Color(red: 0.63, green: 0.32, blue: 0.98)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.9), lineWidth: 2)
+                )
+
+            if let urlStr = url, let u = URL(string: urlStr) {
+                AsyncImage(url: u) { img in
+                    img.resizable().scaledToFill()
+                } placeholder: {
+                    Text(fallback)
+                        .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+            } else {
+                Text(fallback)
+                    .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+        }
     }
 }
 
