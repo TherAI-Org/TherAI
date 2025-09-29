@@ -1,87 +1,109 @@
 import SwiftUI
-import Combine
+
+private struct ContentHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct ViewportHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
 
 struct MessagesListView: View {
     let messages: [ChatMessage]
-    @AppStorage(PreferenceKeys.autoScrollEnabled) private var autoScrollEnabled: Bool = true
-    let isInputFocused: FocusState<Bool>.Binding
+    let isInputFocused: Bool
+    let onBackgroundTap: () -> Void
+
+    @State private var scrollPositionId: UUID? = nil
+    @State private var isUserScrolling: Bool = false
+    @State private var isAtBottom: Bool = true
+    @State private var contentHeight: CGFloat = 0
+    @State private var viewportHeight: CGFloat = 0
+
+    private var lastMessageId: UUID? { messages.last?.id }
+    private var shouldAnchorBottom: Bool { contentHeight > viewportHeight }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(messages) { message in
-                        MessageBubble(message: message)
-                            .id(message.id)
-                    }
-                }
-                .padding()
-                .padding(.bottom, 60) // Very small gap - messages almost next to typing field
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollIndicators(.hidden)
-            .onChange(of: messages.count) {
-                guard autoScrollEnabled else { return }
-                if let lastMessage = messages.last {
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        proxy.scrollTo(lastMessage.id, anchor: .top)
-                    }
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(messages) { message in
+                    MessageBubble(message: message)
+                        .id(message.id)
                 }
             }
-            // Also scroll when the last message's content changes during streaming
-            .onChange(of: messages.last?.content ?? "") { _, _ in
-                guard autoScrollEnabled else { return }
-                if let lastMessage = messages.last {
-                    withAnimation(.linear(duration: 0.15)) {
-                        proxy.scrollTo(lastMessage.id, anchor: .top)
-                    }
+            .padding(.horizontal)
+            .padding(.top)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: ContentHeightPreferenceKey.self, value: proxy.size.height)
                 }
+            )
+        }
+        // REMOVED: .ignoresSafeArea(.keyboard, edges: .bottom)
+        .contentShape(Rectangle())
+        .onTapGesture { onBackgroundTap() }
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: ViewportHeightPreferenceKey.self, value: proxy.size.height)
             }
-            // Auto-scroll to bottom when messages are first loaded
-            .onAppear {
-                guard autoScrollEnabled, !messages.isEmpty else { return }
-                if let lastMessage = messages.last {
-                    // Single scroll attempt to show last message properly
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            proxy.scrollTo(lastMessage.id, anchor: .top)
-                        }
-                    }
-                }
-            }
-            // Listen for scroll to bottom notification
-            .onReceive(NotificationCenter.default.publisher(for: .scrollToBottom)) { _ in
-                guard autoScrollEnabled, !messages.isEmpty else { return }
-                if let lastMessage = messages.last {
-                    // Single scroll attempt to show last message properly
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            proxy.scrollTo(lastMessage.id, anchor: .top)
-                        }
-                    }
-                }
-            }
-            // Handle keyboard appearance/disappearance
-            .onChange(of: isInputFocused.wrappedValue) { _, newValue in
-                guard autoScrollEnabled, !messages.isEmpty else { return }
-                if let lastMessage = messages.last {
-                    if newValue {
-                        // Keyboard appearing - scroll up to make room
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(lastMessage.id, anchor: .top)
-                            }
-                        }
-                    } else {
-                        // Keyboard disappearing - adjust position
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                proxy.scrollTo(lastMessage.id, anchor: .top)
-                            }
-                        }
-                    }
-                }
+        )
+        .defaultScrollAnchor(shouldAnchorBottom ? .bottom : .top)
+        .scrollPosition(id: $scrollPositionId, anchor: shouldAnchorBottom ? .bottom : .top)
+        .onPreferenceChange(ViewportHeightPreferenceKey.self) { viewportHeight = $0 }
+        .onPreferenceChange(ContentHeightPreferenceKey.self) { contentHeight = $0 }
+        .onChange(of: viewportHeight) { _, _ in
+            if shouldAnchorBottom && !isUserScrolling && isAtBottom {
+                withAnimation(.easeOut(duration: 0.2)) { scrollPositionId = lastMessageId }
             }
         }
+        .onAppear {
+            if shouldAnchorBottom { scrollPositionId = lastMessageId } else { scrollPositionId = nil }
+            isAtBottom = !shouldAnchorBottom || (scrollPositionId == lastMessageId)
+        }
+        .onChange(of: messages.count) { _, _ in
+            if shouldAnchorBottom && isAtBottom {
+                withAnimation(.easeOut(duration: 0.2)) { scrollPositionId = lastMessageId }
+            }
+        }
+        .onChange(of: shouldAnchorBottom) { oldValue, newValue in
+            if newValue && isAtBottom {
+                withAnimation(.easeOut(duration: 0.2)) { scrollPositionId = lastMessageId }
+            }
+        }
+        .onScrollPhaseChange { _, phase in
+            if phase == .idle {
+                withAnimation(.easeOut(duration: 0.2)) { isUserScrolling = false }
+            } else {
+                withAnimation(.easeIn(duration: 0.1)) { isUserScrolling = true }
+            }
+        }
+        .onChange(of: scrollPositionId) { _, _ in
+            if shouldAnchorBottom {
+                isAtBottom = (scrollPositionId == lastMessageId)
+            } else {
+                isAtBottom = true
+            }
+        }
+        .onChange(of: isInputFocused) { _, _ in
+            if shouldAnchorBottom && isAtBottom {
+                withAnimation(.easeOut(duration: 0.2)) { scrollPositionId = lastMessageId }
+            }
+        }
+        .overlay(alignment: .trailing) {
+            Capsule()
+                .fill(Color.secondary.opacity(0.6))
+                .frame(width: 2, height: 22)
+                .opacity(isUserScrolling ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: isUserScrolling)
+                .padding(.trailing, 4)
+                .padding(.vertical, 12)
+        }
+        .scrollBounceBehavior(shouldAnchorBottom ? .basedOnSize : .always)
+        .scrollIndicators(.hidden)
     }
 }

@@ -16,7 +16,6 @@ struct InputAreaView: View {
     var body: some View {
 
         let isSendDisabled = !isLoading && inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let cornerRadius: CGFloat = 24
         let sendSize: CGFloat = 28
 
         VStack(alignment: .leading, spacing: 8) {
@@ -93,22 +92,17 @@ struct InputAreaView: View {
             }
         }
         .padding(.horizontal, 18)
-        .padding(.vertical, 14)
+        .padding(.vertical, 10)
         .background(
-            Group {
-                if #available(iOS 26.0, *) {
-                    // iOS 26+ Liquid Glass effect using .glassEffect()
-                    Color.clear
-                        .glassEffect()
-                        .cornerRadius(cornerRadius)
-                } else {
-                    // Transparent fallback for older iOS versions
-                    Color.clear
-                }
-            }
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color(.systemGray3), lineWidth: 1)
         )
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .animation(.easeInOut(duration: 0.2), value: isInputFocused.wrappedValue)
     }
 }

@@ -47,12 +47,7 @@ class SettingsViewModel: ObservableObject {
             UserDefaults.standard.set(true, forKey: PreferenceKeys.hapticsEnabled)
         }
 
-        if UserDefaults.standard.object(forKey: PreferenceKeys.autoScrollEnabled) != nil {
-            settingsData.autoScrollEnabled = UserDefaults.standard.bool(forKey: PreferenceKeys.autoScrollEnabled)
-        } else {
-            settingsData.autoScrollEnabled = true
-            UserDefaults.standard.set(true, forKey: PreferenceKeys.autoScrollEnabled)
-        }
+        // Auto-scroll removed
     }
 
     private func setupSettingsSections() {
@@ -69,13 +64,12 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Haptic Feedback", subtitle: "Vibration feedback for interactions", type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]
             ),
-            // 2. Chat Settings → Auto Scroll, Message Sound, Typing Indicator
+            // 2. Chat Settings → Message Sound, Typing Indicator
             SettingsSection(
                 title: "Chat Settings",
                 icon: "message",
                 gradient: [Color.green, Color.teal],
                 settings: [
-                    SettingItem(title: "Auto Scroll", subtitle: "Automatically scroll to new messages", type: .toggle(settingsData.autoScrollEnabled), icon: "arrow.down.circle"),
                     SettingItem(title: "Message Sound", subtitle: "Play sound for new messages", type: .toggle(settingsData.messageSoundEnabled), icon: "speaker.wave.2")
                 ]
             ),
@@ -134,8 +128,7 @@ class SettingsViewModel: ObservableObject {
                 Haptics.selection()
             }
         case ("Chat Settings", "Auto Scroll"):
-            settingsData.autoScrollEnabled.toggle()
-            UserDefaults.standard.set(settingsData.autoScrollEnabled, forKey: PreferenceKeys.autoScrollEnabled)
+            break
         case ("Chat Settings", "Message Sound"):
             settingsData.messageSoundEnabled.toggle()
 

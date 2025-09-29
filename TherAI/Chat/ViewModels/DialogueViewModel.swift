@@ -73,6 +73,17 @@ class DialogueViewModel: ObservableObject {
         }
     }
 
+    /// Returns the dialogue session id mapped from a personal source session, if any
+    func getDialogueSessionId(for sourceSessionId: UUID) async -> UUID? {
+        do {
+            guard let accessToken = await AuthService.shared.getAccessToken() else { return nil }
+            let response = try await backendService.getDialogueMessages(accessToken: accessToken, sourceSessionId: sourceSessionId)
+            return response.dialogueSessionId
+        } catch {
+            return nil
+        }
+    }
+
     struct DialogueRequest: Identifiable, Codable {
         let id: UUID
         let senderUserId: UUID

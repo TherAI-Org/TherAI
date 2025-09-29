@@ -38,6 +38,29 @@ class ChatViewModel: ObservableObject {
         Task { await loadHistory() }
     }
 
+    // Ensure a personal session id exists, creating one if needed
+    func ensureSessionId() async -> UUID? {
+        if let sid = sessionId { return sid }
+        do {
+            guard let accessToken = await authService.getAccessToken() else { return nil }
+            let dto = try await backend.createEmptySession(accessToken: accessToken)
+            await MainActor.run {
+                self.sessionId = dto.id
+                let currentTime = ISO8601DateFormatter().string(from: Date())
+                NotificationCenter.default.post(name: .chatSessionCreated, object: nil, userInfo: [
+                    "sessionId": dto.id,
+                    "title": ChatSession.defaultTitle,
+                    "lastUsedISO8601": currentTime,
+                    "lastMessageContent": ""
+                ])
+            }
+            return dto.id
+        } catch {
+            print("[ChatVM] ensureSessionId failed: \(error)")
+            return nil
+        }
+    }
+
     func loadHistory(force: Bool = false) async {
         do {
             guard let sid = sessionId else { self.messages = []; self.isLoadingHistory = false; return }
@@ -68,13 +91,7 @@ class ChatViewModel: ObservableObject {
             // Update cache
             messagesCache[sid] = MessagesCacheEntry(messages: mapped, lastLoaded: Date())
 
-            // Trigger scroll to bottom after loading messages - multiple attempts to ensure it works
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                NotificationCenter.default.post(name: .scrollToBottom, object: nil)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                NotificationCenter.default.post(name: .scrollToBottom, object: nil)
-            }
+
         } catch {
             // Optionally keep messages empty on failure
             print("Failed to load history: \(error)")
