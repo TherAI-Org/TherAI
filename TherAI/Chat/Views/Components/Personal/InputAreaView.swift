@@ -10,7 +10,6 @@ struct InputAreaView: View {
     let isInputFocused: FocusState<Bool>.Binding
     let send: () -> Void
     let stop: () -> Void
-    let onCreatedNewSession: (UUID) -> Void
     let onSendToPartner: () -> Void
 
     var body: some View {
@@ -116,7 +115,6 @@ struct InputAreaView: View {
         isInputFocused: $isFocused,
         send: {},
         stop: {},
-        onCreatedNewSession: { _ in },
         onSendToPartner: {}
     )
 }

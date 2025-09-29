@@ -44,7 +44,6 @@ struct MessagesListView: View {
                 }
             )
         }
-        // REMOVED: .ignoresSafeArea(.keyboard, edges: .bottom)
         .contentShape(Rectangle())
         .onTapGesture { onBackgroundTap() }
         .background(

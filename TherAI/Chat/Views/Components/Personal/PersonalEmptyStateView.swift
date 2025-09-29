@@ -22,7 +22,6 @@ struct PersonalEmptyStateView: View {
             .frame(height: geometry.size.height)
         }
         .onAppear {
-            // Trigger appear animation when view shows
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 isVisible = true
             }

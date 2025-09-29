@@ -35,7 +35,6 @@ struct ChatScreenView: View {
                         isInputFocused: isInputFocused,
                         send: { chatViewModel.sendMessage() },
                         stop: { chatViewModel.stopGeneration() },
-                        onCreatedNewSession: { _ in },
                         onSendToPartner: onSendToPartner
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))

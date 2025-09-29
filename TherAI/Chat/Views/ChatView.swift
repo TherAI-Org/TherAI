@@ -13,12 +13,7 @@ struct ChatView: View {
     @State private var selectedMode: ChatMode = .personal
     @State private var dialogueSessionId: UUID? = nil
 
-    private let initialSessionId: UUID?
-
-    private var currentUserId: UUID? { AuthService.shared.currentUser?.id }
-
     init(sessionId: UUID? = nil) {
-        self.initialSessionId = sessionId
         _viewModel = StateObject(wrappedValue: ChatViewModel(sessionId: sessionId))
     }
 
