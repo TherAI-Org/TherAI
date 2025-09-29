@@ -331,11 +331,12 @@ struct SlideOutSidebarView: View {
                     if case .linked = linkVM.state {
                         Button(action: {
                             Haptics.impact(.medium)
-                            withAnimation(.easeOut(duration: 0.22)) {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
                                 navigationViewModel.showProfileOverlay = true
                             }
                         }) {
-                            ProfileButtonView(profileNamespace: profileNamespace, compact: true)
+                            // Disable matched geometry for profile to avoid fly-up; open like settings
+                            ProfileButtonView(profileNamespace: profileNamespace, compact: true, useMatchedGeometry: false)
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
