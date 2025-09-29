@@ -16,6 +16,7 @@ class ChatViewModel: ObservableObject {
         }
     }
     @Published var isLoading: Bool = false
+    @Published var isLoadingHistory: Bool = false
     @Published var emptyPrompt: String = ""
 
     private let backend = BackendService.shared
@@ -23,23 +24,49 @@ class ChatViewModel: ObservableObject {
     private var currentTask: Task<Void, Never>?
     private var fallbackTask: Task<Void, Never>?
 
+    // Cache of messages per session to avoid unnecessary refetches when revisiting
+    private struct MessagesCacheEntry {
+        let messages: [ChatMessage]
+        let lastLoaded: Date
+    }
+    private var messagesCache: [UUID: MessagesCacheEntry] = [:]
+    private let cacheFreshnessSeconds: TimeInterval = 300
+
     init(sessionId: UUID? = nil) {
         self.sessionId = sessionId
         self.generateEmptyPrompt()
         Task { await loadHistory() }
     }
 
-    func loadHistory() async {
+    func loadHistory(force: Bool = false) async {
         do {
-            guard let sid = sessionId else { self.messages = []; return }
+            guard let sid = sessionId else { self.messages = []; self.isLoadingHistory = false; return }
+
+            // Cache hit and fresh: use cached messages and skip fetch unless forced
+            if !force, let entry = messagesCache[sid] {
+                let age = Date().timeIntervalSince(entry.lastLoaded)
+                if age < cacheFreshnessSeconds {
+                    self.messages = entry.messages
+                    self.isLoadingHistory = false
+                    return
+                }
+            }
+
+            // Show spinner only if there is no content to display yet
+            if self.messages.isEmpty { self.isLoadingHistory = true }
+
             guard let accessToken = await authService.getAccessToken() else {
                 print("ACCESS_TOKEN: <nil>")
+                self.isLoadingHistory = false
                 return
             }
             let dtos = try await backend.fetchMessages(sessionId: sid, accessToken: accessToken)
-            guard let userId = authService.currentUser?.id else { return }
+            guard let userId = authService.currentUser?.id else { self.isLoadingHistory = false; return }
             let mapped = dtos.map { ChatMessage(dto: $0, currentUserId: userId) }
             self.messages = mapped
+
+            // Update cache
+            messagesCache[sid] = MessagesCacheEntry(messages: mapped, lastLoaded: Date())
 
             // Trigger scroll to bottom after loading messages - multiple attempts to ensure it works
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -52,6 +79,35 @@ class ChatViewModel: ObservableObject {
             // Optionally keep messages empty on failure
             print("Failed to load history: \(error)")
         }
+        self.isLoadingHistory = false
+    }
+
+    // Present a session using cache-first strategy
+    func presentSession(_ id: UUID) async {
+        await MainActor.run { self.sessionId = id }
+
+        // Immediately show cached messages if available
+        if let entry = messagesCache[id] {
+            await MainActor.run { self.messages = entry.messages }
+        } else {
+            await MainActor.run { self.messages = [] }
+        }
+
+        // If fresh cache, don't refetch
+        let isFresh: Bool = {
+            if let entry = messagesCache[id] {
+                return Date().timeIntervalSince(entry.lastLoaded) < cacheFreshnessSeconds
+            }
+            return false
+        }()
+
+        if isFresh {
+            await MainActor.run { self.isLoadingHistory = false }
+            return
+        }
+
+        // Refresh in background (spinner only if there was no cached content)
+        await loadHistory(force: true)
     }
 
     func sendMessage() {

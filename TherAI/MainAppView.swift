@@ -16,12 +16,10 @@ struct MainAppView: View {
             switch navigationViewModel.selectedTab {
             case .chat:
                 ChatView(sessionId: sessionsViewModel.activeSessionId)
-                    .id(sessionsViewModel.chatViewKey)
             case .profile:
                 // Profile is shown as an overlay via navigationViewModel.showProfileOverlay
                 // Render ChatView here to avoid presenting a separate Profile screen
                 ChatView(sessionId: sessionsViewModel.activeSessionId)
-                    .id(sessionsViewModel.chatViewKey)
             }
         }
     }

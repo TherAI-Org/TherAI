@@ -127,7 +127,9 @@ struct ChatView: View {
             }
             // Auto-focus input on first appear when in Personal mode
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                if selectedMode == .personal { isInputFocused = true }
+                if selectedMode == .personal && sessionsViewModel.activeSessionId == nil {
+                    isInputFocused = true
+                }
             }
         }
         .onChange(of: navigationViewModel.dragOffset) { _, newValue in
@@ -218,6 +220,15 @@ struct ChatView: View {
             // Overlay the input area on top of the chat content
             inputArea
                 .background(Color.clear) // Ensure no background on the container
+
+            // Full-screen loading screen (systemBackground + spinner only) during cold loads
+            if viewModel.isLoadingHistory && viewModel.messages.isEmpty {
+                ZStack {
+                    Color(.systemBackground).ignoresSafeArea()
+                    ProgressView().progressViewStyle(.circular)
+                }
+                .transition(.opacity)
+            }
         }
     }
 
@@ -256,8 +267,8 @@ struct ChatView: View {
 
     private func handleActiveSessionChanged(_ newSessionId: UUID?) {
         if let sessionId = newSessionId {
-            // Update the personal chat view model to reflect the selected session
-            viewModel.sessionId = sessionId
+            // Present session using cache-first strategy
+            Task { await viewModel.presentSession(sessionId) }
             checkIfDialogueSession(sessionId: sessionId)
 
             // If we navigated away from the dialogue session, force Personal mode
