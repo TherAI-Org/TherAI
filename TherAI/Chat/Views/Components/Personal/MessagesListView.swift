@@ -69,7 +69,7 @@ struct MessagesListView: View {
                 withAnimation(.easeOut(duration: 0.2)) { scrollPositionId = lastMessageId }
             }
         }
-        .onChange(of: shouldAnchorBottom) { oldValue, newValue in
+        .onChange(of: shouldAnchorBottom) { _, newValue in
             if newValue && isAtBottom {
                 withAnimation(.easeOut(duration: 0.2)) { scrollPositionId = lastMessageId }
             }
