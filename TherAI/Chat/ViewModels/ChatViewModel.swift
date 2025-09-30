@@ -11,6 +11,7 @@ class ChatViewModel: ObservableObject {
     @Published var sessionId: UUID? {
         didSet {
             if sessionId == nil {
+                messages = [] // Clear messages when no session is active
                 generateEmptyPrompt()
             }
         }
