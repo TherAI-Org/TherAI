@@ -76,9 +76,10 @@ class ChatSessionsViewModel: ObservableObject {
                 self.sessions = mapped
                 self.isLoadingSessions = false
                 print("📱 Updated local sessions list with \(mapped.count) sessions")
-                if self.activeSessionId == nil, let first = mapped.first {
-                    self.activeSessionId = first.id
-                }
+                // Don't automatically open the first session - let user choose
+                // if self.activeSessionId == nil, let first = mapped.first {
+                //     self.activeSessionId = first.id
+                // }
                 self.saveCachedSessions()
             }
         } catch {
