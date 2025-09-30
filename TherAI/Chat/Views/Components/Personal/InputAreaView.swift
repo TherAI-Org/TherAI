@@ -11,7 +11,7 @@ struct InputAreaView: View {
     let send: () -> Void
     let stop: () -> Void
     let onSendToPartner: () -> Void
-    
+
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -49,6 +49,7 @@ struct InputAreaView: View {
                     .onSubmit {
                         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                         Haptics.impact(.light)
+                        isInputFocused.wrappedValue = false
                         send()
                     }
                     .focused(isInputFocused)
@@ -59,6 +60,7 @@ struct InputAreaView: View {
                     if isLoading {
                         stop()
                     } else {
+                        isInputFocused.wrappedValue = false
                         send()
                     }
                 }) {
