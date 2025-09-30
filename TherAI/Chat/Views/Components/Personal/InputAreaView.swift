@@ -11,6 +11,8 @@ struct InputAreaView: View {
     let send: () -> Void
     let stop: () -> Void
     let onSendToPartner: () -> Void
+    
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
 
@@ -93,12 +95,37 @@ struct InputAreaView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
+            Group {
+                if #available(iOS 26.0, *) {
+                    // iOS 26+ Liquid Glass effect using .glassEffect()
+                    Color.clear
+                        .glassEffect()
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                } else {
+                    // Fallback for older iOS versions
+                    LinearGradient(
+                        colors: [
+                            Color(white: colorScheme == .dark ? 0.14 : 0.945),
+                            Color(white: colorScheme == .dark ? 0.17 : 0.965)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                }
+            }
         )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(.systemGray3), lineWidth: 1)
+            Group {
+                if #available(iOS 26.0, *) {
+                    // No border on iOS 26+
+                    EmptyView()
+                } else {
+                    // Border for older iOS versions
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(.systemGray3), lineWidth: 1)
+                }
+            }
         )
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
