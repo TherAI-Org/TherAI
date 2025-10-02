@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SlideOutSidebarView: View {
+struct SlidebarView: View {
 
     @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
     @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
@@ -134,8 +134,6 @@ struct SlideOutSidebarView: View {
 
             ScrollView {
                 VStack(spacing: 10) {
-
-                    // Only show pending requests, new conversation button, divider, and conversations header when not searching
                     if !isSearching {
                         let hasPending = !sessionsViewModel.pendingRequests.isEmpty
 
@@ -439,7 +437,7 @@ struct SlideOutSidebarView: View {
             self.sessionsViewModel = sessionsVM
         }
         var body: some View {
-            SlideOutSidebarView(isOpen: .constant(true), profileNamespace: ns)
+            SlidebarView(isOpen: .constant(true), profileNamespace: ns)
                 .environmentObject(navigationViewModel)
                 .environmentObject(sessionsViewModel)
                 .environmentObject(LinkViewModel(accessTokenProvider: { "" }))
@@ -467,7 +465,7 @@ struct SlideOutSidebarView: View {
             self.sessionsViewModel = sessionsVM
         }
         var body: some View {
-            SlideOutSidebarView(isOpen: .constant(true), profileNamespace: ns)
+            SlidebarView(isOpen: .constant(true), profileNamespace: ns)
                 .environmentObject(navigationViewModel)
                 .environmentObject(sessionsViewModel)
                 .environmentObject(LinkViewModel(accessTokenProvider: { "" }))

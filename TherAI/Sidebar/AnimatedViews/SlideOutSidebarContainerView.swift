@@ -52,20 +52,21 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 // Main Content - slides completely off screen when sidebar is open
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .offset(x: navigationViewModel.isOpen ? width + navigationViewModel.dragOffset : navigationViewModel.dragOffset)
+                    .offset(x: navigationViewModel.isOpen ? width + navigationViewModel.dragOffset : max(0, navigationViewModel.dragOffset))
                     .blur(radius: min(blurIntensity, 6))
-                    .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.isOpen)
-                    .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.dragOffset)
+                    // Faster response when toggling open/close, and tighter interactive spring while dragging
+                    .animation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.isOpen)
+                    .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
 
                 // Slide-out Sidebar - slides in from left to fully replace main content
-                SlideOutSidebarView(
+                SlidebarView(
                     isOpen: $navigationViewModel.isOpen,
                     profileNamespace: profileNamespace
                 )
-                .offset(x: navigationViewModel.isOpen ? navigationViewModel.dragOffset : -width + navigationViewModel.dragOffset)
+                .offset(x: navigationViewModel.isOpen ? navigationViewModel.dragOffset : (-width + max(0, navigationViewModel.dragOffset)))
                 .blur(radius: (navigationViewModel.showProfileOverlay || navigationViewModel.showSettingsOverlay) ? 8 : 0)
-                .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.isOpen)
-                .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.dragOffset)
+                .animation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.isOpen)
+                .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
 
                 // Profile Overlay on top of slide-out menu
                 if navigationViewModel.showProfileOverlay {
