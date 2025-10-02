@@ -9,13 +9,15 @@ struct ChatContentView: View {
     let onDoubleTapPartnerMessage: (DialogueViewModel.DialogueMessage) -> Void
     let isInputFocused: Bool
     let onBackgroundTap: () -> Void
+    let personalPreScrollToken: Int
+    let keyboardScrollToken: Int
 
     @State private var showPersonalPreScrollOverlay: Bool = false
     @State private var preScrollToken: Int = 0
 
     var body: some View {
-        Group {
-            if selectedMode == .personal {
+        ZStack {
+            Group {
                 if personalMessages.isEmpty {
                     PersonalEmptyStateView(prompt: emptyPrompt)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -26,7 +28,8 @@ struct ChatContentView: View {
                             messages: personalMessages,
                             isInputFocused: isInputFocused,
                             onBackgroundTap: onBackgroundTap,
-                            preScrollTrigger: preScrollToken,
+                            preScrollTrigger: personalPreScrollToken,
+                            keyboardScrollTrigger: keyboardScrollToken,
                             onPreScrollComplete: {
                                 withAnimation(.easeInOut(duration: 0.2)) { showPersonalPreScrollOverlay = false }
                             }
@@ -40,22 +43,16 @@ struct ChatContentView: View {
                                 .transition(.opacity)
                         }
                     }
-                    .onAppear {
-                        // When arriving with messages, run pre-scroll once
-                        if !personalMessages.isEmpty {
-                            showPersonalPreScrollOverlay = true
-                            preScrollToken &+= 1
-                        }
-                    }
-                    .onChange(of: selectedMode) { _, newMode in
-                        guard newMode == .personal else { return }
-                        if !personalMessages.isEmpty {
-                            showPersonalPreScrollOverlay = true
-                            preScrollToken &+= 1
-                        }
+                    .onChange(of: personalPreScrollToken) { _, newVal in
+                        if newVal > 0 { showPersonalPreScrollOverlay = true }
                     }
                 }
-            } else {
+            }
+            .opacity(selectedMode == .personal ? 1 : 0)
+            .allowsHitTesting(selectedMode == .personal)
+            .zIndex(selectedMode == .personal ? 1 : 0)
+
+            Group {
                 if dialogueMessages.isEmpty {
                     DialogueEmptyStateView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -95,6 +92,9 @@ struct ChatContentView: View {
                     }
                 }
             }
+            .opacity(selectedMode == .dialogue ? 1 : 0)
+            .allowsHitTesting(selectedMode == .dialogue)
+            .zIndex(selectedMode == .dialogue ? 1 : 0)
         }
     }
 }

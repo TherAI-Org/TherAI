@@ -32,12 +32,6 @@ struct DialogueMessageView: View {
                                             endPoint: .bottomTrailing
                                         )
                                     )
-                                    .shadow(
-                                        color: Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.25),
-                                        radius: 8,
-                                        x: 0,
-                                        y: 3
-                                    )
                             )
                             .foregroundColor(.white)
                             .frame(maxWidth: 320, alignment: .trailing)

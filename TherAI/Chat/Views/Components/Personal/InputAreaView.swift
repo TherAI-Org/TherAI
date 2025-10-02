@@ -17,7 +17,7 @@ struct InputAreaView: View {
     var body: some View {
 
         let isSendDisabled = !isLoading && inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let sendSize: CGFloat = 28
+        let sendSize: CGFloat = 32
 
         VStack(alignment: .leading, spacing: 8) {
             if let snippet = focusSnippet, !snippet.isEmpty {
@@ -36,10 +36,18 @@ struct InputAreaView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(.secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(
+                            colorScheme == .dark ?
+                                Color.white.opacity(0.12) :
+                                Color.black.opacity(0.06),
+                            lineWidth: 1
+                        )
+                )
             }
 
             HStack(spacing: 12) {
@@ -66,19 +74,33 @@ struct InputAreaView: View {
                 }) {
                     ZStack {
                         Circle()
-                            .fill(isSendDisabled ?
-                                  Color(uiColor: .systemGray5) :
-                                  Color(red: 0.4, green: 0.2, blue: 0.6))
+                            .fill(
+                                isSendDisabled ?
+                                    LinearGradient(
+                                        colors: [Color(white: colorScheme == .dark ? 0.25 : 0.90)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ) :
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.5, green: 0.3, blue: 0.7),
+                                            Color(red: 0.4, green: 0.2, blue: 0.6)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                            )
                             .frame(width: sendSize, height: sendSize)
+                            .shadow(color: isSendDisabled ? .clear : Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.3), radius: 4, x: 0, y: 2)
 
                         Image(systemName: isLoading ? "stop.fill" : "arrow.up")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(isSendDisabled ? .secondary : .white)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(isSendDisabled ? Color(.systemGray2) : .white)
                     }
                 }
                 .disabled(isSendDisabled)
-                .scaleEffect(isSendDisabled ? 0.9 : 1.0)
-                .animation(.easeInOut(duration: 0.2), value: isSendDisabled)
+                .scaleEffect(isSendDisabled ? 0.95 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSendDisabled)
                 .contextMenu {
                     Button(action: {
                         send()
@@ -94,43 +116,21 @@ struct InputAreaView: View {
                 }
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(
-            Group {
-                if #available(iOS 26.0, *) {
-                    // iOS 26+ Liquid Glass effect using .glassEffect()
-                    Color.clear
-                        .glassEffect()
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                } else {
-                    // Fallback for older iOS versions
-                    LinearGradient(
-                        colors: [
-                            Color(white: colorScheme == .dark ? 0.14 : 0.945),
-                            Color(white: colorScheme == .dark ? 0.17 : 0.965)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
-            Group {
-                if #available(iOS 26.0, *) {
-                    // No border on iOS 26+
-                    EmptyView()
-                } else {
-                    // Border for older iOS versions
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color(.systemGray3), lineWidth: 1)
-                }
-            }
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(
+                    colorScheme == .dark ?
+                        Color.white.opacity(0.15) :
+                        Color.black.opacity(0.08),
+                    lineWidth: 1
+                )
         )
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
+        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .animation(.easeInOut(duration: 0.2), value: isInputFocused.wrappedValue)
     }
 }
