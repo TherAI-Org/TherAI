@@ -5,6 +5,7 @@ struct ChatHeaderView: View {
     @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
 
     @Binding var selectedMode: ChatMode
+    var showDivider: Bool = true
 
     var body: some View {
         HStack {
@@ -16,6 +17,7 @@ struct ChatHeaderView: View {
                     .font(.system(size: 20, weight: .medium))
                     .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
             }
+            .padding(.top, 2)
 
             Spacer()
 
@@ -23,18 +25,6 @@ struct ChatHeaderView: View {
                 Spacer()
 
                 ZStack {
-                    Group {
-                        if #available(iOS 26.0, *) {
-                            Color.clear
-                                .glassEffect()
-                                .cornerRadius(28)
-                                .frame(width: 200, height: 48)
-                        } else {
-                            Color.clear
-                                .frame(width: 200, height: 48)
-                        }
-                    }
-
                     HStack(spacing: 8) {
                         ForEach(ChatMode.allCases, id: \.self) { mode in
                             Button(action: {
@@ -46,7 +36,7 @@ struct ChatHeaderView: View {
                                 }
                             }) {
                                 Text(mode.rawValue)
-                                    .font(.system(size: 15, weight: .medium))
+                                    .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(selectedMode == mode ? .primary : .secondary)
                                     .frame(width: 90, height: 36)
                             }
@@ -73,16 +63,21 @@ struct ChatHeaderView: View {
 
                 Spacer()
             }
-            .frame(maxWidth: 200)
-            .padding(.top, -4)
             Spacer()
 
             Color.clear
                 .frame(width: 20, height: 20)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 2)
+        .padding(.vertical, 12)
         .background(Color(.systemBackground))
+        .overlay(alignment: .bottom) {
+            if showDivider {
+                Rectangle()
+                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.05))
+                    .frame(height: 1)
+            }
+        }
     }
 }
 

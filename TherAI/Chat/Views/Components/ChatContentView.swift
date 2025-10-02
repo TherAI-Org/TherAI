@@ -71,7 +71,7 @@ struct ChatContentView: View {
                             }
                         }
                         .scrollBounceBehavior(.basedOnSize)
-                        .scrollIndicators(.hidden)
+                        .scrollIndicators(.visible)
                         .onAppear {
                             if let lastId = dialogueMessages.last?.id {
                                 DispatchQueue.main.async {

@@ -40,7 +40,7 @@ struct MessagesListView: View {
             .contentShape(Rectangle())
             .onTapGesture { onBackgroundTap() }
             .scrollBounceBehavior(.always)
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.visible)
             .onChange(of: preScrollTrigger) { _, _ in
                 guard preScrollTrigger > 0 else { return }
                 guard let lastId = messages.last?.id else { return }

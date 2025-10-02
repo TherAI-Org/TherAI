@@ -19,7 +19,10 @@ struct ChatScreenView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ChatHeaderView(selectedMode: $selectedMode)
+            ChatHeaderView(
+                selectedMode: $selectedMode,
+                showDivider: selectedMode == .personal ? !chatViewModel.messages.isEmpty : !dialogueViewModel.messages.isEmpty
+            )
 
             ChatContentView(
                 selectedMode: selectedMode,
@@ -32,6 +35,10 @@ struct ChatScreenView: View {
                 personalPreScrollToken: personalPreScrollToken,
                 keyboardScrollToken: keyboardScrollToken
             )
+            .safeAreaInset(edge: .top) {
+                Color.clear
+                    .frame(height: 12)
+            }
             .safeAreaInset(edge: .bottom) {
                 Color.clear
                     .frame(height: 50)
