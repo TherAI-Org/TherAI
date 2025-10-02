@@ -74,7 +74,7 @@ struct ChatHeaderView: View {
         .overlay(alignment: .bottom) {
             if showDivider {
                 Rectangle()
-                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.05))
+                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.16))
                     .frame(height: 1)
             }
         }

@@ -48,6 +48,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     return CGFloat(value)
                 }
             }()
+
             ZStack {
                 // Main Content - slides completely off screen when sidebar is open
                 content
@@ -59,14 +60,19 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
 
                 // Slide-out Sidebar - slides in from left to fully replace main content
+                // Compute sidebar offset once so we can position the edge blur exactly at the visible edge
+                let sidebarOffsetX: CGFloat = navigationViewModel.isOpen ? navigationViewModel.dragOffset : (-width + max(0, navigationViewModel.dragOffset))
+
                 SlidebarView(
                     isOpen: $navigationViewModel.isOpen,
                     profileNamespace: profileNamespace
                 )
-                .offset(x: navigationViewModel.isOpen ? navigationViewModel.dragOffset : (-width + max(0, navigationViewModel.dragOffset)))
+                .offset(x: sidebarOffsetX)
                 .blur(radius: (navigationViewModel.showProfileOverlay || navigationViewModel.showSettingsOverlay) ? 8 : 0)
                 .animation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.isOpen)
                 .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
+
+
 
                 // Profile Overlay on top of slide-out menu
                 if navigationViewModel.showProfileOverlay {
