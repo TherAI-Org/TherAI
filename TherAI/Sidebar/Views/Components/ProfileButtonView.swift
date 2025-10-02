@@ -8,7 +8,7 @@ struct ProfileButtonView: View {
     @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
 
     @ViewBuilder
-    private func avatarCircle(url: String?, fallback: String, size: CGFloat) -> some View {
+    private func avatarCircle(url: String?, size: CGFloat) -> some View {
         ZStack {
             Circle()
                 .fill(
@@ -31,16 +31,11 @@ struct ProfileButtonView: View {
                 AsyncImage(url: u) { img in
                     img.resizable().scaledToFill()
                 } placeholder: {
-                    Text(fallback)
-                        .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                    ProgressView()
+                        .tint(.white)
                 }
                 .frame(width: size, height: size)
                 .clipShape(Circle())
-            } else {
-                Text(fallback)
-                    .font(.system(size: size * 0.4, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
             }
         }
     }
@@ -49,11 +44,11 @@ struct ProfileButtonView: View {
         if compact {
             HStack {
                 ZStack {
-                    avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 50)
+                    avatarCircle(url: sessionsVM.partnerAvatarURL, size: 50)
                         .offset(x: 20)
                         .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
-                    avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 50)
+                    avatarCircle(url: sessionsVM.myAvatarURL, size: 50)
                         .offset(x: -20)
                         .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
                 }
@@ -62,11 +57,11 @@ struct ProfileButtonView: View {
         } else {
             HStack {
                 ZStack {
-                    avatarCircle(url: sessionsVM.partnerAvatarURL, fallback: "X", size: 56)
+                    avatarCircle(url: sessionsVM.partnerAvatarURL, size: 56)
                         .offset(x: 24)
                         .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
 
-                    avatarCircle(url: sessionsVM.myAvatarURL, fallback: "Me", size: 56)
+                    avatarCircle(url: sessionsVM.myAvatarURL, size: 56)
                         .offset(x: -24)
                         .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
                 }

@@ -316,28 +316,6 @@ extension BackendService {
         return (decoded.path ?? "", decoded.url)
     }
 
-    func fetchAvatarURL(accessToken: String) async throws -> (path: String?, url: String?) {
-        let url = baseURL
-            .appendingPathComponent("profile")
-            .appendingPathComponent("avatar")
-            .appendingPathComponent("url")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-        struct UrlRes: Codable { let path: String?; let url: String? }
-        let decoded = try jsonDecoder.decode(UrlRes.self, from: data)
-        return (decoded.path, decoded.url)
-    }
-
     struct PairedAvatars: Codable { struct Entry: Codable { let url: String?; let source: String } ; let me: Entry; let partner: Entry }
     func fetchPairedAvatars(accessToken: String) async throws -> PairedAvatars {
         let url = baseURL
