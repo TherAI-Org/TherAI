@@ -35,10 +35,6 @@ struct ChatScreenView: View {
                 personalPreScrollToken: personalPreScrollToken,
                 keyboardScrollToken: keyboardScrollToken
             )
-            .safeAreaInset(edge: .top) {
-                Color.clear
-                    .frame(height: 14)
-            }
             .safeAreaInset(edge: .bottom) {
                 Color.clear
                     .frame(height: 50)

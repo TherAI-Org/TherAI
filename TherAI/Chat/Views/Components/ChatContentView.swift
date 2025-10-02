@@ -69,6 +69,7 @@ struct ChatContentView: View {
                                     .id(message.id)
                                 }
                             }
+                            .padding(.top, 24)
                         }
                         .scrollBounceBehavior(.basedOnSize)
                         .scrollIndicators(.visible)

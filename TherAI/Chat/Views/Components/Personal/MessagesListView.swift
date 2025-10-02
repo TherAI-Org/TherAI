@@ -35,6 +35,7 @@ struct MessagesListView: View {
                             .id(message.id)
                     }
                 }
+                .padding(.top, 24)
                 .padding(.horizontal)
             }
             .contentShape(Rectangle())
