@@ -77,3 +77,26 @@ struct ChatHeaderView: View {
 }
 
 
+
+private struct ChatHeaderPreviewHost: View {
+    @State private var selectedMode: ChatMode
+
+    init(_ mode: ChatMode) {
+        _selectedMode = State(initialValue: mode)
+    }
+
+    var body: some View {
+        ChatHeaderView(selectedMode: $selectedMode)
+            .environmentObject(SidebarNavigationViewModel())
+    }
+}
+
+#Preview("Personal", traits: .sizeThatFitsLayout) {
+    ChatHeaderPreviewHost(.personal)
+        .padding()
+}
+
+#Preview("Dialogue", traits: .sizeThatFitsLayout) {
+    ChatHeaderPreviewHost(.dialogue)
+        .padding()
+}
