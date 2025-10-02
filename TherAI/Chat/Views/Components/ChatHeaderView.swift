@@ -35,12 +35,6 @@ struct ChatHeaderView: View {
                         }
                     }
 
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
-                        .frame(width: 90, height: 36)
-                        .offset(x: selectedMode == .personal ? -48 : 48)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedMode)
-
                     HStack(spacing: 8) {
                         ForEach(ChatMode.allCases, id: \.self) { mode in
                             Button(action: {
@@ -53,10 +47,26 @@ struct ChatHeaderView: View {
                             }) {
                                 Text(mode.rawValue)
                                     .font(.system(size: 15, weight: .medium))
-                                    .foregroundColor(selectedMode == mode ? .white : .primary)
+                                    .foregroundColor(selectedMode == mode ? .primary : .secondary)
                                     .frame(width: 90, height: 36)
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .anchorPreference(key: TabBoundsKey.self, value: .bounds) { anchor in
+                                [mode: anchor]
+                            }
+                        }
+                    }
+                    .overlayPreferenceValue(TabBoundsKey.self) { prefs in
+                        GeometryReader { proxy in
+                            if let anchor = prefs[selectedMode] {
+                                let rect = proxy[anchor]
+                                Rectangle()
+                                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                    .frame(width: 28, height: 3)
+                                    .cornerRadius(1.5)
+                                    .position(x: rect.midX, y: rect.maxY + 1)
+                                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: selectedMode)
+                            }
                         }
                     }
                 }
@@ -64,7 +74,7 @@ struct ChatHeaderView: View {
                 Spacer()
             }
             .frame(maxWidth: 200)
-            .padding(.top, 10)
+            .padding(.top, -4)
             Spacer()
 
             Color.clear
@@ -76,6 +86,12 @@ struct ChatHeaderView: View {
     }
 }
 
+private struct TabBoundsKey: PreferenceKey {
+    static var defaultValue: [ChatMode: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [ChatMode: Anchor<CGRect>], nextValue: () -> [ChatMode: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
 
 
 private struct ChatHeaderPreviewHost: View {
