@@ -11,7 +11,6 @@ struct ChatContentView: View {
     let onBackgroundTap: () -> Void
     let personalPreScrollToken: Int
     let keyboardScrollToken: Int
-    let topContentPadding: CGFloat
 
     @State private var showPersonalPreScrollOverlay: Bool = false
     @State private var preScrollToken: Int = 0
@@ -33,8 +32,7 @@ struct ChatContentView: View {
                             keyboardScrollTrigger: keyboardScrollToken,
                             onPreScrollComplete: {
                                 withAnimation(.easeInOut(duration: 0.2)) { showPersonalPreScrollOverlay = false }
-                            },
-                            topPadding: topContentPadding
+                            }
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -71,7 +69,6 @@ struct ChatContentView: View {
                                     .id(message.id)
                                 }
                             }
-                            .padding(.top, topContentPadding)
                         }
                         .scrollBounceBehavior(.basedOnSize)
                         .scrollIndicators(.visible)

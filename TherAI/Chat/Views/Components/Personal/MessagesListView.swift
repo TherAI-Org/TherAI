@@ -7,7 +7,6 @@ struct MessagesListView: View {
     let preScrollTrigger: Int
     let keyboardScrollTrigger: Int
     let onPreScrollComplete: (() -> Void)?
-    let topPadding: CGFloat
 
     @State private var savedScrollPosition: UUID?
 
@@ -17,8 +16,7 @@ struct MessagesListView: View {
         onBackgroundTap: @escaping () -> Void,
         preScrollTrigger: Int = 0,
         keyboardScrollTrigger: Int = 0,
-        onPreScrollComplete: (() -> Void)? = nil,
-        topPadding: CGFloat = 0
+        onPreScrollComplete: (() -> Void)? = nil
     ) {
         self.messages = messages
         self.isInputFocused = isInputFocused
@@ -26,7 +24,6 @@ struct MessagesListView: View {
         self.preScrollTrigger = preScrollTrigger
         self.keyboardScrollTrigger = keyboardScrollTrigger
         self.onPreScrollComplete = onPreScrollComplete
-        self.topPadding = topPadding
     }
 
     var body: some View {
@@ -38,7 +35,6 @@ struct MessagesListView: View {
                             .id(message.id)
                     }
                 }
-                .padding(.top, topPadding)
                 .padding(.horizontal)
             }
             .contentShape(Rectangle())
