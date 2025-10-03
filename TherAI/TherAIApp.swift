@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Supabase
+import BackgroundTasks
 
 @main
 struct TherAIApp: App {
@@ -20,6 +21,11 @@ struct TherAIApp: App {
     @StateObject private var sessionsViewModel = ChatSessionsViewModel()
 
     @AppStorage(PreferenceKeys.appearancePreference) private var appearance: String = "System"
+
+    init() {
+        // Register BGTask handlers before app finishes launching
+        ProfileBackgroundRefresh.register()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -65,6 +71,8 @@ struct TherAIApp: App {
                         await linkVM.ensureInviteReady()
                         sessionsViewModel.startObserving()
                     }
+                    // Schedule background refresh (registration already done in init)
+                    ProfileBackgroundRefresh.scheduleNext()
                 }
         }
     }

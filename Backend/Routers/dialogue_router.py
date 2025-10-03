@@ -13,13 +13,10 @@ from ..Models.requests import (
     PendingRequestsResponse,
     PendingRequestDTO,
     AcceptDialogueResponse,
-    DialogueInsightRequest,
-    DialogueInsightResponse,
 )
 from ..Agents.dialogue import DialogueAgent
-from ..Agents.insight import PersonalInsightAgent
 from ..auth import get_current_user
-from ..Database.chat_repo import list_messages_for_session, save_message, update_session_last_message
+from ..Database.chat_repo import list_messages_for_session
 from ..Database.dialogue_repo import (
     create_dialogue_request,
     create_dialogue_message,
@@ -44,7 +41,6 @@ from ..Database.session_repo import create_session, assert_session_owned_by_user
 router = APIRouter(prefix="/dialogue", tags=["dialogue"])
 
 dialogue_agent = DialogueAgent()
-insight_agent = PersonalInsightAgent()
 
 # Constants
 MAX_CONTEXT_MESSAGES = 15
@@ -755,136 +751,3 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
         raise HTTPException(status_code=500, detail=f"Error streaming dialogue request: {str(e)}")
 
 
-@router.post("/insight", response_model = DialogueInsightResponse)
-async def generate_dialogue_insight_endpoint(request: DialogueInsightRequest, current_user: dict = Depends(get_current_user)):
-    try:
-        user_uuid = uuid.UUID(current_user.get("sub"))
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid user ID in token")
-
-    try:
-        # Validate user and session
-        await _validate_user_and_session(user_uuid, request.source_session_id)
-
-        # Get relationship and partner info
-        relationship_id, partner_user_id = await _get_relationship_info(user_uuid)
-
-        # Gather dialogue context
-        current_personal_history, partner_personal_history, dialogue_history, _dialogue_session_id, _first_time_link, a_id = await _get_dialogue_context(
-            user_uuid, request.source_session_id, partner_user_id, relationship_id
-        )
-
-        dialogue_message = request.dialogue_message_content or ""
-        insight = insight_agent.generate_insight(
-            current_personal_history=current_personal_history,
-            partner_personal_history=partner_personal_history,
-            dialogue_history=dialogue_history,
-            dialogue_message=dialogue_message,
-            user_a_id=a_id,
-        )
-
-        # Persist assistant insight to user's personal session
-        try:
-            await save_message(user_id=user_uuid, session_id=request.source_session_id, role="assistant", content=insight)
-            await update_session_last_message(session_id=request.source_session_id, content=insight)
-        except Exception as e:
-            print(f"[Insight] Persist failed: {e}")
-
-        return DialogueInsightResponse(insight=insight)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating dialogue insight: {str(e)}")
-
-
-@router.post("/insight/stream")
-async def generate_dialogue_insight_stream_endpoint(request: DialogueInsightRequest, current_user: dict = Depends(get_current_user)):
-    try:
-        user_uuid = uuid.UUID(current_user.get("sub"))
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid user ID in token")
-
-    try:
-        # Validate user and session
-        await _validate_user_and_session(user_uuid, request.source_session_id)
-
-        # Get relationship and partner info
-        relationship_id, partner_user_id = await _get_relationship_info(user_uuid)
-
-        # Gather dialogue context
-        current_personal_history, partner_personal_history, dialogue_history, _dialogue_session_id, _first_time_link, a_id = await _get_dialogue_context(
-            user_uuid, request.source_session_id, partner_user_id, relationship_id
-        )
-
-        dialogue_message = request.dialogue_message_content or ""
-        input_messages = insight_agent.build_context(
-            current_personal_history=current_personal_history,
-            partner_personal_history=partner_personal_history,
-            dialogue_history=dialogue_history,
-            dialogue_message=dialogue_message,
-            user_a_id=a_id,
-        )
-
-        loop = asyncio.get_running_loop()
-
-        def iter_sse():
-            yield (":" + " " * 2048 + "\n\n").encode()
-            try:
-                parts: list[str] = []
-                with insight_agent.client.responses.stream(model=insight_agent.model, input=input_messages) as stream:  # type: ignore[attr-defined]
-                    try:
-                        for delta in stream.text_deltas:  # type: ignore[attr-defined]
-                            if delta:
-                                parts.append(delta)
-                                yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                    except Exception:
-                        for event in stream:
-                            try:
-                                ev_type = getattr(event, "type", "")
-                                if ev_type.endswith("output_text.delta"):
-                                    delta = getattr(event, "delta", "") or ""
-                                    if delta:
-                                        parts.append(delta)
-                                        yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                                elif ev_type.endswith("error"):
-                                    err = getattr(event, "error", None)
-                                    if err:
-                                        yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
-                            except Exception:
-                                continue
-
-                    final = stream.get_final_response()
-                    final_text = getattr(final, "output_text", None) or "".join(parts)
-
-                # Persist final insight
-                try:
-                    asyncio.run_coroutine_threadsafe(
-                        save_message(user_id=user_uuid, session_id=request.source_session_id, role="assistant", content=final_text),
-                        loop,
-                    ).result()
-                    asyncio.run_coroutine_threadsafe(
-                        update_session_last_message(session_id=request.source_session_id, content=final_text),
-                        loop,
-                    ).result()
-                except Exception as e:
-                    print(f"[Insight Stream] Persist failed: {e}")
-
-                yield b"event: done\ndata: {}\n\n"
-            except Exception as e:
-                yield f"event: error\ndata: {json.dumps(str(e))}\n\n".encode()
-
-        return StreamingResponse(
-            iterate_in_threadpool(iter_sse()),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache, no-transform",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-                "Content-Encoding": "identity",
-                "Content-Type": "text/event-stream; charset=utf-8",
-            },
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error streaming dialogue insight: {str(e)}")

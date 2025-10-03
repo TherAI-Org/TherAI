@@ -16,6 +16,7 @@ from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
 from .Routers.dialogue_router import router as dialogue_router
 from .Routers.profile_router import router as profile_router
+from .Routers.relationship_router import router as relationship_router
 
 app = FastAPI()
 
@@ -23,6 +24,7 @@ app.include_router(aasa_router)
 app.include_router(link_router)
 app.include_router(dialogue_router)
 app.include_router(profile_router)
+app.include_router(relationship_router)
 
 personal_agent = PersonalAgent()
 

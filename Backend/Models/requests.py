@@ -105,11 +105,15 @@ class AcceptDialogueResponse(BaseModel):
     partner_session_id: UUID
     dialogue_session_id: UUID
 
-# Dialogue insight
-class DialogueInsightRequest(BaseModel):
-    source_session_id: UUID
-    dialogue_message_id: Optional[UUID] = None
-    dialogue_message_content: Optional[str] = None
 
-class DialogueInsightResponse(BaseModel):
-    insight: str
+
+# Relationship health
+class RelationshipHealthRequest(BaseModel):
+    last_run_at: Optional[str] = None  # ISO8601
+    force: Optional[bool] = False
+
+class RelationshipHealthResponse(BaseModel):
+    summary: str
+    last_run_at: str
+    reason: Optional[str] = None
+    has_any_messages: bool = True

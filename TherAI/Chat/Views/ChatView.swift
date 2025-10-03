@@ -22,7 +22,6 @@ struct ChatView: View {
             Haptics.impact(.light)
             withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { selectedMode = .personal }
             if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
-            Task { await viewModel.generateInsightFromDialogueMessage(message: tapped, sourceSessionId: sessionsViewModel.activeSessionId) }
         }
 
         let handleSendToPartner: () -> Void = {

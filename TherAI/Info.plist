@@ -15,5 +15,9 @@
 			</array>
 		</dict>
 	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>ai.therai.relationshipHealth.refresh</string>
+	</array>
 </dict>
 </plist>

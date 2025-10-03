@@ -95,51 +95,7 @@ struct BackendService {
         return SSEService.shared.stream(request: request)
     }
 
-    func streamDialogueInsight(sourceSessionId: UUID, dialogueMessageId: UUID?, dialogueMessageContent: String?, accessToken: String) -> AsyncStream<StreamEvent> {
-        var request = URLRequest(url: baseURL
-            .appendingPathComponent("dialogue")
-            .appendingPathComponent("insight")
-            .appendingPathComponent("stream"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        let payload = DialogueInsightRequestBody(
-            source_session_id: sourceSessionId,
-            dialogue_message_id: dialogueMessageId,
-            dialogue_message_content: dialogueMessageContent
-        )
-        request.httpBody = try? jsonEncoder.encode(payload)
-        return SSEService.shared.stream(request: request)
-    }
 
-    func requestDialogueInsight(sourceSessionId: UUID, dialogueMessageId: UUID?, dialogueMessageContent: String?, accessToken: String) async throws -> String {
-        let url = baseURL
-            .appendingPathComponent("dialogue")
-            .appendingPathComponent("insight")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let payload = DialogueInsightRequestBody(
-            source_session_id: sourceSessionId,
-            dialogue_message_id: dialogueMessageId,
-            dialogue_message_content: dialogueMessageContent
-        )
-        request.httpBody = try jsonEncoder.encode(payload)
-
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-        struct InsightBody: Codable { let insight: String }
-        let decoded = try jsonDecoder.decode(InsightBody.self, from: data)
-        return decoded.insight
-    }
 
     func fetchMessages(sessionId: UUID, accessToken: String) async throws -> [ChatMessageDTO] {
         let url = baseURL
@@ -239,6 +195,52 @@ struct BackendService {
     }
 }
 
+// MARK: - Relationship Health API
+extension BackendService {
+    struct RelationshipHealthRequestBody: Codable { let last_run_at: String?; let force: Bool? }
+    struct RelationshipHealthResponseBody: Codable { let summary: String; let last_run_at: String; let reason: String?; let has_any_messages: Bool }
+
+    func fetchRelationshipHealth(accessToken: String, lastRunAt: Date?, force: Bool = false) async throws -> RelationshipHealthResponseBody {
+        func makeRequest(at base: URL) throws -> URLRequest {
+            let url = base
+                .appendingPathComponent("relationship")
+                .appendingPathComponent("health")
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            let iso: String? = lastRunAt.map { d in
+                let f = ISO8601DateFormatter()
+                f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                return f.string(from: d)
+            }
+            let body = RelationshipHealthRequestBody(last_run_at: iso, force: force)
+            req.httpBody = try jsonEncoder.encode(body)
+            return req
+        }
+
+        // Primary attempt
+        var request = try makeRequest(at: baseURL)
+        var (data, response) = try await urlSession.data(for: request)
+        var http = response as? HTTPURLResponse
+        // Fallback: try /api prefix if 404 Not Found (some deployments mount under /api)
+        if let h = http, h.statusCode == 404 {
+            let apiBase = baseURL.appendingPathComponent("api")
+            request = try makeRequest(at: apiBase)
+            (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        guard let finalHttp = http else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(finalHttp.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: finalHttp.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(RelationshipHealthResponseBody.self, from: data)
+    }
+}
+
 struct ChatHistoryMessage: Codable {
     let role: String
     let content: String
@@ -265,11 +267,7 @@ struct ChatMessageDTO: Codable {
     let content: String
 }
 
-private struct DialogueInsightRequestBody: Codable {
-    let source_session_id: UUID
-    let dialogue_message_id: UUID?
-    let dialogue_message_content: String?
-}
+
 
 private struct MessagesResponseBody: Codable {
     let messages: [ChatMessageDTO]

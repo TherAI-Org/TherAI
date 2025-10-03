@@ -1,13 +1,9 @@
 import SwiftUI
 
 struct RelationshipStatisticsView: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
     @Environment(\.colorScheme) private var colorScheme
 
-    var body: some View {
+    private func statTile(title: String, value: String, icon: String, color: Color) -> some View {
         VStack(spacing: 10) {
             ZStack {
                 Circle()
@@ -39,17 +35,30 @@ struct RelationshipStatisticsView: View {
                 .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 4)
         )
     }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
+                statTile(title: "Communication", value: "Great", icon: "message.fill", color: Color(red: 0.26, green: 0.58, blue: 1.00))
+
+                statTile(title: "Trust Level", value: "Strong", icon: "lock.shield.fill", color: .green)
+
+                statTile(title: "Future Goals", value: "Aligned", icon: "target", color: Color(red: 0.63, green: 0.32, blue: 0.98))
+
+                statTile(title: "Intimacy", value: "Deep", icon: "heart.fill", color: .pink)
+            }
+            .padding(.bottom, 16)
+        }
+    }
 }
 
 
 #Preview {
-    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-        RelationshipStatisticsView(title: "Communication", value: "Great", icon: "message.fill", color: .blue)
-        RelationshipStatisticsView(title: "Trust Level", value: "Strong", icon: "lock.shield.fill", color: .green)
-        RelationshipStatisticsView(title: "Future Goals", value: "Aligned", icon: "target", color: .purple)
-        RelationshipStatisticsView(title: "Intimacy", value: "Deep", icon: "heart.fill", color: .pink)
-    }
-    .padding(20)
+    RelationshipStatisticsView()
+        .padding(20)
 }
 
 

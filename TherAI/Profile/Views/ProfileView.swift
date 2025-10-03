@@ -9,6 +9,7 @@ struct ProfileView: View {
     @State private var showTogetherCapsule = false
 
     @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
+    @StateObject private var healthVM = ProfileViewModel()
 
     private let data: ProfileData = ProfileData.load()
 
@@ -105,9 +106,16 @@ struct ProfileView: View {
                         }
 
                         if showCards {
-                            PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
+                            RelationshipHealthView(
+                                isExpanded: healthVM.isHealthExpanded,
+                                onTap: { healthVM.toggleHealth() }
+                            )
+                            .environmentObject(healthVM)
+                            .task { await healthVM.maybeRefreshOnAppear() }
 
-                            RelationshipInsightsSectionView()
+                            TotalSessionsView(totalSessions: data.profileStats.totalSessions)
+
+                            RelationshipStatisticsView()
                         }
                     }
                     .padding(.horizontal, 16)
@@ -132,6 +140,7 @@ struct ProfileView: View {
                 }
             }
         }
+        .background(Color(.systemBackground).ignoresSafeArea())
         .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: isPresented)
     }
 }
