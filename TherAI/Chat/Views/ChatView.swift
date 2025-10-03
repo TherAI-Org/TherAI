@@ -26,7 +26,30 @@ struct ChatView: View {
         }
 
         let handleSendToPartner: () -> Void = {
-            Task { await ChatCoordinator.shared.sendToPartner(chatViewModel: viewModel, sessionsViewModel: sessionsViewModel, dialogueViewModel: dialogueViewModel) }
+            // Prefer the most recent suggested partner message; fallback to input text
+            let latestPartnerText: String? = {
+                for msg in viewModel.messages.reversed() {
+                    if let content = (msg as ChatMessage).partnerMessageContent, (msg as ChatMessage).isPartnerMessage, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        return content
+                    }
+                }
+                return nil
+            }()
+
+            let inputTextTrimmed = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let textToSend = latestPartnerText ?? (inputTextTrimmed.isEmpty ? nil : inputTextTrimmed)
+            guard let text = textToSend, !text.isEmpty else { return }
+
+            if latestPartnerText == nil { viewModel.inputText = "" }
+
+            Task {
+                await ChatCoordinator.shared.sendToPartner(
+                    chatViewModel: viewModel,
+                    sessionsViewModel: sessionsViewModel,
+                    dialogueViewModel: dialogueViewModel,
+                    customMessage: text
+                )
+            }
         }
 
         return ChatScreenView(
@@ -69,6 +92,18 @@ struct ChatView: View {
                     setFocusSnippet: { viewModel.focusSnippet = $0 },
                     setInputFocused: { isInputFocused = $0 }
                 )
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("SendPartnerMessageFromBubble"))) { note in
+            if let text = note.userInfo?["content"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Task {
+                    await ChatCoordinator.shared.sendToPartner(
+                        chatViewModel: viewModel,
+                        sessionsViewModel: sessionsViewModel,
+                        dialogueViewModel: dialogueViewModel,
+                        customMessage: text
+                    )
+                }
             }
         }
         .onChange(of: sessionsViewModel.activeSessionId) { _, newSessionId in
