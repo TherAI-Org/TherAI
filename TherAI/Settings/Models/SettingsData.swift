@@ -14,6 +14,8 @@ struct SettingsData: Codable {
     // Privacy & Data - Crash Reports only
     var crashReportingEnabled: Bool = true
 
+    // Relationship Insights - Removed weekly reports
+
     init() {
         // Default settings
     }

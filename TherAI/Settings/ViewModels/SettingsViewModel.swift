@@ -58,7 +58,17 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Haptic Feedback", subtitle: "Vibration feedback for interactions", type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]
             ),
-            // 2. Account → Account Settings, Sign Out
+            // 2. Relationship Insights → Weekly Reports removed
+            SettingsSection(
+                title: "Relationship Insights",
+                icon: "heart.text.square",
+                gradient: [Color.pink, Color.purple],
+                settings: [
+                    SettingItem(title: "Link Your Partner", subtitle: "Invite or manage link", type: .navigation, icon: "link")
+                    // Weekly Reports setting removed
+                ]
+            ),
+            // 3. Account → Account Settings, Sign Out
             SettingsSection(
                 title: "Account",
                 icon: "person.circle",
@@ -68,7 +78,7 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Sign Out", subtitle: "Sign out of your account", type: .action, icon: "rectangle.portrait.and.arrow.right")
                 ]
             ),
-            // 3. About → Version, Help & Support
+            // 4. About → Version, Help & Support
             SettingsSection(
                 title: "About",
                 icon: "info.circle",
@@ -92,6 +102,10 @@ class SettingsViewModel: ObservableObject {
             if settingsData.hapticFeedbackEnabled {
                 Haptics.selection()
             }
+        case ("Chat Settings", "Auto Scroll"):
+            break
+        // Message Sound setting removed
+
         default:
             break
         }
@@ -109,6 +123,9 @@ class SettingsViewModel: ObservableObject {
             Task {
                 await AuthService.shared.signOut()
             }
+        case "Link Your Partner":
+            destination = .link
+        // Clear All Chat History setting removed
         case "Notifications":
             // Navigate to notifications detail view
             break
