@@ -2,6 +2,12 @@ import SwiftUI
 
 struct AvatarSelectionView: View {
     @Binding var isPresented: Bool
+    @StateObject private var viewModel = SettingsViewModel()
+    @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
+
+    @State private var selectedEmoji: String? = nil
+    @State private var uploadedImageData: Data? = nil
+    @State private var showSaveButton = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -17,8 +23,15 @@ struct AvatarSelectionView: View {
             }
             .padding(.top, 8)
 
-            SettingsAvatarPickerView(viewModel: SettingsViewModel())
-                .frame(maxWidth: 520)
+            CompactAvatarPickerView(
+                viewModel: viewModel,
+                isPresented: $isPresented,
+                selectedEmoji: $selectedEmoji,
+                uploadedImageData: $uploadedImageData,
+                showSaveButton: $showSaveButton
+            )
+            .environmentObject(sessionsVM)
+            .frame(maxWidth: 520)
         }
         .padding(16)
         .background(
@@ -33,4 +46,5 @@ struct AvatarSelectionView: View {
 #Preview {
     @Previewable @State var isPresented = true
     AvatarSelectionView(isPresented: $isPresented)
+        .environmentObject(ChatSessionsViewModel())
 }

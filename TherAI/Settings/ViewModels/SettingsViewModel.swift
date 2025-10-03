@@ -3,8 +3,6 @@ import SwiftUI
 
 enum SettingsDestination: Hashable {
     case link
-    case appearance
-    case avatar
 }
 
 extension SettingsDestination: Identifiable {
@@ -12,10 +10,6 @@ extension SettingsDestination: Identifiable {
         switch self {
         case .link:
             return "link"
-        case .appearance:
-            return "appearance"
-        case .avatar:
-            return "avatar"
         }
     }
 }
@@ -98,7 +92,6 @@ class SettingsViewModel: ObservableObject {
                 icon: "person.circle",
                 gradient: [Color.indigo, Color.blue],
                 settings: [
-                    SettingItem(title: "Change Avatar", subtitle: "Upload a new profile photo", type: .action, icon: "person.crop.circle.badge.plus"),
                     SettingItem(title: "Account Settings", subtitle: "Manage your account", type: .navigation, icon: "person.crop.circle"),
                     SettingItem(title: "Sign Out", subtitle: "Sign out of your account", type: .action, icon: "rectangle.portrait.and.arrow.right")
                 ]
@@ -145,16 +138,12 @@ class SettingsViewModel: ObservableObject {
         let setting = section.settings[settingIndex]
 
         switch setting.title {
-        case "Change Avatar":
-            destination = .avatar
         case "Sign Out":
             Task {
                 await AuthService.shared.signOut()
             }
         case "Link Your Partner":
             destination = .link
-        case "Appearance":
-            destination = .appearance
         case "Clear All Chat History":
             // Will clear conversations and reset insights in a later implementation
             break
@@ -190,20 +179,31 @@ class SettingsViewModel: ObservableObject {
         }
     }
 }
-
 extension SettingsViewModel {
     func uploadAvatar(data: Data) async {
-        guard !data.isEmpty else { return }
+        print("DEBUG: ❗️ uploadAvatar called with data size: \(data.count) bytes")
+        print("DEBUG: ❗️ Stack trace:")
+        Thread.callStackSymbols.forEach { print("  \($0)") }
+        guard !data.isEmpty else {
+            print("DEBUG: ❗️ Data is empty, returning")
+            return
+        }
         isUploadingAvatar = true
         defer { isUploadingAvatar = false }
         do {
-            guard let token = await AuthService.shared.getAccessToken() else { return }
+            guard let token = await AuthService.shared.getAccessToken() else {
+                print("DEBUG: ❗️ No access token, returning")
+                return
+            }
+            print("DEBUG: ❗️ About to call BackendService.uploadAvatar")
             let result = try await BackendService.shared.uploadAvatar(imageData: data, contentType: "image/jpeg", accessToken: token)
             await MainActor.run {
                 self.avatarURL = result.url
+                print("DEBUG: ❗️ Avatar uploaded successfully. URL: \(String(describing: result.url))")
             }
         } catch {
-            print("Avatar upload failed: \(error)")
+            print("DEBUG: ❗️ Avatar upload failed: \(error)")
         }
     }
 }
+

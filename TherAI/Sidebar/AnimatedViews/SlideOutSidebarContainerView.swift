@@ -78,7 +78,6 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                         profileNamespace: profileNamespace,
                         linkedMonthYear: linkedMonthYear
                     )
-                    .transition(.opacity)
                     .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showProfileOverlay)
                 }
 
@@ -87,7 +86,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                         isPresented: $navigationViewModel.showSettingsOverlay,
                         profileNamespace: profileNamespace
                     )
-                    .transition(.opacity)
+                    .environmentObject(sessionsViewModel)
                     .zIndex(2)
                     .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showSettingsOverlay)
                 }

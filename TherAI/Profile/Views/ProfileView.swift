@@ -5,7 +5,6 @@ struct ProfileView: View {
     @Binding var isPresented: Bool
 
     @State private var showContent = false
-    @State private var showingAvatarSelection = false
     @State private var showCards = false
     @State private var showTogetherCapsule = false
 
@@ -106,33 +105,6 @@ struct ProfileView: View {
                         }
 
                         if showCards {
-                            HStack {
-                                Spacer(minLength: 0)
-                                Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = true } }) {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: "person.2.circle")
-                                            .font(.system(size: 16, weight: .medium))
-                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                        Text("Edit Avatars")
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(.primary)
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        Capsule()
-                                            .fill(Color(.systemGray6))
-                                            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
-                                            .overlay(
-                                                Capsule()
-                                                    .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
-                                            )
-                                    )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                Spacer(minLength: 0)
-                            }
-
                             PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
 
                             RelationshipInsightsSectionView()
@@ -159,47 +131,6 @@ struct ProfileView: View {
                     }
                 }
             }
-            .overlay(
-                Group {
-                    if showingAvatarSelection {
-                        ZStack {
-                            Color.black.opacity(0.1)
-                                .ignoresSafeArea()
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = false }
-                                }
-                            VStack(spacing: 12) {
-                                HStack {
-                                    Spacer()
-                                    Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = false } }) {
-                                        Image(systemName: "xmark")
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(.primary)
-                                            .padding(8)
-                                            .background(.ultraThinMaterial, in: Circle())
-                                    }
-                                }
-                                .padding(.top, 4)
-
-                                SettingsAvatarPickerView(viewModel: SettingsViewModel())
-                                    .frame(maxWidth: 520)
-                            }
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                                    .fill(Color(.systemBackground))
-                                    .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 10)
-                            )
-                            .padding(.horizontal, 24)
-                                .transition(.asymmetric(
-                                    insertion: .scale(scale: 0.9).combined(with: .opacity),
-                                    removal: .scale(scale: 0.9).combined(with: .opacity)
-                                ))
-                        }
-                        .animation(.easeInOut(duration: 0.25), value: showingAvatarSelection)
-                    }
-                }
-            )
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: isPresented)
     }
