@@ -375,6 +375,8 @@ class DialogueViewModel: ObservableObject {
 
             _ = try await backendService.markRequestAsAccepted(requestId: requestId, accessToken: accessToken)
             acceptedRequestIds.insert(requestId)
+            // Notify others that relationship totals likely changed
+            NotificationCenter.default.post(name: .relationshipTotalsChanged, object: nil)
         } catch {
             self.errorMessage = "Failed to mark request as accepted: \(error.localizedDescription)"
         }

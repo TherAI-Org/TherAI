@@ -240,3 +240,27 @@ async def get_dialogue_request_by_id(*, request_id: uuid.UUID) -> Optional[dict]
     if getattr(res, "error", None):
         raise RuntimeError(f"Supabase select dialogue request failed: {res.error}")
     return res.data[0] if res.data else None
+
+
+# Count accepted sessions for a relationship by counting distinct sender_session_id
+async def count_accepted_sessions_for_relationship(*, relationship_id: uuid.UUID) -> int:
+    relationship_id_str = str(relationship_id)
+    def _select():
+        return (
+            supabase
+            .table(DIALOGUE_REQUESTS_TABLE)
+            .select("sender_session_id")
+            .eq("relationship_id", relationship_id_str)
+            .eq("status", "accepted")
+            .execute()
+        )
+    res = await run_in_threadpool(_select)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase select accepted requests failed: {res.error}")
+    rows = getattr(res, "data", []) or []
+    distinct = set()
+    for row in rows:
+        sid = row.get("sender_session_id")
+        if sid:
+            distinct.add(sid)
+    return len(distinct)

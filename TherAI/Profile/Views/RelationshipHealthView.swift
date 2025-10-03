@@ -127,8 +127,9 @@ struct RelationshipHealthView: View {
                     }
                     .font(.system(size: 14, weight: .regular))
                     .foregroundColor(.secondary)
-                    .lineLimit(3)
+                    .lineLimit(nil)
                     .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 20)

@@ -80,3 +80,39 @@ async def assert_session_owned_by_user(*, user_id: uuid.UUID, session_id: uuid.U
         raise RuntimeError(f"Supabase verify session failed: {res.error}")
     if not res.data:
         raise PermissionError("Session not found or not owned by user")
+
+
+# Update the title of a session owned by a user
+async def update_session_title(*, user_id: uuid.UUID, session_id: uuid.UUID, title: Optional[str]) -> None:
+    # Verify ownership first
+    await assert_session_owned_by_user(user_id=user_id, session_id=session_id)
+    def _update():
+        return (
+            supabase
+            .table(SESSIONS_TABLE)
+            .update({"title": title})
+            .eq("id", str(session_id))
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+    res = await run_in_threadpool(_update)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase update session title failed: {res.error}")
+
+
+# Delete a session owned by a user
+async def delete_session(*, user_id: uuid.UUID, session_id: uuid.UUID) -> None:
+    # Verify ownership first
+    await assert_session_owned_by_user(user_id=user_id, session_id=session_id)
+    def _delete():
+        return (
+            supabase
+            .table(SESSIONS_TABLE)
+            .delete()
+            .eq("id", str(session_id))
+            .eq("user_id", str(user_id))
+            .execute()
+        )
+    res = await run_in_threadpool(_delete)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase delete session failed: {res.error}")

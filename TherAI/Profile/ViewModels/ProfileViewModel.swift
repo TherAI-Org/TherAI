@@ -11,10 +11,17 @@ final class ProfileViewModel: ObservableObject {
     @Published var isFetchingHealth: Bool = false
     @Published var healthError: String? = nil
     @Published var hasAnyMessages: Bool = true
+    @Published var isFetchingStats: Bool = false
+    // Stats labels
+    @Published var statCommunication: String? = nil
+    @Published var statTrustLevel: String? = nil
+    @Published var statFutureGoals: String? = nil
+    @Published var statIntimacy: String? = nil
 
     private let lastRunKey = "profile.relationshipHealth.lastRunAt"
     private let summaryKey = "profile.relationshipHealth.summary"
     private let scheduledRefreshHour = 9 // 9 AM local
+    private let statsLastRunKey = "profile.relationshipStats.lastRunAt"
 
     init() {
         if let iso = UserDefaults.standard.string(forKey: lastRunKey) {
@@ -23,6 +30,8 @@ final class ProfileViewModel: ObservableObject {
         if let cachedSummary = UserDefaults.standard.string(forKey: summaryKey) {
             relationshipHealthSummary = cachedSummary
         }
+        // Listen to relationship totals change notifications
+
     }
 
     func toggleHealth() {
@@ -74,10 +83,11 @@ final class ProfileViewModel: ObservableObject {
         // Always fetch on first load to populate hasAnyMessages and summary
         if relationshipHealthSummary == nil {
             await fetchRelationshipHealth(force: false)
-            return
         }
+        await fetchRelationshipStats(force: false)
         if shouldRefreshNow(now: now) {
             await fetchRelationshipHealth(force: false)
+            await fetchRelationshipStats(force: false)
         }
     }
 
@@ -91,6 +101,31 @@ final class ProfileViewModel: ObservableObject {
         let todayScheduled = cal.date(from: components) ?? now
         let latestScheduledBeforeNow: Date = (todayScheduled > now) ? cal.date(byAdding: .day, value: -1, to: todayScheduled)! : todayScheduled
         return last < latestScheduledBeforeNow
+    }
+
+}
+
+extension ProfileViewModel {
+    @MainActor
+    func fetchRelationshipStats(force: Bool = false) async {
+        guard let token = await AuthService.shared.getAccessToken() else { return }
+        if isFetchingStats { return }
+        isFetchingStats = true
+        defer { isFetchingStats = false }
+        do {
+            var last: Date? = nil
+            if !force, let iso = UserDefaults.standard.string(forKey: statsLastRunKey) {
+                last = ISO8601DateFormatter().date(from: iso)
+            }
+            let res = try await BackendService.shared.fetchRelationshipStats(accessToken: token, lastRunAt: last, force: force)
+            statCommunication = res.communication
+            statTrustLevel = res.trust_level
+            statFutureGoals = res.future_goals
+            statIntimacy = res.intimacy
+            UserDefaults.standard.set(res.last_run_at, forKey: statsLastRunKey)
+        } catch {
+            // Ignore, keep old values
+        }
     }
 }
 

@@ -98,6 +98,41 @@ class ChatSessionsViewModel: ObservableObject {
         await loadSessions()
     }
 
+    func renameSession(_ id: UUID, to newTitle: String?) async {
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+            try await BackendService.shared.renameSession(sessionId: id, title: newTitle, accessToken: accessToken)
+            await MainActor.run {
+                if let idx = self.sessions.firstIndex(where: { $0.id == id }) {
+                    var updated = self.sessions[idx]
+                    let trimmed = newTitle?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    updated.title = (trimmed?.isEmpty == false) ? trimmed! : ChatSession.defaultTitle
+                    self.sessions[idx] = updated
+                    self.saveCachedSessions()
+                }
+            }
+        } catch {
+            print("Failed to rename session: \(error)")
+        }
+    }
+
+    func deleteSession(_ id: UUID) async {
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+            try await BackendService.shared.deleteSession(sessionId: id, accessToken: accessToken)
+            await MainActor.run {
+                self.sessions.removeAll { $0.id == id }
+                if self.activeSessionId == id { self.activeSessionId = nil }
+                self.saveCachedSessions()
+                NotificationCenter.default.post(name: .relationshipTotalsChanged, object: nil)
+            }
+        } catch {
+            print("Failed to delete session: \(error)")
+        }
+    }
+
     func loadPendingRequests() async {
         do {
             let session = try await AuthService.shared.client.auth.session
@@ -194,6 +229,8 @@ class ChatSessionsViewModel: ObservableObject {
                 await MainActor.run {
                     self.pendingRequests.removeAll { $0.id == request.id }
                     self.activeSessionId = partnerSessionId
+                    // Notify profile to recompute relationship totals immediately
+                    NotificationCenter.default.post(name: .relationshipTotalsChanged, object: nil)
                 }
 
                 // Refresh sessions to get the latest data including timestamps

@@ -54,3 +54,24 @@ async def update_session_last_message(*, session_id: uuid.UUID, content: str) ->
     res = await run_in_threadpool(_update)
     if getattr(res, "error", None):
         raise RuntimeError(f"Failed to update session last_message_content: {res.error}")
+
+
+# Delete all messages for a specific user's session. Returns number of deleted rows
+async def delete_messages_for_session(*, user_id: uuid.UUID, session_id: uuid.UUID) -> int:
+    def _delete():
+        return (
+            supabase
+            .table(TABLE_NAME)
+            .delete()
+            .eq("user_id", str(user_id))
+            .eq("session_id", str(session_id))
+            .execute()
+        )
+    res = await run_in_threadpool(_delete)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase delete messages failed: {res.error}")
+    # supabase-py returns data of deleted rows when RLS permits; count via len(data) if present
+    try:
+        return len(res.data or [])
+    except Exception:
+        return 0

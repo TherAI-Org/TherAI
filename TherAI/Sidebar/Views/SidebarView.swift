@@ -13,6 +13,11 @@ struct SlidebarView: View {
     @State private var isSearching: Bool = false
     @State private var searchText: String = ""
 
+    // Rename sheet state
+    @State private var showRenameSheet: Bool = false
+    @State private var renameText: String = ""
+    @State private var renameTargetId: UUID? = nil
+
     @FocusState private var isSearchFocused: Bool
 
     let profileNamespace: Namespace.ID
@@ -286,9 +291,22 @@ struct SlidebarView: View {
                                                 .truncationMode(.tail)
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 2)
                                         .padding(.vertical, 12)
                                     }
                                     .buttonStyle(PlainButtonStyle())
+                                    .contextMenu {
+                                        Button("Rename", systemImage: "pencil") {
+                                            renameTargetId = session.id
+                                            renameText = (session.displayTitle == ChatSession.defaultTitle) ? "" : session.displayTitle
+                                            showRenameSheet = true
+                                        }
+                                        Button(role: .destructive) {
+                                            Task { await sessionsViewModel.deleteSession(session.id) }
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -319,6 +337,34 @@ struct SlidebarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .sheet(isPresented: $showRenameSheet) {
+            VStack(spacing: 16) {
+                Text("Rename Conversation")
+                    .font(.system(size: 20, weight: .semibold))
+                TextField("Title", text: $renameText)
+                    .textInputAutocapitalization(.sentences)
+                    .disableAutocorrection(true)
+                    .padding(12)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                HStack {
+                    Button("Cancel") { showRenameSheet = false }
+                    Spacer()
+                    Button("Save") {
+                        let target = renameTargetId
+                        let text = renameText
+                        showRenameSheet = false
+                        if let id = target {
+                            Task { await sessionsViewModel.renameSession(id, to: text) }
+                        }
+                    }
+                    .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(.top, 6)
+            }
+            .padding(20)
+            .presentationDetents([.medium])
+        }
         .overlay(alignment: .bottom) {
             VStack(spacing: 0) {
                 // Extended gradient area that starts much higher

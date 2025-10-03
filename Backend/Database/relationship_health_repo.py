@@ -5,6 +5,7 @@ from .supabase_client import supabase
 
 
 REL_HEALTH_TABLE = "relationship_health"
+REL_STATS_TABLE = "relationship_stats"
 USER_SESSIONS_TABLE = "user_chat_sessions"
 USER_MESSAGES_TABLE = "user_chat_messages"
 
@@ -82,3 +83,42 @@ async def count_new_messages_since(user_id: uuid.UUID, since: datetime) -> int:
     except Exception as e:
         print(f"Error counting new messages: {e}")
         return 0
+
+
+async def get_relationship_stats(relationship_id: uuid.UUID) -> Optional[dict]:
+    try:
+        result = (
+            supabase
+            .table(REL_STATS_TABLE)
+            .select("*")
+            .eq("relationship_id", str(relationship_id))
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+        return None
+    except Exception as e:
+        print(f"Error fetching relationship stats: {e}")
+        return None
+
+
+async def upsert_relationship_stats(
+    relationship_id: uuid.UUID,
+    stats: dict,
+    last_run_at: datetime,
+) -> None:
+    try:
+        data = {
+            "relationship_id": str(relationship_id),
+            "communication": stats.get("communication"),
+            "trust_level": stats.get("trust_level"),
+            "future_goals": stats.get("future_goals"),
+            "intimacy": stats.get("intimacy"),
+            "last_run_at": last_run_at.isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        supabase.table(REL_STATS_TABLE).upsert(data, on_conflict="relationship_id").execute()
+    except Exception as e:
+        print(f"Error upserting relationship stats: {e}")
+        raise

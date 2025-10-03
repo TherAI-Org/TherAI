@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RelationshipStatisticsView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var statsVM: ProfileViewModel
 
     private func statTile(title: String, value: String, icon: String, color: Color) -> some View {
         VStack(spacing: 10) {
@@ -36,19 +37,68 @@ struct RelationshipStatisticsView: View {
         )
     }
 
+    private func colorFor(_ key: String, value: String?) -> Color {
+        let v = (value ?? "").lowercased()
+        switch key {
+        case "communication":
+            if v.contains("excellent") || v.contains("great") { return .green }
+            if v.contains("good") { return .blue }
+            if v.contains("fair") { return .orange }
+            if v.contains("poor") { return .red }
+            return Color(.systemGray)
+        case "trust":
+            if v.contains("very strong") || v.contains("strong") { return .green }
+            if v.contains("moderate") { return .orange }
+            if v.contains("low") { return .red }
+            return Color(.systemGray)
+        case "goals":
+            if v.contains("aligned") { return Color.purple }
+            if v.contains("partial") { return Color.indigo }
+            if v.contains("divergent") { return .orange }
+            return Color(.systemGray)
+        case "intimacy":
+            if v.contains("deep") { return .pink }
+            if v.contains("warm") { return .orange }
+            if v.contains("cool") { return Color(.systemGray) }
+            return Color(.systemGray)
+        default:
+            return Color(.systemGray)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Statistics")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button(action: { Task { await statsVM.fetchRelationshipStats(force: true) } }) {
+                    ZStack {
+                        Image(systemName: "arrow.clockwise.circle.fill")
+                            .opacity(statsVM.isFetchingStats ? 0 : 1)
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .scaleEffect(0.9)
+                            .opacity(statsVM.isFetchingStats ? 1 : 0)
+                    }
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    .opacity(0.9)
+                }
+                .buttonStyle(.plain)
+            }
             LazyVGrid(columns: [
                 GridItem(.flexible()),
                 GridItem(.flexible())
             ], spacing: 12) {
-                statTile(title: "Communication", value: "Great", icon: "message.fill", color: Color(red: 0.26, green: 0.58, blue: 1.00))
+                statTile(title: "Communication", value: (statsVM.statCommunication?.isEmpty == false ? statsVM.statCommunication! : "—"), icon: "message.fill", color: colorFor("communication", value: statsVM.statCommunication))
 
-                statTile(title: "Trust Level", value: "Strong", icon: "lock.shield.fill", color: .green)
+                statTile(title: "Trust Level", value: (statsVM.statTrustLevel?.isEmpty == false ? statsVM.statTrustLevel! : "—"), icon: "lock.shield.fill", color: colorFor("trust", value: statsVM.statTrustLevel))
 
-                statTile(title: "Future Goals", value: "Aligned", icon: "target", color: Color(red: 0.63, green: 0.32, blue: 0.98))
+                statTile(title: "Future Goals", value: (statsVM.statFutureGoals?.isEmpty == false ? statsVM.statFutureGoals! : "—"), icon: "target", color: colorFor("goals", value: statsVM.statFutureGoals))
 
-                statTile(title: "Intimacy", value: "Deep", icon: "heart.fill", color: .pink)
+                statTile(title: "Intimacy", value: (statsVM.statIntimacy?.isEmpty == false ? statsVM.statIntimacy! : "—"), icon: "heart.fill", color: colorFor("intimacy", value: statsVM.statIntimacy))
             }
             .padding(.bottom, 16)
         }

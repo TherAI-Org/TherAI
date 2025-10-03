@@ -11,11 +11,14 @@ from .Database.chat_repo import save_message, list_messages_for_session, update_
 from .Database.dialogue_repo import list_dialogue_messages_by_session
 from .Database.link_repo import get_link_status_for_user, get_partner_user_id
 from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
-from .Database.session_repo import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user
+from .Database.session_repo import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user, update_session_title, delete_session
+from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
+from .Database.linked_sessions_repo import count_relationship_personal_sessions
 from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
 from .Routers.dialogue_router import router as dialogue_router
 from .Routers.profile_router import router as profile_router
+from .Routers.relationship_router import router as relationship_router
 
 app = FastAPI()
 
@@ -23,6 +26,7 @@ app.include_router(aasa_router)
 app.include_router(link_router)
 app.include_router(dialogue_router)
 app.include_router(profile_router)
+app.include_router(relationship_router)
 
 personal_agent = PersonalAgent()
 
@@ -239,7 +243,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                         cleaned_message = partner_message.strip()
                         # Debug: log the original message
                         print(f"[DEBUG] Original partner message: '{partner_message}'")
-                        
+
                         # Remove various types of quotes from start and end
                         quote_types = ['"', "'", '"', '"', ''', ''']
                         for quote in quote_types:
@@ -247,7 +251,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                                 cleaned_message = cleaned_message[len(quote):-len(quote)]
                                 print(f"[DEBUG] Removed quotes, cleaned message: '{cleaned_message}'")
                                 break
-                        
+
                         # Also remove any remaining quotes from the entire message as a fallback
                         if '"' in cleaned_message or "'" in cleaned_message:
                             # Only remove quotes if they appear to be wrapping the entire message
@@ -255,7 +259,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                             if (temp.startswith('"') and temp.endswith('"')) or (temp.startswith("'") and temp.endswith("'")):
                                 cleaned_message = temp[1:-1]
                                 print(f"[DEBUG] Fallback quote removal: '{cleaned_message}'")
-                        
+
                         # Generate a conversational introduction for the message
                         try:
                             intro_prompt = f"""The user asked for help with a message to send to their partner. Generate a brief, warm conversational response that introduces the message you're about to provide.
@@ -274,11 +278,11 @@ Just respond with the conversational introduction, nothing else."""
                                 {"role": "system", "content": intro_prompt}
                             ]
                             intro_resp = personal_agent.client.responses.create(
-                                model=personal_agent.model, 
-                                input=intro_messages, 
+                                model=personal_agent.model,
+                                input=intro_messages,
                                 temperature=0.7
                             )
-                            
+
                             intro_text = getattr(intro_resp, "output_text", None)
                             if not intro_text:
                                 parts = []
@@ -286,12 +290,12 @@ Just respond with the conversational introduction, nothing else."""
                                     if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
                                         parts.append(block.text)
                                 intro_text = "".join(parts) if parts else "Here's a message for your partner:"
-                            
+
                             intro_text = intro_text.strip()
                         except Exception as e:
                             print(f"[DEBUG] Error generating intro: {e}")
                             intro_text = "Here's a message for your partner:"
-                        
+
                         formatted = f"{intro_text}\n\n{cleaned_message}" if cleaned_message else ""
                         if formatted:
                             words = formatted.split(' ')
@@ -499,3 +503,42 @@ async def create_empty_session(current_user: dict = Depends(get_current_user)):
         )
     except Exception as e:
         raise HTTPException(status_code = 500, detail = f"Error creating session: {str(e)}")
+
+
+# Rename a personal chat session
+@app.patch("/chat/sessions/{session_id}")
+async def rename_session(session_id: uuid.UUID, payload: dict, current_user: dict = Depends(get_current_user)):
+    try:
+        user_uuid = uuid.UUID(current_user.get("sub"))
+    except Exception:
+        raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+    title = payload.get("title")
+    if title is not None and not isinstance(title, str):
+        raise HTTPException(status_code=400, detail="title must be a string or null")
+    try:
+        await update_session_title(user_id=user_uuid, session_id=session_id, title=title)
+        return {"success": True}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid session")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Delete a personal chat session and its messages; also remove any links
+@app.delete("/chat/sessions/{session_id}")
+async def delete_session_route(session_id: uuid.UUID, current_user: dict = Depends(get_current_user)):
+    try:
+        user_uuid = uuid.UUID(current_user.get("sub"))
+    except Exception:
+        raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+    try:
+        # Verify ownership and delete. DB is responsible for cascading to dependents.
+        await assert_session_owned_by_user(user_id=user_uuid, session_id=session_id)
+        await delete_session(user_id=user_uuid, session_id=session_id)
+        return {"success": True}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid session")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

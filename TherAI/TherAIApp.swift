@@ -71,8 +71,6 @@ struct TherAIApp: App {
                         await linkVM.ensureInviteReady()
                         sessionsViewModel.startObserving()
                     }
-                    // Schedule background refresh (registration already done in init)
-                    ProfileBackgroundRefresh.scheduleNext()
                 }
         }
     }

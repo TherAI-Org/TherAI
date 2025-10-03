@@ -6,17 +6,26 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from ..auth import get_current_user
 from ..Agents.relationship_health import RelationshipHealthAgent
+from ..Agents.relationship_stats import RelationshipStatsAgent
 from ..Agents.relationship_health_policy import decide_recompute
 from ..Models.requests import RelationshipHealthRequest, RelationshipHealthResponse
 from ..Database.session_repo import list_sessions_for_user
 from ..Database.chat_repo import list_messages_for_session
 from ..Database.link_repo import get_partner_user_id, get_link_status_for_user
-from ..Database.relationship_health_repo import get_relationship_health_summary, upsert_relationship_health_summary, count_new_messages_since
+
+from ..Database.relationship_health_repo import (
+    get_relationship_health_summary,
+    upsert_relationship_health_summary,
+    count_new_messages_since,
+    get_relationship_stats,
+    upsert_relationship_stats,
+)
 
 
 router = APIRouter(prefix = "/relationship", tags = ["relationship"])
 
 health_agent = RelationshipHealthAgent()
+stats_agent = RelationshipStatsAgent()
 
 
 def _iso_now() -> str:
@@ -167,5 +176,56 @@ async def generate_relationship_health(request: RelationshipHealthRequest, curre
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.post("/stats")
+async def generate_relationship_stats(request: RelationshipHealthRequest, current_user: dict = Depends(get_current_user)):
+    try:
+        user_uuid = uuid.UUID(current_user.get("sub"))
+    except Exception:
+        raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+    try:
+        linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
+        if not linked or not relationship_id:
+            return {
+                "communication": "Unknown",
+                "trust_level": "Unknown",
+                "future_goals": "Unknown",
+                "intimacy": "Unknown",
+                "last_run_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        cached = await get_relationship_stats(relationship_id)
+
+        # Decide recompute by time only (reuse health policy)
+        decision = decide_recompute(last_run_at_iso=request.last_run_at)
+        if not decision.should_run and not request.force and cached:
+            return {
+                "communication": cached.get("communication", "Unknown"),
+                "trust_level": cached.get("trust_level", "Unknown"),
+                "future_goals": cached.get("future_goals", "Unknown"),
+                "intimacy": cached.get("intimacy", "Unknown"),
+                "last_run_at": cached.get("last_run_at"),
+            }
+
+        # Build transcripts like in health
+        a_transcript, _, _ = await _full_transcript_for_user(user_uuid)
+        partner_id = await get_partner_user_id(user_id=user_uuid)
+        b_transcript = ""
+        if partner_id:
+            b_transcript, _, _ = await _full_transcript_for_user(partner_id)
+
+        stats = stats_agent.generate_stats(partner_a_transcript=a_transcript, partner_b_transcript=b_transcript)
+        now = datetime.now(timezone.utc)
+        await upsert_relationship_stats(relationship_id=relationship_id, stats=stats, last_run_at=now)
+        stats["last_run_at"] = now.isoformat()
+        return stats
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 

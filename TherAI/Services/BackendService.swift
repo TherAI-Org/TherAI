@@ -180,6 +180,69 @@ struct BackendService {
         return try jsonDecoder.decode(ChatSessionDTO.self, from: data)
     }
 
+    // Rename a session (nil or empty string clears the title)
+    func renameSession(sessionId: UUID, title: String?, accessToken: String) async throws {
+        func makeRequest(at base: URL) throws -> URLRequest {
+            let url = base
+                .appendingPathComponent("chat")
+                .appendingPathComponent("sessions")
+                .appendingPathComponent(sessionId.uuidString)
+            var req = URLRequest(url: url)
+            req.httpMethod = "PATCH"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            struct Body: Codable { let title: String? }
+            req.httpBody = try jsonEncoder.encode(Body(title: (title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true) ? nil : title))
+            return req
+        }
+
+        var request = try makeRequest(at: baseURL)
+        var (data, response) = try await urlSession.data(for: request)
+        var http = response as? HTTPURLResponse
+        if let h = http, h.statusCode == 404 { // try /api fallback
+            request = try makeRequest(at: baseURL.appendingPathComponent("api"))
+            (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        guard let final = http else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(final.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: final.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+    }
+
+    // Delete a session and its messages
+    func deleteSession(sessionId: UUID, accessToken: String) async throws {
+        func makeRequest(at base: URL) -> URLRequest {
+            let url = base
+                .appendingPathComponent("chat")
+                .appendingPathComponent("sessions")
+                .appendingPathComponent(sessionId.uuidString)
+            var req = URLRequest(url: url)
+            req.httpMethod = "DELETE"
+            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return req
+        }
+
+        var request = makeRequest(at: baseURL)
+        var (data, response) = try await urlSession.data(for: request)
+        var http = response as? HTTPURLResponse
+        if let h = http, h.statusCode == 404 { // try /api fallback
+            request = makeRequest(at: baseURL.appendingPathComponent("api"))
+            (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        guard let final = http else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(final.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: final.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+    }
+
     static func getSecretsPlistValue(for key: String) -> Any? {
         if let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
            let plist = NSDictionary(contentsOfFile: path),
@@ -238,6 +301,55 @@ extension BackendService {
             throw NSError(domain: "Backend", code: finalHttp.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
         return try jsonDecoder.decode(RelationshipHealthResponseBody.self, from: data)
+    }
+
+}
+
+// MARK: - Relationship Stats API
+extension BackendService {
+    struct RelationshipStatsResponseBody: Codable {
+        let communication: String
+        let trust_level: String
+        let future_goals: String
+        let intimacy: String
+        let last_run_at: String
+    }
+
+    func fetchRelationshipStats(accessToken: String, lastRunAt: Date?, force: Bool = false) async throws -> RelationshipStatsResponseBody {
+        func makeRequest(at base: URL) throws -> URLRequest {
+            let url = base
+                .appendingPathComponent("relationship")
+                .appendingPathComponent("stats")
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            let iso: String? = lastRunAt.map { d in
+                let f = ISO8601DateFormatter()
+                f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                return f.string(from: d)
+            }
+            let body = RelationshipHealthRequestBody(last_run_at: iso, force: force)
+            req.httpBody = try jsonEncoder.encode(body)
+            return req
+        }
+
+        var request = try makeRequest(at: baseURL)
+        var (data, response) = try await urlSession.data(for: request)
+        var http = response as? HTTPURLResponse
+        if let h = http, h.statusCode == 404 {
+            request = try makeRequest(at: baseURL.appendingPathComponent("api"))
+            (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        guard let final = http else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(final.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: final.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(RelationshipStatsResponseBody.self, from: data)
     }
 }
 

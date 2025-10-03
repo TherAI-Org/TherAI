@@ -113,9 +113,8 @@ struct ProfileView: View {
                             .environmentObject(healthVM)
                             .task { await healthVM.maybeRefreshOnAppear() }
 
-                            TotalSessionsView(totalSessions: data.profileStats.totalSessions)
-
                             RelationshipStatisticsView()
+                                .environmentObject(healthVM)
                         }
                     }
                     .padding(.horizontal, 16)
