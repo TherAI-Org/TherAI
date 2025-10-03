@@ -126,3 +126,75 @@ def _provider_avatar_from_admin(user_id: uuid.UUID) -> str | None:
     except Exception as e:
         print(f"[Avatar] Error fetching partner avatar for {user_id}: {e}")
         return None
+
+# Get partner information including name and avatar
+@router.get("/partner-info")
+async def get_partner_info(current_user: dict = Depends(get_current_user)):
+    try:
+        try:
+            user_id = uuid.UUID(current_user.get("sub"))
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+        # Check if user is linked
+        linked, _, _ = await get_link_status_for_user(user_id=user_id)
+        if not linked:
+            return {"linked": False, "partner": None}
+
+        # Get partner user ID
+        partner_id = await get_partner_user_id(user_id=user_id)
+        if not partner_id:
+            return {"linked": False, "partner": None}
+
+        # Get partner info from auth provider
+        try:
+            res = supabase.auth.admin.get_user_by_id(str(partner_id))  # type: ignore[attr-defined]
+            user = getattr(res, "user", None) or getattr(res, "data", None)
+            
+            if not user:
+                return {"linked": True, "partner": {"name": "Unknown", "avatar_url": None}}
+            
+            # Extract name and avatar from user metadata
+            def extract_name_from_meta(meta_dict):
+                if not isinstance(meta_dict, dict):
+                    return "Unknown"
+                return (meta_dict.get("full_name") or 
+                       meta_dict.get("name") or 
+                       meta_dict.get("display_name") or 
+                       "Unknown")
+            
+            def extract_avatar_from_meta(meta_dict):
+                if not isinstance(meta_dict, dict):
+                    return None
+                return meta_dict.get("avatar_url") or meta_dict.get("picture")
+            
+            if isinstance(user, dict):
+                meta = user.get("user_metadata")
+                name = extract_name_from_meta(meta)
+                avatar_url = extract_avatar_from_meta(meta)
+            else:
+                meta = getattr(user, "user_metadata", None)
+                name = extract_name_from_meta(meta if isinstance(meta, dict) else None)
+                avatar_url = extract_avatar_from_meta(meta if isinstance(meta, dict) else None)
+            
+            # Try to get custom avatar from storage
+            ps = supabase.table("profiles").select("avatar_path").eq("user_id", str(partner_id)).limit(1).execute()
+            p_path = (ps.data[0].get("avatar_path") if ps.data else None) if not getattr(ps, "error", None) else None
+            custom_avatar_url = _signed_url_from_path(p_path) if p_path else None
+            
+            return {
+                "linked": True,
+                "partner": {
+                    "name": name,
+                    "avatar_url": custom_avatar_url ?? avatar_url
+                }
+            }
+            
+        except Exception as e:
+            print(f"[Partner Info] Error fetching partner info for {partner_id}: {e}")
+            return {"linked": True, "partner": {"name": "Unknown", "avatar_url": None}}
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
