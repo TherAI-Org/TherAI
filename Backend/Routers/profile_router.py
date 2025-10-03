@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from ..auth import get_current_user
-from ..Database.link_repo import get_partner_user_id
+from ..Database.link_repo import get_partner_user_id, get_link_status_for_user
 from ..Database.supabase_client import supabase
 
 router = APIRouter(prefix = "/profile", tags = ["profile"])
