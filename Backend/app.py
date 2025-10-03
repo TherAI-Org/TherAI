@@ -206,6 +206,12 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
         except Exception as e:
             print(f"Context retrieval warning (stream): {e}")
 
+        # Resolve Partner A id for labeling and partner message generation
+        try:
+            a_id = uuid.UUID(linked_session["user_a_id"]) if linked_session and linked_session.get("user_a_id") else user_uuid  # type: ignore[index]
+        except Exception:
+            a_id = user_uuid
+
         def iter_sse():
             # Anti-buffering prelude (2KB of comments) to force flush through some proxies/CDNs
             yield (":" + " " * 2048 + "\n\n").encode()
@@ -214,8 +220,36 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             yield f"event: session\ndata: {sess_payload}\n\n".encode()
 
             full_text_parts = []
+            final_text = ""
             try:
                 print(f"[SSE] /chat stream start session_id={session_uuid}")
+                # AI-only detection of partner message intent
+                is_partner_message_request = personal_agent._is_requesting_partner_message(request.message)
+
+                if is_partner_message_request:
+                    try:
+                        partner_message = personal_agent.generate_partner_message(
+                            user_message = request.message,
+                            chat_history = chat_history_for_agent,
+                            dialogue_context = dialogue_context,
+                            partner_context = partner_context,
+                            user_a_id = a_id,
+                        )
+                        formatted = f"💬 **Message for your partner:**\n\n{partner_message}" if partner_message else ""
+                        if formatted:
+                            words = formatted.split(' ')
+                            for i, word in enumerate(words):
+                                chunk = word + (' ' if i < len(words) - 1 else '')
+                                full_text_parts.append(chunk)
+                                yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
+                            final_text = formatted
+                        else:
+                            # Fallback to regular response
+                            is_partner_message_request = False
+                    except Exception as e:
+                        print(f"[SSE] partner message generation error: {e}")
+                        is_partner_message_request = False
+
                 input_messages = [{"role": "system", "content": personal_agent.system_prompt}] if hasattr(personal_agent, "system_prompt") else []
                 # Optional focus snippet: inject before user message if provided
                 if getattr(request, "focus_snippet", None):
@@ -248,40 +282,41 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                     input_messages.append({"role": "system", "content": partner_text.strip()})
                 input_messages.append({"role": "user", "content": request.message})
 
-                with personal_agent.client.responses.stream(
-                    model=personal_agent.model,
-                    input=input_messages,
-                ) as stream:  # type: ignore[attr-defined]
-                    used_iterator = False
-                    try:
-                        for delta in stream.text_deltas:  # type: ignore[attr-defined]
-                            used_iterator = True
-                            try:
-                                if delta:
-                                    full_text_parts.append(delta)
-                                    yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                            except Exception:
-                                continue
-                    except Exception:
-                        # Fallback to raw event loop if text_deltas isn't available
-                        for event in stream:
-                            try:
-                                ev_type = getattr(event, "type", "")
-                                if ev_type.endswith("output_text.delta"):
-                                    delta = getattr(event, "delta", "") or ""
+                if not is_partner_message_request:
+                    with personal_agent.client.responses.stream(
+                        model=personal_agent.model,
+                        input=input_messages,
+                    ) as stream:  # type: ignore[attr-defined]
+                        used_iterator = False
+                        try:
+                            for delta in stream.text_deltas:  # type: ignore[attr-defined]
+                                used_iterator = True
+                                try:
                                     if delta:
                                         full_text_parts.append(delta)
                                         yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                                elif ev_type.endswith("error"):
-                                    err = getattr(event, "error", None)
-                                    if err:
-                                        yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
-                            except Exception:
-                                continue
+                                except Exception:
+                                    continue
+                        except Exception:
+                            # Fallback to raw event loop if text_deltas isn't available
+                            for event in stream:
+                                try:
+                                    ev_type = getattr(event, "type", "")
+                                    if ev_type.endswith("output_text.delta"):
+                                        delta = getattr(event, "delta", "") or ""
+                                        if delta:
+                                            full_text_parts.append(delta)
+                                            yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
+                                    elif ev_type.endswith("error"):
+                                        err = getattr(event, "error", None)
+                                        if err:
+                                            yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
+                                except Exception:
+                                    continue
 
-                    final = stream.get_final_response()
-                    final_text = getattr(final, "output_text", None) or "".join(full_text_parts)
-                    print(f"[SSE] /chat stream completed tokens={len(full_text_parts)} final_len={len(final_text)}")
+                        final = stream.get_final_response()
+                        final_text = getattr(final, "output_text", None) or "".join(full_text_parts)
+                        print(f"[SSE] /chat stream completed tokens={len(full_text_parts)} final_len={len(final_text)}")
 
                 # If no tokens were sent during streaming, emit the final text now so clients show something
                 if not full_text_parts and final_text:
