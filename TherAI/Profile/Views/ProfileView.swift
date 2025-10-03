@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct ProfileView: View {
-    private let data: ProfileData = ProfileData.load()
+
+    @State private var showingAvatarSelection = false
 
     @Environment(\.dismiss) private var dismiss
-    @State private var showingAvatarSelection = false
+
+    private var data: ProfileData {
+        ProfileData.load()
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +44,7 @@ struct ProfileView: View {
                             // Profile Header Card
                             RelationshipHeaderView(relationshipHeader: data.relationshipHeader)
 
-                            
+
 
                             // Premium Stats Cards
                             PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
@@ -111,4 +115,7 @@ struct BackgroundView: View {
 
 #Preview {
     ProfileView()
+        .environmentObject(LinkViewModel(accessTokenProvider: {
+            return "mock-token"
+        }))
 }

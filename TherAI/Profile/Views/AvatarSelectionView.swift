@@ -30,4 +30,7 @@ struct AvatarSelectionView: View {
     }
 }
 
-
+#Preview {
+    @Previewable @State var isPresented = true
+    AvatarSelectionView(isPresented: $isPresented)
+}

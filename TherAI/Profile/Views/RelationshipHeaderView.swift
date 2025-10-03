@@ -163,5 +163,8 @@ struct RelationshipHeaderView: View {
         relationshipDuration: "2 years",
         personalityType: "Analytical"
     ))
+    .environmentObject(LinkViewModel(accessTokenProvider: {
+        return "mock-token"
+    }))
     .padding(20)
 }
