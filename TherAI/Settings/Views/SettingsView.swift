@@ -193,6 +193,7 @@ struct SettingsView: View {
             }
         }
         .padding(.bottom, 12)
+        .background(Color(.systemBackground).ignoresSafeArea())
         .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
         .overlay(alignment: .top) {
             StatusBarBackground(showsDivider: false)
