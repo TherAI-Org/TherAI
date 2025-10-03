@@ -64,7 +64,7 @@ class SettingsViewModel: ObservableObject {
                 icon: "heart.text.square",
                 gradient: [Color.pink, Color.purple],
                 settings: [
-                    SettingItem(title: "Link Your Partner", subtitle: "Invite or manage link", type: .navigation, icon: "link")
+                    SettingItem(title: "Link Your Partner", subtitle: "Invite or manage link", type: .linkPartner, icon: "link")
                     // Weekly Reports setting removed
                 ]
             ),
