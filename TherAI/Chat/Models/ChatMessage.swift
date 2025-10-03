@@ -54,23 +54,42 @@ struct ChatMessage: Identifiable {
             let lines = content.components(separatedBy: .newlines)
             var messageLines: [String] = []
             var foundMessage = false
+            var skipMode = false
             
             for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 if trimmed.isEmpty { continue }
                 
-                // Skip conversational intro lines
                 let lowercasedLine = trimmed.lowercased()
+                
+                // Skip conversational intro lines
                 let isIntroLine = conversationalPatterns.contains { pattern in
                     lowercasedLine.contains(pattern)
                 }
                 
-                if !foundMessage && !isIntroLine {
-                    // This might be the start of the actual message
+                // Skip AI footer lines
+                let isFooterLine = lowercasedLine.contains("feel free to tweak") ||
+                                  lowercasedLine.contains("you can adjust") ||
+                                  lowercasedLine.contains("modify if needed") ||
+                                  lowercasedLine.contains("---") ||
+                                  lowercasedLine.contains("tap the button")
+                
+                if isIntroLine {
+                    // Skip intro lines, start looking for message
+                    continue
+                }
+                
+                if isFooterLine {
+                    // Stop collecting when we hit footer lines
+                    break
+                }
+                
+                if !foundMessage && !isIntroLine && !isFooterLine {
+                    // This is the start of the actual message
                     foundMessage = true
                     messageLines.append(line)
-                } else if foundMessage {
-                    // Collect the actual message lines
+                } else if foundMessage && !isFooterLine {
+                    // Continue collecting message lines
                     messageLines.append(line)
                 }
             }
