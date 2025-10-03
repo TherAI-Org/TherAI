@@ -82,6 +82,53 @@ class PersonalAgent:
             print(f"OpenAI API error: {e}")
             return ""
 
+    def _should_offer_partner_message(self, user_message: str, chat_history: list = None) -> bool:
+        """Context-aware detection that considers conversation history for subtle relationship cues."""
+        try:
+            if not user_message:
+                return False
+
+            # Build conversation context for better detection
+            conversation_context = ""
+            if chat_history:
+                conversation_context = "Recent conversation:\n"
+                for msg in chat_history[-5:]:  # Last 5 messages for context
+                    role = "User" if msg.get("role") == "user" else "Assistant"
+                    conversation_context += f"{role}: {msg.get('content', '')}\n"
+                conversation_context += "\nCurrent message: "
+
+            context_aware_prompt = (
+                "You are analyzing a personal therapy conversation to detect if someone is explicitly "
+                "asking for help with WHAT TO SAY to their romantic partner.\n\n"
+                
+                "Consider the conversation context and current message together. Look for:\n"
+                "- Direct requests for help with wording/phrasing for their partner\n"
+                "- Questions about how to communicate something specific to their partner\n"
+                "- Requests for message suggestions to send to their partner\n\n"
+                
+                "Only say YES if the conversation context clearly shows the person wants help with "
+                "expressing something specific to their partner, not just general relationship support.\n\n"
+                
+                "Be conservative. Only say YES when there's clear intent to get help with wording/phrasing.\n\n"
+                "Respond with ONLY YES or NO.\n\n"
+                f"{conversation_context}{user_message}"
+            )
+
+            messages = [{"role": "system", "content": context_aware_prompt}]
+            resp = self.client.responses.create(model=self.model, input=messages, temperature=0)
+            text = getattr(resp, "output_text", None)
+            if not text:
+                parts = []
+                for block in getattr(resp, "output", []) or []:
+                    if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
+                        parts.append(block.text)
+                text = "".join(parts) if parts else ""
+            verdict = (text or "").strip().upper()
+            return verdict.startswith("YES")
+        except Exception as e:
+            print(f"Context-aware partner message detection error: {e}")
+            return False
+
     def _is_requesting_partner_message(self, user_message: str) -> bool:
         """AI-only classifier to detect if user wants a message to send to their partner.
 
@@ -94,26 +141,65 @@ class PersonalAgent:
                 return False
 
             detection_prompt = (
-                "You are a binary classifier. Decide if the user is asking the AI to WRITE a\n"
-                "message to SEND to their romantic partner (spouse, boyfriend, girlfriend, etc.).\n\n"
-                "Say YES if they ask what to say/tell/write/send, or ask you to compose/draft\n"
-                "a message or text for their partner. Say NO if they want general advice or\n"
-                "ask what to do (not what to say).\n\n"
-                "Examples YES:\n"
-                "- How do I tell her that?\n"
-                "- What should I say to him?\n"
-                "- Write a message I can send to my wife.\n"
-                "- Que le digo?\n\n"
-                "Examples NO:\n"
-                "- Should I tell him the truth?\n"
-                "- What should I do about this situation?\n"
-                "- Give me relationship advice.\n\n"
+                "You are a precise classifier for partner message requests. Your job is to detect "
+                "when someone is explicitly asking for help with WHAT TO SAY to their romantic partner.\n\n"
+                
+                "Say YES ONLY if the user is:\n"
+                "- Directly asking what to say/tell/write to their partner\n"
+                "- Requesting help with wording or phrasing for their partner\n"
+                "- Asking for a message to send to their partner\n"
+                "- Wanting help expressing something specific to their partner\n\n"
+                
+                "Direct request patterns (YES):\n"
+                "- 'How do I tell him/her...'\n"
+                "- 'What should I say...'\n"
+                "- 'I need to tell them...'\n"
+                "- 'Give me a message to tell her...'\n"
+                "- 'I was wondering how I could tell...'\n"
+                "- 'Help me tell my partner...'\n"
+                "- 'I want to tell her...'\n"
+                "- 'I should tell him...'\n"
+                "- 'I need to tell her this'\n"
+                "- 'Give a message to tell her I love her'\n"
+                "- 'What can I say to my wife about...'\n"
+                "- 'How do I explain this to him...'\n\n"
+                
+                "Say NO for:\n"
+                "- General relationship advice requests\n"
+                "- Venting about relationship problems without asking for wording\n"
+                "- Asking what to DO (actions, not words)\n"
+                "- General emotional support requests\n"
+                "- Questions about other people's relationships\n"
+                "- Non-relationship topics\n\n"
+                
+                "Be conservative. Only say YES when there's clear intent to get help with wording/phrasing for their partner.\n\n"
+                
+                "Examples that should be YES:\n"
+                "- 'Hey, I was wondering how I could tell my wife we need a divorce...'\n"
+                "- 'I need to tell her this'\n"
+                "- 'Give a message to tell her I love her'\n"
+                "- 'What should I say to my husband about the money issue?'\n"
+                "- 'How do I tell her I'm sorry?'\n"
+                "- 'Help me tell my partner how I feel'\n\n"
+                
+                "Examples that should be NO:\n"
+                "- 'I feel like he doesn't listen to me'\n"
+                "- 'We've been fighting a lot lately'\n"
+                "- 'She seems distant and I don't know why'\n"
+                "- 'I'm frustrated with how things are going'\n"
+                "- 'I'm worried about our relationship'\n"
+                "- 'I'm hurt by what happened yesterday'\n"
+                "- 'We keep having the same argument'\n"
+                "- 'Should I tell him the truth?'\n"
+                "- 'What should I do about this situation?'\n"
+                "- 'I'm stressed about work'\n\n"
+                
                 "Respond with ONLY YES or NO.\n\n"
                 f"User: {user_message}"
             )
 
             messages = [{"role": "system", "content": detection_prompt}]
-            resp = self.client.responses.create(model=self.model, input=messages)
+            resp = self.client.responses.create(model=self.model, input=messages, temperature=0)
             text = getattr(resp, "output_text", None)
             if not text:
                 parts = []
