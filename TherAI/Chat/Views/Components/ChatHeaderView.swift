@@ -31,7 +31,7 @@ struct ChatHeaderView: View {
                                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                 impactFeedback.impactOccurred()
 
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                withAnimation(.easeInOut(duration: 0.15)) {
                                     selectedMode = mode
                                 }
                             }) {
