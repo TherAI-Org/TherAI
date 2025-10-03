@@ -11,6 +11,14 @@ class DialogueViewModel: ObservableObject {
 
     private let backendService = BackendService.shared
     private var acceptedRequestIds: Set<UUID> = []
+    
+    // Track the current session ID to know when we're switching between different sessions
+    private var currentSessionId: UUID?
+    
+    // Cache dialogue messages per session to avoid unnecessary API calls
+    private var messagesCache: [UUID: [DialogueMessage]] = [:]
+    private var cacheTimestamps: [UUID: Date] = [:]
+    private let cacheValiditySeconds: TimeInterval = 300 // 5 minutes
 
     // Sanitizes streamed dialogue text that may arrive as a quoted JSON string
     // - Removes leading/trailing quotes
@@ -102,10 +110,48 @@ class DialogueViewModel: ObservableObject {
         }
     }
 
-    func loadDialogueMessages(sourceSessionId: UUID? = nil) async {
+    func loadDialogueMessages(sourceSessionId: UUID? = nil, forceRefresh: Bool = false) async {
         // Do not overwrite local streaming state while streaming
         if isStreaming { return }
-        isLoading = true
+        
+        // Require a source session id to scope the dialogue
+        guard let sid = sourceSessionId else { 
+            self.errorMessage = "Missing source session id"
+            return 
+        }
+        
+        // Check if we're switching to a different session
+        let isSessionChange = currentSessionId != sid
+        
+        // Handle session switching
+        if isSessionChange {
+            currentSessionId = sid
+            // Don't clear messages immediately - let the UI handle the transition
+        } else if sourceSessionId != nil {
+            currentSessionId = sourceSessionId
+        }
+        
+        // Check cache first for instant loading
+        if !forceRefresh, !isSessionChange, let cachedMessages = messagesCache[sid], let timestamp = cacheTimestamps[sid] {
+            let age = Date().timeIntervalSince(timestamp)
+            if age < cacheValiditySeconds {
+                // Use cached messages for instant display
+                self.messages = cachedMessages
+                isLoading = false
+                // Still refresh in background silently if cache is getting old
+                if age > cacheValiditySeconds * 0.7 { // 70% of cache validity
+                    Task {
+                        await loadDialogueMessages(sourceSessionId: sid, forceRefresh: true)
+                    }
+                }
+                return
+            }
+        }
+        
+        // Show loading only if we don't have any messages to display and it's not a session change
+        if self.messages.isEmpty && !isSessionChange {
+            isLoading = true
+        }
         errorMessage = nil
 
         do {
@@ -113,14 +159,22 @@ class DialogueViewModel: ObservableObject {
                 throw NSError(domain: "Auth", code: -1, userInfo: [NSLocalizedDescriptionKey: "No access token"])
             }
 
-            // Require a source session id to scope the dialogue
-            guard let sid = sourceSessionId else { throw NSError(domain: "Dialogue", code: -2, userInfo: [NSLocalizedDescriptionKey: "Missing source session id"]) }
             let response = try await backendService.getDialogueMessages(accessToken: accessToken, sourceSessionId: sid)
-            self.messages = response.messages
+            
+            // Update cache
+            messagesCache[sid] = response.messages
+            cacheTimestamps[sid] = Date()
+            
+            // Update messages with smooth transition
+            await MainActor.run {
+                self.messages = response.messages
+                self.errorMessage = nil
+            }
 
-            // Don't auto-accept pending requests - they should only be accepted when explicitly clicked
         } catch {
-            self.errorMessage = "Failed to load dialogue messages: \(error.localizedDescription)"
+            await MainActor.run {
+                self.errorMessage = "Failed to load dialogue messages: \(error.localizedDescription)"
+            }
         }
 
         isLoading = false
@@ -272,6 +326,8 @@ class DialogueViewModel: ObservableObject {
                         self.messages = newMessages
                     }
                     isLoading = false
+                    // Switch to dialogue tab after successful message send
+                    onSwitchToDialogue?()
                 case .error(let msg):
                     fallbackTask.cancel()
                     print("[Dialogue] Stream error: \(msg)")
@@ -285,9 +341,11 @@ class DialogueViewModel: ObservableObject {
             if !receivedAnyEvent {
                 print("[Dialogue] No SSE events received — server may have returned non-200 or no body")
             }
-            // Stop streaming first, then reconcile with server state
+                    // Stop streaming first, then reconcile with server state
             isStreaming = false
-            await loadDialogueMessages(sourceSessionId: sessionId)
+            // Clear cache to ensure we get the latest messages from server
+            clearCache(for: sessionId)
+            await loadDialogueMessages(sourceSessionId: sessionId, forceRefresh: true)
 
         } catch {
             self.errorMessage = "Failed to send to partner: \(error.localizedDescription)"
@@ -320,6 +378,53 @@ class DialogueViewModel: ObservableObject {
         } catch {
             self.errorMessage = "Failed to mark request as accepted: \(error.localizedDescription)"
         }
+    }
+    
+    /// Clear dialogue messages for the current session
+    /// This ensures a clean state when switching between chat sessions
+    func clearMessages() {
+        self.messages = []
+        self.errorMessage = nil
+        self.currentSessionId = nil
+        self.isLoading = false
+    }
+    
+    /// Force clear messages and reset session tracking
+    /// Use this when explicitly switching to a different chat session
+    func clearMessagesForNewSession(_ newSessionId: UUID) {
+        self.messages = []
+        self.errorMessage = nil
+        self.currentSessionId = newSessionId
+    }
+    
+    /// Clear cache for a specific session (useful when messages are updated)
+    func clearCache(for sessionId: UUID) {
+        messagesCache.removeValue(forKey: sessionId)
+        cacheTimestamps.removeValue(forKey: sessionId)
+    }
+    
+    /// Load messages for a new session with smooth transition
+    /// This provides instant loading from cache when possible
+    func loadMessagesForNewSession(_ newSessionId: UUID) async {
+        currentSessionId = newSessionId
+        
+        // Try to load from cache first for instant display
+        if let cachedMessages = messagesCache[newSessionId], let timestamp = cacheTimestamps[newSessionId] {
+            let age = Date().timeIntervalSince(timestamp)
+            if age < cacheValiditySeconds {
+                // Show cached messages immediately
+                self.messages = cachedMessages
+                isLoading = false
+                // Still refresh in background to ensure we have latest data
+                Task {
+                    await loadDialogueMessages(sourceSessionId: newSessionId, forceRefresh: true)
+                }
+                return
+            }
+        }
+        
+        // No cache available, load fresh
+        await loadDialogueMessages(sourceSessionId: newSessionId, forceRefresh: true)
     }
 }
 
