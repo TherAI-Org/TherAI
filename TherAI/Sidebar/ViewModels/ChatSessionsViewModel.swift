@@ -10,6 +10,7 @@ class ChatSessionsViewModel: ObservableObject {
     @Published var chatViewKey: UUID = UUID()
     @Published var myAvatarURL: String? = nil
     @Published var partnerAvatarURL: String? = nil
+    @Published var partnerInfo: BackendService.PartnerInfo? = nil
 
     var onSwitchToDialogue: (() -> Void)?
     var onRefreshPendingRequests: (() -> Void)?
@@ -118,6 +119,7 @@ class ChatSessionsViewModel: ObservableObject {
             await loadSessions()
             await loadPendingRequests()
             await loadPairedAvatars()
+            await loadPartnerInfo()
         }
 
         // Session created
@@ -164,6 +166,19 @@ class ChatSessionsViewModel: ObservableObject {
             }
         } catch {
             print("Failed to load avatars: \(error)")
+        }
+    }
+    
+    func loadPartnerInfo() async {
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let accessToken = session.accessToken
+            let res = try await BackendService.shared.fetchPartnerInfo(accessToken: accessToken)
+            await MainActor.run {
+                self.partnerInfo = res
+            }
+        } catch {
+            print("Failed to load partner info: \(error)")
         }
     }
 
