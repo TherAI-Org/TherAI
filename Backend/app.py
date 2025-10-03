@@ -301,11 +301,32 @@ Just respond with the conversational introduction, nothing else."""
                                 yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
                             final_text = formatted
                         else:
-                            # Fallback to regular response
-                            is_partner_message_request = False
+                            # If partner message generation failed, create a fallback message
+                            print(f"[DEBUG] Partner message generation failed, creating fallback")
+                            fallback_message = "I understand you want to communicate with your partner. Let me help you express your feelings clearly."
+                            fallback_formatted = f"{intro_text}\n\n{fallback_message}"
+                            words = fallback_formatted.split(' ')
+                            for i, word in enumerate(words):
+                                chunk = word + (' ' if i < len(words) - 1 else '')
+                                full_text_parts.append(chunk)
+                                yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
+                            final_text = fallback_formatted
                     except Exception as e:
                         print(f"[SSE] partner message generation error: {e}")
-                        is_partner_message_request = False
+                        # Create a fallback partner message instead of falling back to regular response
+                        try:
+                            intro_text = "Here's a message for your partner:"
+                            fallback_message = "I understand you want to communicate with your partner. Let me help you express your feelings clearly."
+                            fallback_formatted = f"{intro_text}\n\n{fallback_message}"
+                            words = fallback_formatted.split(' ')
+                            for i, word in enumerate(words):
+                                chunk = word + (' ' if i < len(words) - 1 else '')
+                                full_text_parts.append(chunk)
+                                yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
+                            final_text = fallback_formatted
+                        except Exception as fallback_error:
+                            print(f"[SSE] Fallback partner message also failed: {fallback_error}")
+                            is_partner_message_request = False
 
                 input_messages = [{"role": "system", "content": personal_agent.system_prompt}] if hasattr(personal_agent, "system_prompt") else []
                 # Optional focus snippet: inject before user message if provided
