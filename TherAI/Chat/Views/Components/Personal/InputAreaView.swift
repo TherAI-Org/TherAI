@@ -112,15 +112,36 @@ struct InputAreaView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(
+            Group {
+                if #available(iOS 26.0, *) {
+                    // iOS 26+ Liquid Glass effect using .glassEffect()
+                    Color.clear
+                        .glassEffect()
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                } else {
+                    // Fallback for older iOS versions
+                    Color.clear
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+            }
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(
-                    colorScheme == .dark ?
-                        Color.white.opacity(0.15) :
-                        Color.black.opacity(0.08),
-                    lineWidth: 1
-                )
+            Group {
+                if #available(iOS 26.0, *) {
+                    // No border for iOS 26+ glass effect
+                    EmptyView()
+                } else {
+                    // Keep border for older iOS versions
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(
+                            colorScheme == .dark ?
+                                Color.white.opacity(0.15) :
+                                Color.black.opacity(0.08),
+                            lineWidth: 1
+                        )
+                }
+            }
         )
         .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
