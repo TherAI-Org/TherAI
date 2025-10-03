@@ -58,35 +58,7 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Haptic Feedback", subtitle: "Vibration feedback for interactions", type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]
             ),
-            // 2. Chat Settings → Message Sound, Typing Indicator
-            SettingsSection(
-                title: "Chat Settings",
-                icon: "message",
-                gradient: [Color.green, Color.teal],
-                settings: [
-                    SettingItem(title: "Message Sound", subtitle: "Play sound for new messages", type: .toggle(settingsData.messageSoundEnabled), icon: "speaker.wave.2")
-                ]
-            ),
-            // 3. Privacy & Data → Clear All Chat History
-            SettingsSection(
-                title: "Privacy & Data",
-                icon: "lock.shield",
-                gradient: [Color.orange, Color.red],
-                settings: [
-                    SettingItem(title: "Clear All Chat History", subtitle: "Also resets insights after refresh", type: .action, icon: "trash")
-                ]
-            ),
-            // 4. Relationship Insights → Weekly Reports
-            SettingsSection(
-                title: "Relationship Insights",
-                icon: "heart.text.square",
-                gradient: [Color.pink, Color.purple],
-                settings: [
-                    SettingItem(title: "Link Your Partner", subtitle: "Invite or manage link", type: .navigation, icon: "link"),
-                    SettingItem(title: "Weekly Reports", subtitle: "Get weekly relationship insights", type: .toggle(settingsData.weeklyReports), icon: "calendar")
-                ]
-            ),
-            // 5. Account → Account Settings, Sign Out
+            // 2. Account → Account Settings, Sign Out
             SettingsSection(
                 title: "Account",
                 icon: "person.circle",
@@ -96,7 +68,7 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Sign Out", subtitle: "Sign out of your account", type: .action, icon: "rectangle.portrait.and.arrow.right")
                 ]
             ),
-            // 6. About → Version, Help & Support
+            // 3. About → Version, Help & Support
             SettingsSection(
                 title: "About",
                 icon: "info.circle",
@@ -120,11 +92,6 @@ class SettingsViewModel: ObservableObject {
             if settingsData.hapticFeedbackEnabled {
                 Haptics.selection()
             }
-        case ("Chat Settings", "Auto Scroll"):
-            break
-        case ("Chat Settings", "Message Sound"):
-            settingsData.messageSoundEnabled.toggle()
-
         default:
             break
         }
@@ -142,11 +109,6 @@ class SettingsViewModel: ObservableObject {
             Task {
                 await AuthService.shared.signOut()
             }
-        case "Link Your Partner":
-            destination = .link
-        case "Clear All Chat History":
-            // Will clear conversations and reset insights in a later implementation
-            break
         case "Notifications":
             // Navigate to notifications detail view
             break
