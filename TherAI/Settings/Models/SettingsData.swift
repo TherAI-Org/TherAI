@@ -8,15 +8,11 @@ struct SettingsData: Codable {
     var darkModeEnabled: Bool = false
     var hapticFeedbackEnabled: Bool = true
 
-    // Chat Settings - Save Chats, Message Sound, Typing Indicator
+    // Chat Settings - Save Chats, Typing Indicator
     var saveChatsEnabled: Bool = true
-    var messageSoundEnabled: Bool = true
 
     // Privacy & Data - Crash Reports only
     var crashReportingEnabled: Bool = true
-
-    // Relationship Insights - Weekly Reports
-    var weeklyReports: Bool = true
 
     init() {
         // Default settings
