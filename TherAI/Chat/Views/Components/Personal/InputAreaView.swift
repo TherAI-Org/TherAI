@@ -107,12 +107,6 @@ struct InputAreaView: View {
                     }) {
                         Label("Send to Personal", systemImage: "person.circle")
                     }
-
-                    Button(action: {
-                        onSendToPartner()
-                    }) {
-                        Label("Send to Partner", systemImage: "heart.circle")
-                    }
                 }
             }
         }
