@@ -160,6 +160,9 @@ struct SettingsView: View {
                         // Settings cards sections
                         if showCards {
                             VStack(spacing: 24) {
+                                // Inline Link Your Partner card
+                                InlineLinkCardView(linkViewModel: linkVM)
+                                
                                 ForEach(Array(viewModel.settingsSections.enumerated()), id: \.offset) { sectionIndex, section in
                                     SettingsCardView(
                                         section: section,
@@ -185,11 +188,6 @@ struct SettingsView: View {
                 .background(Color.clear)
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .animation(.easeInOut(duration: 0.2), value: showingAvatarSelection)
-                .navigationDestination(item: $viewModel.destination) { destination in
-                    MainLinkView(viewModel: linkVM)
-                        .navigationTitle("Link Your Partner")
-                        .navigationBarTitleDisplayMode(.inline)
-                }
             }
         }
         .padding(.bottom, 12)
