@@ -16,7 +16,6 @@ from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
 from .Routers.dialogue_router import router as dialogue_router
 from .Routers.profile_router import router as profile_router
-from .Routers.relationship_router import router as relationship_router
 
 app = FastAPI()
 
@@ -24,7 +23,6 @@ app.include_router(aasa_router)
 app.include_router(link_router)
 app.include_router(dialogue_router)
 app.include_router(profile_router)
-app.include_router(relationship_router)
 
 personal_agent = PersonalAgent()
 
@@ -237,7 +235,64 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                             partner_context = partner_context,
                             user_a_id = a_id,
                         )
-                        formatted = f"💬 **Message for your partner:**\n\n{partner_message}" if partner_message else ""
+                        # Remove surrounding quotes from partner message if present
+                        cleaned_message = partner_message.strip()
+                        # Debug: log the original message
+                        print(f"[DEBUG] Original partner message: '{partner_message}'")
+                        
+                        # Remove various types of quotes from start and end
+                        quote_types = ['"', "'", '"', '"', ''', ''']
+                        for quote in quote_types:
+                            if cleaned_message.startswith(quote) and cleaned_message.endswith(quote) and len(cleaned_message) > len(quote) * 2:
+                                cleaned_message = cleaned_message[len(quote):-len(quote)]
+                                print(f"[DEBUG] Removed quotes, cleaned message: '{cleaned_message}'")
+                                break
+                        
+                        # Also remove any remaining quotes from the entire message as a fallback
+                        if '"' in cleaned_message or "'" in cleaned_message:
+                            # Only remove quotes if they appear to be wrapping the entire message
+                            temp = cleaned_message.strip()
+                            if (temp.startswith('"') and temp.endswith('"')) or (temp.startswith("'") and temp.endswith("'")):
+                                cleaned_message = temp[1:-1]
+                                print(f"[DEBUG] Fallback quote removal: '{cleaned_message}'")
+                        
+                        # Generate a conversational introduction for the message
+                        try:
+                            intro_prompt = f"""The user asked for help with a message to send to their partner. Generate a brief, warm conversational response that introduces the message you're about to provide.
+
+Examples:
+- "Yes, of course! Here's a message for your wife:"
+- "I'd be happy to help! Here's something you can tell your partner:"
+- "Absolutely! Here's a message for your husband:"
+- "Of course! Here's what you can say to them:"
+
+Keep it brief, warm, and natural. The user's request was: "{request.message}"
+
+Just respond with the conversational introduction, nothing else."""
+
+                            intro_messages = [
+                                {"role": "system", "content": intro_prompt}
+                            ]
+                            intro_resp = personal_agent.client.responses.create(
+                                model=personal_agent.model, 
+                                input=intro_messages, 
+                                temperature=0.7
+                            )
+                            
+                            intro_text = getattr(intro_resp, "output_text", None)
+                            if not intro_text:
+                                parts = []
+                                for block in getattr(intro_resp, "output", []) or []:
+                                    if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
+                                        parts.append(block.text)
+                                intro_text = "".join(parts) if parts else "Here's a message for your partner:"
+                            
+                            intro_text = intro_text.strip()
+                        except Exception as e:
+                            print(f"[DEBUG] Error generating intro: {e}")
+                            intro_text = "Here's a message for your partner:"
+                        
+                        formatted = f"{intro_text}\n\n{cleaned_message}" if cleaned_message else ""
                         if formatted:
                             words = formatted.split(' ')
                             for i, word in enumerate(words):
