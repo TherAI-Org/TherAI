@@ -32,24 +32,74 @@ struct ChatMessage: Identifiable {
 
     // Extracts the clean partner message from the formatted content
     static func parsePartnerMessage(_ content: String) -> (isPartner: Bool, content: String?) {
-        let marker = "💬 **Message for your partner:**"
-        guard content.contains(marker) else { return (false, nil) }
-
-        let lines = content.components(separatedBy: .newlines)
-        var began = false
-        var body: [String] = []
-        for line in lines {
-            if line.contains(marker) { began = true; continue }
-            if began {
-                // skip heading-like markdown or blank-only decoration
+        // Check for conversational format (intro + message)
+        // Look for patterns that suggest this is a partner message with conversational intro
+        let conversationalPatterns = [
+            "here's a message for your",
+            "here's what you can say",
+            "here's something you can tell",
+            "yes, of course!",
+            "i'd be happy to help!",
+            "absolutely!",
+            "of course!"
+        ]
+        
+        let lowercasedContent = content.lowercased()
+        let hasConversationalIntro = conversationalPatterns.contains { pattern in
+            lowercasedContent.contains(pattern)
+        }
+        
+        if hasConversationalIntro {
+            // This is likely a conversational format - extract the actual message
+            let lines = content.components(separatedBy: .newlines)
+            var messageLines: [String] = []
+            var foundMessage = false
+            
+            for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("**") { continue }
-                // ignore any legacy footer if present
-                if trimmed.localizedCaseInsensitiveContains("this message is ready") { break }
-                body.append(line)
+                if trimmed.isEmpty { continue }
+                
+                // Skip conversational intro lines
+                let lowercasedLine = trimmed.lowercased()
+                let isIntroLine = conversationalPatterns.contains { pattern in
+                    lowercasedLine.contains(pattern)
+                }
+                
+                if !foundMessage && !isIntroLine {
+                    // This might be the start of the actual message
+                    foundMessage = true
+                    messageLines.append(line)
+                } else if foundMessage {
+                    // Collect the actual message lines
+                    messageLines.append(line)
+                }
+            }
+            
+            let cleaned = messageLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty {
+                return (true, cleaned)
             }
         }
-        let cleaned = body.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return (true, cleaned.isEmpty ? nil : cleaned)
+        
+        // Check for old format with "💬 **Message for your partner:**"
+        let oldMarker = "💬 **Message for your partner:**"
+        if content.contains(oldMarker) {
+            let lines = content.components(separatedBy: .newlines)
+            var began = false
+            var body: [String] = []
+            for line in lines {
+                if line.contains(oldMarker) { began = true; continue }
+                if began {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("**") { continue }
+                    if trimmed.localizedCaseInsensitiveContains("this message is ready") { break }
+                    body.append(line)
+                }
+            }
+            let cleaned = body.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            return (true, cleaned.isEmpty ? nil : cleaned)
+        }
+        
+        return (false, nil)
     }
 }
