@@ -2,120 +2,217 @@ import SwiftUI
 
 struct ProfileView: View {
 
+    @Binding var isPresented: Bool
+
+    @State private var showContent = false
     @State private var showingAvatarSelection = false
+    @State private var showCards = false
+    @State private var showTogetherCapsule = false
 
-    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
 
-    private var data: ProfileData {
-        ProfileData.load()
-    }
+    private let data: ProfileData = ProfileData.load()
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Inline header with centered title and trailing close button
-            ZStack {
-                Text("Profile")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+    let profileNamespace: Namespace.ID
+    let linkedMonthYear: String?
 
-                HStack {
-                    Spacer()
-                    Button(action: { dismiss() }) {
-                        Text("Done")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.primary)
-                    }
-                    .offset(x: -10)
-                    .accessibilityLabel("Close")
+    @ViewBuilder
+    private func avatarCircle(url: String?, size: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.26, green: 0.58, blue: 1.00),
+                            Color(red: 0.63, green: 0.32, blue: 0.98)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.9), lineWidth: 2)
+                )
+
+            if let urlStr = url, let u = URL(string: urlStr) {
+                AsyncImage(url: u) { img in
+                    img.resizable().scaledToFill()
+                } placeholder: {
+                    ProgressView()
+                        .tint(.white)
                 }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(.systemBackground))
-
-            Divider()
-
-            Group {
-                ZStack {
-                    BackgroundView()
-
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            // Profile Header Card
-                            RelationshipHeaderView(relationshipHeader: data.relationshipHeader)
-
-
-
-                            // Premium Stats Cards
-                            PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
-
-                            // Premium Relationship Insights
-                            RelationshipInsightsSectionView()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                    }
-                    .scrollIndicators(.hidden)
-                }
+                .frame(width: size, height: size)
+                .clipShape(Circle())
             }
         }
-        .overlay(
-            showingAvatarSelection ?
-            ZStack {
-                // Dimmed background
-                Color.black.opacity(0.4)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showingAvatarSelection = false
-                        }
-                    }
-
-                // Avatar selection card
-                AvatarSelectionView(isPresented: $showingAvatarSelection)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.8).combined(with: .opacity),
-                        removal: .scale(scale: 0.8).combined(with: .opacity)
-                    ))
-            }
-            .animation(.easeInOut(duration: 0.3), value: showingAvatarSelection)
-            : nil
-        )
-        .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
     }
-}
 
-struct BackgroundView: View {
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(.systemGray6),
-                    Color(.systemBackground)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        HStack {
+                            Spacer()
+                            Button(action: { withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { isPresented = false } }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                    .padding(12)
+                                    .background(.ultraThinMaterial, in: Circle())
+                            }
+                        }
+
+                        ZStack {
+                            avatarCircle(url: sessionsVM.partnerAvatarURL, size: 84)
+                                .offset(x: 30)
+                                .matchedGeometryEffect(id: "avatarPartner", in: profileNamespace)
+
+                            avatarCircle(url: sessionsVM.myAvatarURL, size: 84)
+                                .offset(x: -30)
+                                .matchedGeometryEffect(id: "avatarUser", in: profileNamespace)
+                        }
+                        .padding(.top, -24)
+                        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 4)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+
+                        if showTogetherCapsule, let monthYear = linkedMonthYear {
+                            HStack {
+                                Spacer(minLength: 0)
+                                HStack(spacing: 6) {
+                                    Image(systemName: "heart.fill")
+                                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                        .font(.system(size: 12))
+                                    Text("Together since \(monthYear)")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(Color(.systemGray6))
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
+                                        )
+                                        .shadow(color: .black.opacity(0.05), radius: 6, x: 0, y: 3)
+                                )
+                                Spacer(minLength: 0)
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+
+                        if showCards {
+                            HStack {
+                                Spacer(minLength: 0)
+                                Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = true } }) {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: "person.2.circle")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                        Text("Edit Avatars")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(.primary)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color(.systemGray6))
+                                            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
+                                            .overlay(
+                                                Capsule()
+                                                    .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
+                                            )
+                                    )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                Spacer(minLength: 0)
+                            }
+
+                            PremiumStatsCardsView(viewModel: PremiumStatsViewModel(), stats: data.profileStats)
+
+                            RelationshipInsightsSectionView()
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
+                }
+                .scrollIndicators(.hidden)
+                .background(Color.clear)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            .padding(.bottom, 12)
+            .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
+            .onAppear {
+                showTogetherCapsule = false
+                showCards = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                    withAnimation(
+                        .spring(response: 0.28, dampingFraction: 0.94)
+                    ) {
+                        showTogetherCapsule = true
+                        showCards = true
+                    }
+                }
+            }
+            .overlay(
+                Group {
+                    if showingAvatarSelection {
+                        ZStack {
+                            Color.black.opacity(0.1)
+                                .ignoresSafeArea()
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = false }
+                                }
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Spacer()
+                                    Button(action: { withAnimation(.easeInOut(duration: 0.25)) { showingAvatarSelection = false } }) {
+                                        Image(systemName: "xmark")
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .foregroundColor(.primary)
+                                            .padding(8)
+                                            .background(.ultraThinMaterial, in: Circle())
+                                    }
+                                }
+                                .padding(.top, 4)
+
+                                SettingsAvatarPickerView(viewModel: SettingsViewModel())
+                                    .frame(maxWidth: 520)
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                    .fill(Color(.systemBackground))
+                                    .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 10)
+                            )
+                            .padding(.horizontal, 24)
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.9).combined(with: .opacity),
+                                    removal: .scale(scale: 0.9).combined(with: .opacity)
+                                ))
+                        }
+                        .animation(.easeInOut(duration: 0.25), value: showingAvatarSelection)
+                    }
+                }
             )
-            .ignoresSafeArea()
-
-            Circle()
-                .fill(Color.pink.opacity(0.1))
-                .frame(width: 200, height: 200)
-                .blur(radius: 50)
-                .offset(x: -100, y: -200)
-
-            Circle()
-                .fill(Color.blue.opacity(0.1))
-                .frame(width: 150, height: 150)
-                .blur(radius: 40)
-                .offset(x: 150, y: 100)
         }
+        .animation(.spring(response: 0.32, dampingFraction: 0.92, blendDuration: 0), value: isPresented)
     }
 }
 
 #Preview {
-    ProfileView()
-        .environmentObject(LinkViewModel(accessTokenProvider: {
-            return "mock-token"
-        }))
+    @Previewable @State var isPresented = true
+    @Previewable @Namespace var namespace
+
+    ProfileView(
+        isPresented: $isPresented,
+        profileNamespace: namespace,
+        linkedMonthYear: "October 2025"
+    )
+    .environmentObject(ChatSessionsViewModel())
 }
