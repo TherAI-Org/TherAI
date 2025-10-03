@@ -244,13 +244,16 @@ async def create_dialogue_request_endpoint(request: DialogueRequestBody, current
             source_session_id=request.session_id
         )
 
-        # Generate dialogue content
-        dialogue_content = dialogue_agent.generate_dialogue_response(
-            current_partner_history=current_personal_history,
-            other_partner_history=partner_personal_history,
-            dialogue_history=dialogue_history,
-            user_a_id=a_id,
-        )
+        # Use provided message verbatim if present; else generate via agent
+        if request.message and request.message.strip():
+            dialogue_content = request.message.strip()
+        else:
+            dialogue_content = dialogue_agent.generate_dialogue_response(
+                current_partner_history=current_personal_history,
+                other_partner_history=partner_personal_history,
+                dialogue_history=dialogue_history,
+                user_a_id=a_id,
+            )
 
         # Handle request creation/update
         return await _handle_request_creation(
@@ -604,36 +607,48 @@ async def create_dialogue_request_stream(request: DialogueRequestBody, current_u
             # Send dialogue_session_id to client first
             yield f"event: dialogue_session\ndata: {json.dumps(str(dialogue_session_id))}\n\n".encode()
             parts = []
+            final_text = ""
             try:
                 print(f"[SSE] /dialogue stream start dialogue_session_id={dialogue_session_id}")
-                with dialogue_agent.client.responses.stream(model=dialogue_agent.model, input=input_messages) as stream:  # type: ignore[attr-defined]
-                    try:
-                        for delta in stream.text_deltas:  # type: ignore[attr-defined]
-                            try:
-                                if delta:
-                                    parts.append(delta)
-                                    yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                            except Exception:
-                                continue
-                    except Exception:
-                        for event in stream:
-                            try:
-                                ev_type = getattr(event, "type", "")
-                                if ev_type.endswith("output_text.delta"):
-                                    delta = getattr(event, "delta", "") or ""
+                provided_text = (request.message or "").strip()
+                if provided_text:
+                    # Verbatim streaming
+                    words = provided_text.split(" ")
+                    for i, word in enumerate(words):
+                        chunk = word + (" " if i < len(words) - 1 else "")
+                        parts.append(chunk)
+                        yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
+                    final_text = provided_text
+                    print(f"[SSE] /dialogue stream (verbatim) completed tokens={len(words)} final_len={len(final_text)}")
+                else:
+                    with dialogue_agent.client.responses.stream(model=dialogue_agent.model, input=input_messages) as stream:  # type: ignore[attr-defined]
+                        try:
+                            for delta in stream.text_deltas:  # type: ignore[attr-defined]
+                                try:
                                     if delta:
                                         parts.append(delta)
                                         yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                                elif ev_type.endswith("error"):
-                                    err = getattr(event, "error", None)
-                                    if err:
-                                        yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
-                            except Exception:
-                                continue
+                                except Exception:
+                                    continue
+                        except Exception:
+                            for event in stream:
+                                try:
+                                    ev_type = getattr(event, "type", "")
+                                    if ev_type.endswith("output_text.delta"):
+                                        delta = getattr(event, "delta", "") or ""
+                                        if delta:
+                                            parts.append(delta)
+                                            yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
+                                    elif ev_type.endswith("error"):
+                                        err = getattr(event, "error", None)
+                                        if err:
+                                            yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
+                                except Exception:
+                                    continue
 
-                    final = stream.get_final_response()
-                    final_text = getattr(final, "output_text", None) or "".join(parts)
-                    print(f"[SSE] /dialogue stream completed tokens={len(parts)} final_len={len(final_text)}")
+                        final = stream.get_final_response()
+                        final_text = getattr(final, "output_text", None) or "".join(parts)
+                        print(f"[SSE] /dialogue stream completed tokens={len(parts)} final_len={len(final_text)}")
 
                 # If nothing streamed, at least emit the final text once
                 if not parts and final_text:
