@@ -140,7 +140,7 @@ class DialogueViewModel: ObservableObject {
         }
     }
 
-    func sendToPartner(sessionId: UUID) async {
+    func sendToPartner(sessionId: UUID, customMessage: String? = nil) async {
         isLoading = true
         errorMessage = nil
         isStreaming = true
@@ -151,7 +151,7 @@ class DialogueViewModel: ObservableObject {
             }
 
             let request = DialogueRequestBody(
-                message: "",
+                message: customMessage ?? "",
                 sessionId: sessionId
             )
 
