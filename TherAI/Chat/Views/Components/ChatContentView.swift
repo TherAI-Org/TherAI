@@ -14,6 +14,7 @@ struct ChatContentView: View {
 
     @State private var showPersonalPreScrollOverlay: Bool = false
     @State private var preScrollToken: Int = 0
+    @State private var animationID = UUID()
 
     var body: some View {
         ZStack {
@@ -96,6 +97,11 @@ struct ChatContentView: View {
             .opacity(selectedMode == .dialogue ? 1 : 0)
             .allowsHitTesting(selectedMode == .dialogue)
             .zIndex(selectedMode == .dialogue ? 1 : 0)
+        }
+        .animation(.easeOut(duration: 0.15), value: selectedMode)
+        .id(animationID)
+        .onChange(of: selectedMode) { _, _ in
+            animationID = UUID()
         }
     }
 }
