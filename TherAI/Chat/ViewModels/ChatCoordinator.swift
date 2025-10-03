@@ -26,9 +26,24 @@ struct ChatCoordinator {
     ) {
         if let sessionId = newSessionId {
             Task { await viewModel.presentSession(sessionId) }
+            
+            // Load dialogue messages for new session with smooth transition
+            Task {
+                await dialogueViewModel.loadMessagesForNewSession(sessionId)
+            }
+            
             checkIfDialogueSession(sessionId: sessionId, dialogueViewModel: dialogueViewModel, setDialogueSessionId: setDialogueSessionId)
 
             if let dId = dialogueSessionId, sessionId != dId, selectedMode == .dialogue {
+                setSelectedMode(.personal)
+            }
+        } else {
+            // New chat session - clear dialogue messages and reset dialogue state
+            dialogueViewModel.clearMessages()
+            setDialogueSessionId(nil)
+            
+            // Switch to personal mode for new chat
+            if selectedMode == .dialogue {
                 setSelectedMode(.personal)
             }
         }
@@ -48,7 +63,12 @@ struct ChatCoordinator {
             if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
         }
 
-        dialogueViewModel.onSwitchToDialogue = nil
+        dialogueViewModel.onSwitchToDialogue = {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                setSelectedMode(.dialogue)
+            }
+            if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
+        }
 
         dialogueViewModel.onRefreshPendingRequests = {
             refreshPending()
@@ -66,14 +86,20 @@ struct ChatCoordinator {
     ) {
         if newValue {
             setInputFocused(false)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            withAnimation(.easeInOut(duration: 0.15)) {
                 if selectedMode != .dialogue { setSelectedMode(.dialogue) }
             }
-            Task {
-                if let sid = sessionsViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
+            // Load dialogue messages for current session (messages will persist if already loaded)
+            // Only load if we don't have messages for this session
+            if dialogueViewModel.messages.isEmpty {
+                Task {
+                    if let sid = sessionsViewModel.activeSessionId { 
+                        await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) 
+                    }
+                }
             }
         } else {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+            withAnimation(.easeInOut(duration: 0.15)) {
                 if selectedMode == .dialogue { setSelectedMode(.personal) }
             }
         }
@@ -92,8 +118,14 @@ struct ChatCoordinator {
     ) {
         if newMode == .dialogue {
             setInputFocused(false)
-            Task {
-                if let sid = sessionsViewModel.activeSessionId { await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) }
+            // Load dialogue messages for current session (messages will persist if already loaded)
+            // Only load if we don't have messages for this session
+            if dialogueViewModel.messages.isEmpty {
+                Task {
+                    if let sid = sessionsViewModel.activeSessionId { 
+                        await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) 
+                    }
+                }
             }
             if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
         } else if newMode == .personal {
