@@ -333,6 +333,35 @@ extension BackendService {
         }
         return try jsonDecoder.decode(PairedAvatars.self, from: data)
     }
+
+    struct PartnerInfo: Codable {
+        let linked: Bool
+        let partner: Partner?
+    }
+    
+    struct Partner: Codable {
+        let name: String
+        let avatar_url: String?
+    }
+    
+    func fetchPartnerInfo(accessToken: String) async throws -> PartnerInfo {
+        let url = baseURL
+            .appendingPathComponent("profile")
+            .appendingPathComponent("partner-info")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(PartnerInfo.self, from: data)
+    }
 }
 
 private struct SessionsResponseBody: Codable {
