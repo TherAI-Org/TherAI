@@ -20,8 +20,9 @@ struct ChatView: View {
     var body: some View {
         let handleDoubleTapPartnerMessage: (DialogueViewModel.DialogueMessage) -> Void = { tapped in
             Haptics.impact(.light)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { selectedMode = .personal }
+            withAnimation(.easeInOut(duration: 0.15)) { selectedMode = .personal }
             if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
+            // TODO: Implement insight generation from dialogue message
         }
 
         let handleSendToPartner: () -> Void = {
@@ -120,6 +121,8 @@ struct ChatView: View {
         .onChange(of: sessionsViewModel.chatViewKey) { _, _ in
             if sessionsViewModel.activeSessionId == nil {
                 viewModel.sessionId = nil
+                dialogueViewModel.clearMessages()
+                dialogueSessionId = nil
                 Task { await viewModel.loadHistory() }
             }
         }
