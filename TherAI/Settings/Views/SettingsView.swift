@@ -160,9 +160,6 @@ struct SettingsView: View {
                         // Settings cards sections
                         if showCards {
                             VStack(spacing: 24) {
-                                // Inline Link Your Partner card
-                                InlineLinkCardView(linkViewModel: linkVM)
-                                
                                 ForEach(Array(viewModel.settingsSections.enumerated()), id: \.offset) { sectionIndex, section in
                                     SettingsCardView(
                                         section: section,
