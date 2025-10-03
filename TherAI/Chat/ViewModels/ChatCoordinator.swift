@@ -131,11 +131,11 @@ struct ChatCoordinator {
         }
     }
 
-    func sendToPartner(chatViewModel: ChatViewModel, sessionsViewModel: ChatSessionsViewModel, dialogueViewModel: DialogueViewModel) async {
+    func sendToPartner(chatViewModel: ChatViewModel, sessionsViewModel: ChatSessionsViewModel, dialogueViewModel: DialogueViewModel, customMessage: String? = nil) async {
         let resolved = await chatViewModel.ensureSessionId()
         let sessionId = resolved ?? sessionsViewModel.activeSessionId
         if let sid = sessionId {
-            await dialogueViewModel.sendToPartner(sessionId: sid)
+            await dialogueViewModel.sendToPartner(sessionId: sid, customMessage: customMessage)
         }
     }
 }
