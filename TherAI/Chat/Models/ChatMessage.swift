@@ -43,47 +43,46 @@ struct ChatMessage: Identifiable {
             "absolutely!",
             "of course!"
         ]
-        
+
         let lowercasedContent = content.lowercased()
         let hasConversationalIntro = conversationalPatterns.contains { pattern in
             lowercasedContent.contains(pattern)
         }
-        
+
         if hasConversationalIntro {
             // This is likely a conversational format - extract the actual message
             let lines = content.components(separatedBy: .newlines)
             var messageLines: [String] = []
             var foundMessage = false
-            var skipMode = false
-            
+
             for line in lines {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 if trimmed.isEmpty { continue }
-                
+
                 let lowercasedLine = trimmed.lowercased()
-                
+
                 // Skip conversational intro lines
                 let isIntroLine = conversationalPatterns.contains { pattern in
                     lowercasedLine.contains(pattern)
                 }
-                
+
                 // Skip AI footer lines
                 let isFooterLine = lowercasedLine.contains("feel free to tweak") ||
                                   lowercasedLine.contains("you can adjust") ||
                                   lowercasedLine.contains("modify if needed") ||
                                   lowercasedLine.contains("---") ||
                                   lowercasedLine.contains("tap the button")
-                
+
                 if isIntroLine {
                     // Skip intro lines, start looking for message
                     continue
                 }
-                
+
                 if isFooterLine {
                     // Stop collecting when we hit footer lines
                     break
                 }
-                
+
                 if !foundMessage && !isIntroLine && !isFooterLine {
                     // This is the start of the actual message
                     foundMessage = true
@@ -93,13 +92,13 @@ struct ChatMessage: Identifiable {
                     messageLines.append(line)
                 }
             }
-            
+
             let cleaned = messageLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
             if !cleaned.isEmpty {
                 return (true, cleaned)
             }
         }
-        
+
         // Check for old format with "💬 **Message for your partner:**"
         let oldMarker = "💬 **Message for your partner:**"
         if content.contains(oldMarker) {
@@ -118,7 +117,7 @@ struct ChatMessage: Identifiable {
             let cleaned = body.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
             return (true, cleaned.isEmpty ? nil : cleaned)
         }
-        
+
         return (false, nil)
     }
 }

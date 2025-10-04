@@ -150,24 +150,24 @@ async def get_partner_info(current_user: dict = Depends(get_current_user)):
         try:
             res = supabase.auth.admin.get_user_by_id(str(partner_id))  # type: ignore[attr-defined]
             user = getattr(res, "user", None) or getattr(res, "data", None)
-            
+
             if not user:
                 return {"linked": True, "partner": {"name": "Unknown", "avatar_url": None}}
-            
+
             # Extract name and avatar from user metadata
             def extract_name_from_meta(meta_dict):
                 if not isinstance(meta_dict, dict):
                     return "Unknown"
-                return (meta_dict.get("full_name") or 
-                       meta_dict.get("name") or 
-                       meta_dict.get("display_name") or 
+                return (meta_dict.get("full_name") or
+                       meta_dict.get("name") or
+                       meta_dict.get("display_name") or
                        "Unknown")
-            
+
             def extract_avatar_from_meta(meta_dict):
                 if not isinstance(meta_dict, dict):
                     return None
                 return meta_dict.get("avatar_url") or meta_dict.get("picture")
-            
+
             if isinstance(user, dict):
                 meta = user.get("user_metadata")
                 name = extract_name_from_meta(meta)
@@ -176,24 +176,24 @@ async def get_partner_info(current_user: dict = Depends(get_current_user)):
                 meta = getattr(user, "user_metadata", None)
                 name = extract_name_from_meta(meta if isinstance(meta, dict) else None)
                 avatar_url = extract_avatar_from_meta(meta if isinstance(meta, dict) else None)
-            
+
             # Try to get custom avatar from storage
             ps = supabase.table("profiles").select("avatar_path").eq("user_id", str(partner_id)).limit(1).execute()
             p_path = (ps.data[0].get("avatar_path") if ps.data else None) if not getattr(ps, "error", None) else None
             custom_avatar_url = _signed_url_from_path(p_path) if p_path else None
-            
+
             return {
                 "linked": True,
                 "partner": {
                     "name": name,
-                    "avatar_url": custom_avatar_url ?? avatar_url
+                    "avatar_url": custom_avatar_url or avatar_url
                 }
             }
-            
+
         except Exception as e:
             print(f"[Partner Info] Error fetching partner info for {partner_id}: {e}")
             return {"linked": True, "partner": {"name": "Unknown", "avatar_url": None}}
-            
+
     except HTTPException:
         raise
     except Exception as e:
