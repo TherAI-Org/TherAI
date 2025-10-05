@@ -28,13 +28,6 @@ def decide_recompute(
     last_run_at_iso: Optional[str],
     now: Optional[datetime] = None,
 ) -> RecomputeDecision:
-    """Time-based recompute policy for relationship health.
-
-    Rules:
-    - If never run before, recompute immediately (reason: never_ran).
-    - Otherwise, recompute when at least 24 hours have passed since last run (reason: max_interval_reached).
-    - Else do not recompute yet (reason: not_enough_new_data) and suggest next check.
-    """
     current_time = now or datetime.now(timezone.utc)
 
     # Never ran before: run immediately
