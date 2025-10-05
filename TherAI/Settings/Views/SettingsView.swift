@@ -191,7 +191,21 @@ struct SettingsView: View {
         .background(Color(.systemBackground).ignoresSafeArea())
         .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
         .overlay(alignment: .top) {
-            StatusBarBackground(showsDivider: false)
+            GeometryReader { proxy in
+                let topInset: CGFloat = proxy.safeAreaInsets.top
+
+                Color(.systemBackground)
+                    .frame(height: topInset)
+                    .ignoresSafeArea(edges: .top)
+                    .overlay(
+                        Group {
+                            EmptyView()
+                        }, alignment: .bottom
+                    )
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            .frame(height: 0)
         }
         .overlay(alignment: .top) {
             ZStack(alignment: .top) {

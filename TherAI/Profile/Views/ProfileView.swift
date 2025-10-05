@@ -125,7 +125,23 @@ struct ProfileView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
             .padding(.bottom, 12)
-            .overlay(alignment: .top) { StatusBarBackground(showsDivider: false) }
+            .overlay(alignment: .top) {
+                GeometryReader { proxy in
+                    let topInset: CGFloat = proxy.safeAreaInsets.top
+
+                    Color(.systemBackground)
+                        .frame(height: topInset)
+                        .ignoresSafeArea(edges: .top)
+                        .overlay(
+                            Group {
+                                EmptyView()
+                            }, alignment: .bottom
+                        )
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+                .frame(height: 0)
+            }
             .onAppear {
                 showTogetherCapsule = false
                 showCards = false

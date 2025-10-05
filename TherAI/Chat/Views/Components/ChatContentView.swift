@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ChatContentView: View {
 
-    let selectedMode: ChatMode
     let personalMessages: [ChatMessage]
     let emptyPrompt: String
     let onDoubleTapPartnerMessage: (_: Any) -> Void
@@ -48,15 +47,13 @@ struct ChatContentView: View {
                     }
                 }
             }
-            .opacity(selectedMode == .personal ? 1 : 0)
-            .allowsHitTesting(selectedMode == .personal)
-            .zIndex(selectedMode == .personal ? 1 : 0)
+            .opacity(1)
+            .allowsHitTesting(true)
+            .zIndex(1)
         }
-        .animation(.easeOut(duration: 0.15), value: selectedMode)
+        .animation(.easeOut(duration: 0.15), value: personalMessages.count)
         .id(animationID)
-        .onChange(of: selectedMode) { _, _ in
-            animationID = UUID()
-        }
+        .onChange(of: personalMessages.count) { _, _ in animationID = UUID() }
     }
 }
 

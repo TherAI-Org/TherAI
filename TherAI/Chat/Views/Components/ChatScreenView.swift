@@ -3,7 +3,6 @@ import UIKit
 
 struct ChatScreenView: View {
 
-    @Binding var selectedMode: ChatMode
     let isInputFocused: FocusState<Bool>.Binding
 
     @ObservedObject var chatViewModel: ChatViewModel
@@ -19,12 +18,10 @@ struct ChatScreenView: View {
     var body: some View {
         VStack(spacing: 0) {
             ChatHeaderView(
-                selectedMode: $selectedMode,
                 showDivider: !chatViewModel.messages.isEmpty
             )
 
             ChatContentView(
-                selectedMode: selectedMode,
                 personalMessages: chatViewModel.messages,
                 emptyPrompt: chatViewModel.emptyPrompt,
                 onDoubleTapPartnerMessage: { _ in },
@@ -40,29 +37,24 @@ struct ChatScreenView: View {
             .padding(.bottom, inputBarHeight + bottomSafeInset)
         }
         .overlay(alignment: .bottom) {
-            Group {
-                if selectedMode == .personal {
-                    VStack(spacing: 0) {
-                        InputAreaView(
-                            inputText: $chatViewModel.inputText,
-                            isLoading: $chatViewModel.isLoading,
-                            focusSnippet: $chatViewModel.focusSnippet,
-                            isInputFocused: isInputFocused,
-                            send: { chatViewModel.sendMessage() },
-                            stop: { chatViewModel.stopGeneration() },
-                            onSendToPartner: onSendToPartner
-                        )
-                        .background(
-                            GeometryReader { proxy in
-                                Color.clear.preference(key: InputBarHeightPreferenceKey.self, value: proxy.size.height)
-                            }
-                        )
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .animation(.spring(response: 0.2, dampingFraction: 0.9), value: selectedMode)
+            VStack(spacing: 0) {
+                InputAreaView(
+                    inputText: $chatViewModel.inputText,
+                    isLoading: $chatViewModel.isLoading,
+                    focusSnippet: $chatViewModel.focusSnippet,
+                    isInputFocused: isInputFocused,
+                    send: { chatViewModel.sendMessage() },
+                    stop: { chatViewModel.stopGeneration() },
+                    onSendToPartner: onSendToPartner
+                )
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: InputBarHeightPreferenceKey.self, value: proxy.size.height)
                     }
-                    .ignoresSafeArea(edges: .bottom)
-                }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            .ignoresSafeArea(edges: .bottom)
         }
         .overlay {
             if chatViewModel.isLoadingHistory && chatViewModel.messages.isEmpty {
@@ -81,12 +73,12 @@ struct ChatScreenView: View {
             bottomSafeInset = currentBottomSafeInset()
         }
         .onChange(of: chatViewModel.isLoadingHistory) { _, isLoading in
-            if !isLoading && selectedMode == .personal && !chatViewModel.messages.isEmpty {
+            if !isLoading && !chatViewModel.messages.isEmpty {
                 personalPreScrollToken &+= 1
             }
         }
         .onChange(of: isInputFocused.wrappedValue) { _, isFocused in
-            if isFocused && selectedMode == .personal && !chatViewModel.messages.isEmpty {
+            if isFocused && !chatViewModel.messages.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     keyboardScrollToken &+= 1
                 }

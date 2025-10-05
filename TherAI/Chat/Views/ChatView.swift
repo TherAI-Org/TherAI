@@ -9,8 +9,6 @@ struct ChatView: View {
 
     @FocusState private var isInputFocused: Bool
 
-    @State private var selectedMode: ChatMode = .personal
-
     init(sessionId: UUID? = nil) {
         _viewModel = StateObject(wrappedValue: ChatViewModel(sessionId: sessionId))
     }
@@ -26,7 +24,6 @@ struct ChatView: View {
         }
 
         return ChatScreenView(
-            selectedMode: $selectedMode,
             isInputFocused: $isInputFocused,
             chatViewModel: viewModel,
             onDoubleTapPartnerMessage: { _ in },
@@ -36,7 +33,7 @@ struct ChatView: View {
         .onTapGesture { isInputFocused = false }
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                if selectedMode == .personal && sessionsViewModel.activeSessionId == nil {
+                if sessionsViewModel.activeSessionId == nil {
                     isInputFocused = true
                 }
             }
@@ -51,7 +48,6 @@ struct ChatView: View {
                 ChatCoordinator.shared.handleAskTherAISelectedSnippet(
                     snippet: snippet,
                     navigationViewModel: navigationViewModel,
-                    setSelectedMode: { selectedMode = $0 },
                     setFocusSnippet: { viewModel.focusSnippet = $0 },
                     setInputFocused: { isInputFocused = $0 }
                 )

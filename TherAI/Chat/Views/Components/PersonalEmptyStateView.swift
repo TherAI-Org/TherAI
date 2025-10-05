@@ -9,7 +9,7 @@ struct PersonalEmptyStateView: View {
             VStack {
                 Spacer()
                 Text(prompt)
-                    .font(Typography.displaySoft)
+                    .font(.system(size: 32, weight: .semibold))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity, alignment: .center)

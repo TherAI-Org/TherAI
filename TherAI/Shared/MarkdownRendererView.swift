@@ -1,8 +1,5 @@
 import SwiftUI
 
-// Lightweight Markdown renderer tuned for chat content
-// Supports: headings (#, ##, ###), ordered and unordered lists, paragraphs, and horizontal rules (---, ***, ___)
-// Inline styling (bold/italic/emoji/links) is applied via AttributedString inline parsing
 struct MarkdownRendererView: View {
     let markdown: String
 
@@ -80,33 +77,31 @@ struct MarkdownRendererView: View {
         let base: Text = attributed.map(Text.init) ?? Text(text)
         switch level {
         case 1:
-            return AnyView(base.font(Typography.title))
+            return AnyView(base.font(.system(size: 22, weight: .semibold)))
         case 2:
-            return AnyView(base.font(Typography.title2))
+            return AnyView(base.font(.system(size: 20, weight: .semibold)))
         default:
-            return AnyView(base.font(Typography.body.weight(.semibold)))
+            return AnyView(base.font(.system(size: 17, weight: .semibold)))
         }
     }
 
     private func inlineText(_ text: String) -> Text {
         let transformed = applyInlineTypography(to: text)
         if let attributed = try? AttributedString(markdown: transformed, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-            return Text(attributed).font(Typography.body)
+            return Text(attributed).font(.system(size: 17, weight: .regular))
         } else {
-            return Text(transformed).font(Typography.body)
+            return Text(transformed).font(.system(size: 17, weight: .regular))
         }
     }
 
     private func applyInlineTypography(to input: String) -> String {
         var s = input
-        // Replace simple arrows and spaced em-dash without overstepping normal hyphens
         s = s.replacingOccurrences(of: "->", with: "→")
         s = s.replacingOccurrences(of: "<-", with: "←")
         s = s.replacingOccurrences(of: " -- ", with: " — ")
         return s
     }
 
-    // MARK: - Parser
     private func parse(_ input: String) -> [BlockItem] {
         let lines = input.split(omittingEmptySubsequences: false, whereSeparator: { $0.isNewline }).map { String($0) }
         var items: [BlockItem] = []
@@ -150,14 +145,12 @@ struct MarkdownRendererView: View {
                 continue
             }
 
-            // Horizontal rule
             if line == "---" || line == "***" || line == "___" {
                 flushParagraph(); flushUL(); flushOL(); flushQuote()
                 items.append(BlockItem(block: .rule))
                 continue
             }
 
-            // Heading
             if line.hasPrefix("#") {
                 let hashes = line.prefix { $0 == "#" }
                 let after = line.dropFirst(hashes.count).trimmingCharacters(in: CharacterSet.whitespaces)
@@ -167,7 +160,6 @@ struct MarkdownRendererView: View {
                 continue
             }
 
-            // Blockquote: lines starting with "> "
             if let range = line.range(of: "^>\\s+", options: String.CompareOptions.regularExpression) {
                 flushParagraph(); flushUL(); flushOL()
                 let content = String(line[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
@@ -175,7 +167,6 @@ struct MarkdownRendererView: View {
                 continue
             }
 
-            // Ordered list: "1. Item"
             if let range = line.range(of: "^\\d+\\.\\s+", options: String.CompareOptions.regularExpression) {
                 flushParagraph(); flushUL(); flushQuote()
                 let item = String(line[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
@@ -183,7 +174,6 @@ struct MarkdownRendererView: View {
                 continue
             }
 
-            // Unordered list: "- ", "* ", "+ "
             if let range = line.range(of: "^[-*+]\\s+", options: String.CompareOptions.regularExpression) {
                 flushParagraph(); flushOL(); flushQuote()
                 let item = String(line[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
@@ -191,12 +181,10 @@ struct MarkdownRendererView: View {
                 continue
             }
 
-            // Default: paragraph line (preserve sentence spacing)
             if !quoteBuffer.isEmpty { flushQuote() }
             paragraphBuffer.append(line)
         }
 
-        // Flush any remaining buffers
         flushParagraph(); flushUL(); flushOL(); flushQuote()
         return items
     }

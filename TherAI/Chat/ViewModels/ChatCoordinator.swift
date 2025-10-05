@@ -23,11 +23,9 @@ struct ChatCoordinator {
     func handleAskTherAISelectedSnippet(
         snippet: String,
         navigationViewModel: SidebarNavigationViewModel,
-        setSelectedMode: @escaping (ChatMode) -> Void,
         setFocusSnippet: @escaping (String?) -> Void,
         setInputFocused: @escaping (Bool) -> Void
     ) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { setSelectedMode(.personal) }
         setFocusSnippet(snippet)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             setInputFocused(true)

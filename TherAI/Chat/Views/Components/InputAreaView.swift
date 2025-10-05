@@ -52,7 +52,7 @@ struct InputAreaView: View {
 
             HStack(spacing: 12) {
                 TextField("Share what's on your mind", text: $inputText)
-                    .font(Typography.body)
+                    .font(.system(size: 17, weight: .regular))
                     .foregroundColor(.primary)
                     .onSubmit {
                         guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }

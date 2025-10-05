@@ -21,7 +21,7 @@ struct MessageBubble: View {
         VStack(alignment: message.isFromUser ? .trailing : .leading, spacing: 4) {
             if message.isFromUser {
                 Text(message.content)
-                    .font(Typography.body)
+                    .font(.system(size: 17, weight: .regular))
                     .padding(.horizontal, 18)
                     .padding(.vertical, 14)
                     .background(
