@@ -58,8 +58,6 @@ struct BackendService {
 
     enum StreamEvent: Equatable {
         case session(UUID)
-        case dialogueSession(UUID)
-        case requestId(UUID)
         case token(String)
         case done
         case error(String)
@@ -81,21 +79,98 @@ struct BackendService {
         return SSEService.shared.stream(request: request)
     }
 
-    func streamDialogueRequest(_ requestBody: DialogueRequestBody, accessToken: String) -> AsyncStream<StreamEvent> {
+
+
+
+    // MARK: - Partner Requests (new)
+
+    struct PartnerRequestBody: Codable { let message: String; let session_id: UUID }
+    struct PartnerRequestResponse: Codable { let success: Bool; let request_id: UUID }
+    struct PartnerPendingRequest: Codable {
+        let id: UUID
+        let sender_user_id: UUID
+        let sender_session_id: UUID
+        let content: String
+        let created_at: String
+        let status: String
+    }
+    struct PartnerPendingRequestsResponse: Codable { let requests: [PartnerPendingRequest] }
+
+    func streamPartnerRequest(_ body: PartnerRequestBody, accessToken: String) -> AsyncStream<StreamEvent> {
         var request = URLRequest(url: baseURL
-            .appendingPathComponent("dialogue")
+            .appendingPathComponent("partner")
             .appendingPathComponent("request")
             .appendingPathComponent("stream"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        request.httpBody = try? jsonEncoder.encode(requestBody)
-
+        request.httpBody = try? jsonEncoder.encode(body)
         return SSEService.shared.stream(request: request)
     }
 
+    func createPartnerRequest(_ body: PartnerRequestBody, accessToken: String) async throws -> PartnerRequestResponse {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("partner")
+            .appendingPathComponent("request"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try jsonEncoder.encode(body)
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(PartnerRequestResponse.self, from: data)
+    }
 
+    func getPartnerPendingRequests(accessToken: String) async throws -> PartnerPendingRequestsResponse {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("partner")
+            .appendingPathComponent("pending"))
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(PartnerPendingRequestsResponse.self, from: data)
+    }
+
+    func markPartnerDelivered(requestId: UUID, accessToken: String) async throws {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("partner")
+            .appendingPathComponent("requests")
+            .appendingPathComponent(requestId.uuidString)
+            .appendingPathComponent("delivered"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+    }
+
+    func acceptPartnerRequest(requestId: UUID, accessToken: String) async throws -> UUID {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("partner")
+            .appendingPathComponent("requests")
+            .appendingPathComponent(requestId.uuidString)
+            .appendingPathComponent("accept"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        struct Body: Codable { let success: Bool; let recipient_session_id: UUID }
+        let decoded = try jsonDecoder.decode(Body.self, from: data)
+        return decoded.recipient_session_id
+    }
 
     func fetchMessages(sessionId: UUID, accessToken: String) async throws -> [ChatMessageDTO] {
         let url = baseURL
@@ -450,12 +525,12 @@ extension BackendService {
         let linked: Bool
         let partner: Partner?
     }
-    
+
     struct Partner: Codable {
         let name: String
         let avatar_url: String?
     }
-    
+
     func fetchPartnerInfo(accessToken: String) async throws -> PartnerInfo {
         let url = baseURL
             .appendingPathComponent("profile")
@@ -630,148 +705,4 @@ extension BackendService {
         return (decoded.linked, decoded.relationship_id, linkedDate)
     }
 
-    // MARK: - Dialogue Methods
-    func getDialogueMessages(accessToken: String, sourceSessionId: UUID) async throws -> DialogueMessagesResponse {
-        let url = baseURL
-            .appendingPathComponent("dialogue")
-            .appendingPathComponent("messages")
-        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "source_session_id", value: sourceSessionId.uuidString)]
-        let finalURL = comps.url!
-        var request = URLRequest(url: finalURL)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await urlSession.data(for: request)
-        } catch {
-            throw error
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-
-        return try jsonDecoder.decode(DialogueMessagesResponse.self, from: data)
-    }
-
-    func getPendingRequests(accessToken: String) async throws -> PendingRequestsResponse {
-        let url = baseURL
-            .appendingPathComponent("dialogue")
-            .appendingPathComponent("pending-requests")
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await urlSession.data(for: request)
-        } catch {
-            throw error
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-
-        return try jsonDecoder.decode(PendingRequestsResponse.self, from: data)
-    }
-
-    func createDialogueRequest(_ requestBody: DialogueRequestBody, accessToken: String) async throws -> DialogueRequestResponse {
-        let url = baseURL
-            .appendingPathComponent("dialogue")
-            .appendingPathComponent("request")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        request.httpBody = try jsonEncoder.encode(requestBody)
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await urlSession.data(for: request)
-        } catch {
-            throw error
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-
-        return try jsonDecoder.decode(DialogueRequestResponse.self, from: data)
-    }
-
-    func markRequestAsDelivered(requestId: UUID, accessToken: String) async throws {
-        let url = baseURL
-            .appendingPathComponent("dialogue")
-            .appendingPathComponent("requests")
-            .appendingPathComponent(requestId.uuidString)
-            .appendingPathComponent("delivered")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await urlSession.data(for: request)
-        } catch {
-            throw error
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-    }
-
-    func markRequestAsAccepted(requestId: UUID, accessToken: String) async throws -> (partnerSessionId: UUID, dialogueSessionId: UUID) {
-        let url = baseURL
-            .appendingPathComponent("dialogue")
-            .appendingPathComponent("requests")
-            .appendingPathComponent(requestId.uuidString)
-            .appendingPathComponent("accept")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await urlSession.data(for: request)
-        } catch {
-            throw error
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-        // Decode the response so caller can navigate to the correct dialogue
-        struct AcceptDialogueResponse: Codable {
-            let success: Bool
-            let partner_session_id: UUID
-            let dialogue_session_id: UUID
-        }
-        let decoded = try jsonDecoder.decode(AcceptDialogueResponse.self, from: data)
-        return (decoded.partner_session_id, decoded.dialogue_session_id)
-    }
 }

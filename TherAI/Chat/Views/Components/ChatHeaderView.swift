@@ -106,8 +106,3 @@ private struct ChatHeaderPreviewHost: View {
     ChatHeaderPreviewHost(.personal)
         .padding()
 }
-
-#Preview("Dialogue", traits: .sizeThatFitsLayout) {
-    ChatHeaderPreviewHost(.dialogue)
-        .padding()
-}

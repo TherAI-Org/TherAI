@@ -242,8 +242,6 @@ class ChatViewModel: ObservableObject {
                             self.isLoading = false
                         }
                         self.fallbackTask?.cancel()
-                    default:
-                        break
                     }
                 }
 

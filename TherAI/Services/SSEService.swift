@@ -38,16 +38,6 @@ final class SSEService {
                                let sid = UUID(uuidString: sidStr) {
                                 continuation.yield(.session(sid))
                             }
-                        case "dialogue_session":
-                            let trimmed = dataString.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\"", with: "")
-                            if let did = UUID(uuidString: trimmed) {
-                                continuation.yield(.dialogueSession(did))
-                            }
-                        case "request":
-                            let trimmed = dataString.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\"", with: "")
-                            if let rid = UUID(uuidString: trimmed) {
-                                continuation.yield(.requestId(rid))
-                            }
                         case "token":
                             let token: String
                             if let data = dataString.data(using: .utf8), let decoded = try? JSONDecoder().decode(String.self, from: data) {

@@ -14,137 +14,9 @@ struct ChatCoordinator {
         if newValue { setInputFocused(false) }
     }
 
-    func handleActiveSessionChanged(
-        _ newSessionId: UUID?,
-        viewModel: ChatViewModel,
-        selectedMode: ChatMode,
-        dialogueSessionId: UUID?,
-        sessionsViewModel: ChatSessionsViewModel,
-        dialogueViewModel: DialogueViewModel,
-        setSelectedMode: @escaping (ChatMode) -> Void,
-        setDialogueSessionId: @escaping (UUID?) -> Void
-    ) {
+    func handleActiveSessionChanged(_ newSessionId: UUID?, viewModel: ChatViewModel) {
         if let sessionId = newSessionId {
             Task { await viewModel.presentSession(sessionId) }
-            
-            // Load dialogue messages for new session with smooth transition
-            Task {
-                await dialogueViewModel.loadMessagesForNewSession(sessionId)
-            }
-            
-            checkIfDialogueSession(sessionId: sessionId, dialogueViewModel: dialogueViewModel, setDialogueSessionId: setDialogueSessionId)
-
-            if let dId = dialogueSessionId, sessionId != dId, selectedMode == .dialogue {
-                setSelectedMode(.personal)
-            }
-        } else {
-            // New chat session - clear dialogue messages and reset dialogue state
-            dialogueViewModel.clearMessages()
-            setDialogueSessionId(nil)
-            
-            // Switch to personal mode for new chat
-            if selectedMode == .dialogue {
-                setSelectedMode(.personal)
-            }
-        }
-    }
-
-    func configureCallbacksOnAppear(
-        sessionsViewModel: ChatSessionsViewModel,
-        navigationViewModel: SidebarNavigationViewModel,
-        dialogueViewModel: DialogueViewModel,
-        setSelectedMode: @escaping (ChatMode) -> Void,
-        refreshPending: @escaping () -> Void
-    ) {
-        sessionsViewModel.onSwitchToDialogue = {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                setSelectedMode(.dialogue)
-            }
-            if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
-        }
-
-        dialogueViewModel.onSwitchToDialogue = {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                setSelectedMode(.dialogue)
-            }
-            if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
-        }
-
-        dialogueViewModel.onRefreshPendingRequests = {
-            refreshPending()
-        }
-    }
-
-    func handleIsDialogueOpenChanged(
-        _ newValue: Bool,
-        selectedMode: ChatMode,
-        navigationViewModel: SidebarNavigationViewModel,
-        sessionsViewModel: ChatSessionsViewModel,
-        dialogueViewModel: DialogueViewModel,
-        setSelectedMode: @escaping (ChatMode) -> Void,
-        setInputFocused: @escaping (Bool) -> Void
-    ) {
-        if newValue {
-            setInputFocused(false)
-            withAnimation(.easeInOut(duration: 0.15)) {
-                if selectedMode != .dialogue { setSelectedMode(.dialogue) }
-            }
-            // Load dialogue messages for current session (messages will persist if already loaded)
-            // Only load if we don't have messages for this session
-            if dialogueViewModel.messages.isEmpty {
-                Task {
-                    if let sid = sessionsViewModel.activeSessionId { 
-                        await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) 
-                    }
-                }
-            }
-        } else {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                if selectedMode == .dialogue { setSelectedMode(.personal) }
-            }
-        }
-    }
-
-    func handleSelectedModeChanged(
-        oldMode: ChatMode,
-        newMode: ChatMode,
-        navigationViewModel: SidebarNavigationViewModel,
-        sessionsViewModel: ChatSessionsViewModel,
-        chatViewModel: ChatViewModel,
-        dialogueViewModel: DialogueViewModel,
-        dialogueSessionId: UUID?,
-        setInputFocused: @escaping (Bool) -> Void,
-        setSelectedMode: @escaping (ChatMode) -> Void
-    ) {
-        if newMode == .dialogue {
-            setInputFocused(false)
-            // Load dialogue messages for current session (messages will persist if already loaded)
-            // Only load if we don't have messages for this session
-            if dialogueViewModel.messages.isEmpty {
-                Task {
-                    if let sid = sessionsViewModel.activeSessionId { 
-                        await dialogueViewModel.loadDialogueMessages(sourceSessionId: sid) 
-                    }
-                }
-            }
-            if !navigationViewModel.isDialogueOpen { navigationViewModel.openDialogue() }
-        } else if newMode == .personal {
-            if let dId = dialogueSessionId, chatViewModel.sessionId == dId {
-                chatViewModel.sessionId = nil
-                Task { await chatViewModel.loadHistory() }
-            }
-            if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
-        }
-    }
-
-    func checkIfDialogueSession(
-        sessionId: UUID,
-        dialogueViewModel: DialogueViewModel,
-        setDialogueSessionId: @escaping (UUID?) -> Void
-    ) {
-        Task {
-            let did = await dialogueViewModel.getDialogueSessionId(for: sessionId)
-            await MainActor.run { setDialogueSessionId(did) }
         }
     }
 
@@ -156,18 +28,36 @@ struct ChatCoordinator {
         setInputFocused: @escaping (Bool) -> Void
     ) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { setSelectedMode(.personal) }
-        if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
         setFocusSnippet(snippet)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             setInputFocused(true)
         }
     }
 
-    func sendToPartner(chatViewModel: ChatViewModel, sessionsViewModel: ChatSessionsViewModel, dialogueViewModel: DialogueViewModel, customMessage: String? = nil) async {
+    func sendToPartner(chatViewModel: ChatViewModel, sessionsViewModel: ChatSessionsViewModel, customMessage: String? = nil) async {
         let resolved = await chatViewModel.ensureSessionId()
         let sessionId = resolved ?? sessionsViewModel.activeSessionId
-        if let sid = sessionId {
-            await dialogueViewModel.sendToPartner(sessionId: sid, customMessage: customMessage)
+        guard let sid = sessionId else { return }
+        do {
+            guard let accessToken = await AuthService.shared.getAccessToken() else { return }
+            let body = BackendService.PartnerRequestBody(message: customMessage ?? (chatViewModel.inputText), session_id: sid)
+            // Keep the SSE stream alive by consuming it; otherwise it cancels immediately
+            Task.detached {
+                let stream = BackendService.shared.streamPartnerRequest(body, accessToken: accessToken)
+                for await event in stream {
+                    switch event {
+                    case .token(_):
+                        break
+                    case .done:
+                        return
+                    case .error(let msg):
+                        print("[PartnerStream][iOS] error=\(msg)")
+                        return
+                    case .session(_):
+                        break
+                    }
+                }
+            }
         }
     }
 }

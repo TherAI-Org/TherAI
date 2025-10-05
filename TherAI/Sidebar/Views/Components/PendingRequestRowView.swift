@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PendingRequestRowView: View {
 
-    let request: DialogueViewModel.DialogueRequest
+    let request: BackendService.PartnerPendingRequest
 
     var body: some View {
         HStack(spacing: 12) {
@@ -16,7 +16,7 @@ struct PendingRequestRowView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.primary)
 
-                Text(request.requestContent)
+                Text(request.content)
                     .font(.system(size: 12))
                     .foregroundColor(.secondary)
                     .lineLimit(2)

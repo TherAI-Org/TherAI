@@ -17,17 +17,16 @@ class PersonalAgent:
         with open(prompt_path, "r", encoding = "utf-8") as f:
             self.system_prompt = f.read().strip()
 
-        # Dialogue prompt to craft messages for the partner
+        # Partner message prompt to craft messages for the partner
         try:
-            dialogue_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "DialoguePrompt.txt"
-            with open(dialogue_prompt_path, "r", encoding = "utf-8") as f:
-                self.dialogue_prompt = f.read().strip()
+            partner_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "PartnerPrompt.txt"
+            with open(partner_prompt_path, "r", encoding = "utf-8") as f:
+                self.partner_prompt = f.read().strip()
         except Exception:
-            self.dialogue_prompt = "You help write supportive, clear messages for a romantic partner."
+            self.partner_prompt = "You help write supportive, clear messages for a romantic partner."
 
     def generate_response(self, user_message: str, chat_history: list = None,
-                          dialogue_context: list = None, partner_context: list = None,
-                          user_a_id = None) -> str:
+                          partner_context: list = None, user_a_id = None) -> str:
         try:
             # Build input array starting with system prompt
             input_messages = [{"role": "system", "content": self.system_prompt}]
@@ -45,19 +44,6 @@ class PersonalAgent:
                     role = "User" if msg.get("role") == "user" else "Assistant"
                     partner_text += f"{role}: {msg.get('content', '')}\n"
                 input_messages.append({"role": "system", "content": partner_text.strip()})
-
-             # Build dialogue context if available
-            if dialogue_context:
-                dialogue_text = "Previous dialogue between partners:\n"
-                a_id = str(user_a_id) if user_a_id is not None else None
-                for msg in dialogue_context:
-                    sender_id = str(msg.get("sender_user_id")) if msg.get("sender_user_id") is not None else None
-                    if sender_id and a_id and sender_id == a_id:
-                        label = "Partner A:"
-                    else:
-                        label = "Partner B:"
-                    dialogue_text += f"{label}: {msg.get('content', '')}\n"
-                input_messages.append({"role": "system", "content": dialogue_text.strip()})
 
             # Add last user message
             input_messages.append({"role": "user", "content": user_message})
@@ -100,15 +86,15 @@ class PersonalAgent:
             context_aware_prompt = (
                 "You are analyzing a personal therapy conversation to detect if someone is explicitly "
                 "asking for help with WHAT TO SAY to their romantic partner.\n\n"
-                
+
                 "Consider the conversation context and current message together. Look for:\n"
                 "- Direct requests for help with wording/phrasing for their partner\n"
                 "- Questions about how to communicate something specific to their partner\n"
                 "- Requests for message suggestions to send to their partner\n\n"
-                
+
                 "Only say YES if the conversation context clearly shows the person wants help with "
                 "expressing something specific to their partner, not just general relationship support.\n\n"
-                
+
                 "Be conservative. Only say YES when there's clear intent to get help with wording/phrasing.\n\n"
                 "Respond with ONLY YES or NO.\n\n"
                 f"{conversation_context}{user_message}"
@@ -143,13 +129,13 @@ class PersonalAgent:
             detection_prompt = (
                 "You are a precise classifier for partner message requests. Your job is to detect "
                 "when someone is explicitly asking for help with WHAT TO SAY to their romantic partner.\n\n"
-                
+
                 "Say YES ONLY if the user is:\n"
                 "- Directly asking what to say/tell/write to their partner\n"
                 "- Requesting help with wording or phrasing for their partner\n"
                 "- Asking for a message to send to their partner\n"
                 "- Wanting help expressing something specific to their partner\n\n"
-                
+
                 "Direct request patterns (YES):\n"
                 "- 'How do I tell him/her...'\n"
                 "- 'What should I say...'\n"
@@ -163,7 +149,7 @@ class PersonalAgent:
                 "- 'Give a message to tell her I love her'\n"
                 "- 'What can I say to my wife about...'\n"
                 "- 'How do I explain this to him...'\n\n"
-                
+
                 "Say NO for:\n"
                 "- General relationship advice requests\n"
                 "- Venting about relationship problems without asking for wording\n"
@@ -171,9 +157,9 @@ class PersonalAgent:
                 "- General emotional support requests\n"
                 "- Questions about other people's relationships\n"
                 "- Non-relationship topics\n\n"
-                
+
                 "Be conservative. Only say YES when there's clear intent to get help with wording/phrasing for their partner.\n\n"
-                
+
                 "Examples that should be YES:\n"
                 "- 'Hey, I was wondering how I could tell my wife we need a divorce...'\n"
                 "- 'I need to tell her this'\n"
@@ -181,7 +167,7 @@ class PersonalAgent:
                 "- 'What should I say to my husband about the money issue?'\n"
                 "- 'How do I tell her I'm sorry?'\n"
                 "- 'Help me tell my partner how I feel'\n\n"
-                
+
                 "Examples that should be NO:\n"
                 "- 'I feel like he doesn't listen to me'\n"
                 "- 'We've been fighting a lot lately'\n"
@@ -193,7 +179,7 @@ class PersonalAgent:
                 "- 'Should I tell him the truth?'\n"
                 "- 'What should I do about this situation?'\n"
                 "- 'I'm stressed about work'\n\n"
-                
+
                 "Respond with ONLY YES or NO.\n\n"
                 f"User: {user_message}"
             )
@@ -214,12 +200,11 @@ class PersonalAgent:
             return False
 
     def generate_partner_message(self, user_message: str, chat_history: list = None,
-                                 dialogue_context: list = None, partner_context: list = None,
-                                 user_a_id = None) -> str:
+                                 partner_context: list = None, user_a_id = None) -> str:
         """Craft a concise, caring message the user can send to their partner.
 
-        Uses the dialogue prompt and combines current personal chat, the partner's
-        personal chat (if available), and prior dialogue context (A/B labeled).
+        Uses the partner prompt and combines current personal chat and the partner's
+        personal chat (if available).
         """
         try:
             # Build current personal context
@@ -237,23 +222,13 @@ class PersonalAgent:
                     role = "User" if msg.get("role") == "user" else "Assistant"
                     other_context += f"{role}: {msg.get('content', '')}\n"
 
-            # Build dialogue context (A/B labeled)
-            dialogue_context_text = ""
-            if dialogue_context:
-                dialogue_context_text = "\nPrevious dialogue between partners:\n"
-                a_id_str = str(user_a_id) if user_a_id is not None else None
-                for msg in dialogue_context:
-                    sender_id = str(msg.get('sender_user_id')) if msg.get('sender_user_id') is not None else None
-                    label = "Partner A:" if sender_id and a_id_str and sender_id == a_id_str else "Partner B:"
-                    dialogue_context_text += f"{label} {msg.get('content', '')}\n"
-
             full_context = (
-                f"{current_context}{other_context}{dialogue_context_text}\n"
+                f"{current_context}{other_context}\n"
                 f"User's request: {user_message}"
             )
 
             input_messages = [
-                {"role": "system", "content": self.dialogue_prompt},
+                {"role": "system", "content": self.partner_prompt},
                 {"role": "user", "content": full_context},
             ]
 

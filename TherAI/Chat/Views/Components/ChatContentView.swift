@@ -4,9 +4,8 @@ struct ChatContentView: View {
 
     let selectedMode: ChatMode
     let personalMessages: [ChatMessage]
-    let dialogueMessages: [DialogueViewModel.DialogueMessage]
     let emptyPrompt: String
-    let onDoubleTapPartnerMessage: (DialogueViewModel.DialogueMessage) -> Void
+    let onDoubleTapPartnerMessage: (_: Any) -> Void
     let isInputFocused: Bool
     let onBackgroundTap: () -> Void
     let personalPreScrollToken: Int
@@ -52,51 +51,6 @@ struct ChatContentView: View {
             .opacity(selectedMode == .personal ? 1 : 0)
             .allowsHitTesting(selectedMode == .personal)
             .zIndex(selectedMode == .personal ? 1 : 0)
-
-            Group {
-                if dialogueMessages.isEmpty {
-                    DialogueEmptyStateView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                ForEach(dialogueMessages) { message in
-                                    DialogueMessageView(
-                                        message: message,
-                                        currentUserId: UUID(uuidString: AuthService.shared.currentUser?.id.uuidString ?? ""),
-                                        onDoubleTapPartnerMessage: onDoubleTapPartnerMessage
-                                    )
-                                    .id(message.id)
-                                }
-                            }
-                            .padding(.top, 24)
-                        }
-                        .scrollBounceBehavior(.basedOnSize)
-                        .scrollIndicators(.visible)
-                        .onAppear {
-                            if let lastId = dialogueMessages.last?.id {
-                                DispatchQueue.main.async {
-                                    withAnimation(.easeOut(duration: 0.2)) {
-                                        proxy.scrollTo(lastId, anchor: .bottom)
-                                    }
-                                }
-                            }
-                        }
-                        .onChange(of: dialogueMessages.count) { _, _ in
-                            if let lastId = dialogueMessages.last?.id {
-                                withAnimation(.easeOut(duration: 0.2)) {
-                                    proxy.scrollTo(lastId, anchor: .bottom)
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
-            }
-            .opacity(selectedMode == .dialogue ? 1 : 0)
-            .allowsHitTesting(selectedMode == .dialogue)
-            .zIndex(selectedMode == .dialogue ? 1 : 0)
         }
         .animation(.easeOut(duration: 0.15), value: selectedMode)
         .id(animationID)

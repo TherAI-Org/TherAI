@@ -7,17 +7,16 @@ from .supabase_client import supabase
 LINKED_SESSIONS_TABLE = "linked_sessions"
 
 
-# Creates a record that ties each partner's personal session to a single dialogue session under a relationship
+# Creates (or upserts) a record that ties each partner's personal session under a relationship
 async def create_linked_session(*, relationship_id: uuid.UUID, user_a_id: uuid.UUID,
                                user_b_id: uuid.UUID, user_a_personal_session_id: uuid.UUID,
-                               user_b_personal_session_id: Optional[uuid.UUID], dialogue_session_id: uuid.UUID) -> dict:
+                               user_b_personal_session_id: Optional[uuid.UUID]) -> dict:
     payload = {
         "relationship_id": str(relationship_id),
         "user_a_id": str(user_a_id),
         "user_b_id": str(user_b_id),
         "user_a_personal_session_id": str(user_a_personal_session_id),
         "user_b_personal_session_id": str(user_b_personal_session_id) if user_b_personal_session_id else None,
-        "dialogue_session_id": str(dialogue_session_id),
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     def _upsert():
@@ -31,7 +30,7 @@ async def create_linked_session(*, relationship_id: uuid.UUID, user_a_id: uuid.U
         raise RuntimeError(f"Supabase upsert linked session failed: {res.error}")
     return res.data[0]
 
-# Finds, for a given relationship and personal session, the linked row that points to the shared dialogue session (or returns None)
+# Finds, for a given relationship and personal session, the linked row (or returns None)
 async def get_linked_session_by_relationship_and_source_session(*, relationship_id: uuid.UUID, source_session_id: uuid.UUID) -> Optional[dict]:
     relationship_id_str = str(relationship_id)
     source_session_id_str = str(source_session_id)

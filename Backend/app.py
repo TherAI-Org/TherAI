@@ -8,7 +8,6 @@ from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, Messag
 from .Agents.personal import PersonalAgent
 from .auth import get_current_user
 from .Database.chat_repo import save_message, list_messages_for_session, update_session_last_message
-from .Database.dialogue_repo import list_dialogue_messages_by_session
 from .Database.link_repo import get_link_status_for_user, get_partner_user_id
 from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
 from .Database.session_repo import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user, update_session_title, delete_session
@@ -16,7 +15,7 @@ from .Database.linked_sessions_repo import get_linked_session_by_relationship_an
 from .Database.linked_sessions_repo import count_relationship_personal_sessions
 from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
-from .Routers.dialogue_router import router as dialogue_router
+from .Routers.partner_router import router as partner_router
 from .Routers.profile_router import router as profile_router
 from .Routers.relationship_router import router as relationship_router
 
@@ -24,7 +23,7 @@ app = FastAPI()
 
 app.include_router(aasa_router)
 app.include_router(link_router)
-app.include_router(dialogue_router)
+app.include_router(partner_router)
 app.include_router(profile_router)
 app.include_router(relationship_router)
 
@@ -64,20 +63,11 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
             ]
 
         # AUTO-ENHANCED CONTEXT: Get linked session context automatically
-        dialogue_context = None
         partner_context = None
 
         try:
             linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
             if linked and relationship_id:
-                # Get dialogue history scoped per-dialogue session if mapping exists for this session
-                try:
-                    mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
-                    if mapped and mapped.get("dialogue_session_id"):
-                        dialogue_context = await list_dialogue_messages_by_session(dialogue_session_id=uuid.UUID(mapped["dialogue_session_id"]), limit=30)
-                except Exception:
-                    dialogue_context = None
-
                 # Get partner's personal chat history, but scoped to the mapped row for this source session
                 try:
                     mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
@@ -119,7 +109,6 @@ async def chat_message(request: ChatRequest, current_user: dict = Depends(get_cu
         response = personal_agent.generate_response(
             request.message,
             chat_history_for_agent,
-            dialogue_context = dialogue_context,
             partner_context = partner_context,
             user_a_id = a_id,
         )
@@ -172,19 +161,12 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             ]
 
         # AUTO-ENHANCED CONTEXT
-        dialogue_context = None
         partner_context = None
         linked_session = None
         try:
             linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
             if linked and relationship_id:
-                try:
-                    mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
-                    linked_session = mapped
-                    if mapped and mapped.get("dialogue_session_id"):
-                        dialogue_context = await list_dialogue_messages_by_session(dialogue_session_id=uuid.UUID(mapped["dialogue_session_id"]), limit=30)
-                except Exception:
-                    dialogue_context = None
+                linked_session = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
                 try:
                     mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
                     # Update cached linked_session if available
@@ -235,7 +217,6 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                         partner_message = personal_agent.generate_partner_message(
                             user_message = request.message,
                             chat_history = chat_history_for_agent,
-                            dialogue_context = dialogue_context,
                             partner_context = partner_context,
                             user_a_id = a_id,
                         )
@@ -341,21 +322,6 @@ Just respond with the conversational introduction, nothing else."""
                     for msg in chat_history_for_agent:
                         role = "user" if msg.get("role") == "user" else "assistant"
                         input_messages.append({"role": role, "content": msg.get("content", "")})
-                if dialogue_context:
-                    # Label prior dialogue as Partner A/B
-                    try:
-                        a_id_str = linked_session["user_a_id"] if linked_session else str(user_uuid)  # type: ignore[index]
-                    except Exception:
-                        a_id_str = str(user_uuid)
-                    dialogue_text = "DIALOGUE CONTEXT (Shared conversations with partner):\n"
-                    for msg in dialogue_context:
-                        sender_id = str(msg.get("sender_user_id")) if msg.get("sender_user_id") is not None else None
-                        if sender_id == a_id_str:
-                            label = "Partner A"
-                        else:
-                            label = "Partner B"
-                        dialogue_text += f"{label}: {msg.get('content', '')}\n"
-                    input_messages.append({"role": "system", "content": dialogue_text.strip()})
                 if partner_context:
                     partner_text = "PARTNER CONTEXT (Partner's recent personal thoughts):\n"
                     for msg in partner_context:

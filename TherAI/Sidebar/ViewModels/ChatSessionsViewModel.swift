@@ -5,14 +5,13 @@ class ChatSessionsViewModel: ObservableObject {
 
     @Published var sessions: [ChatSession] = []
     @Published var isLoadingSessions: Bool = false
-    @Published var pendingRequests: [DialogueViewModel.DialogueRequest] = []
+    @Published var pendingRequests: [BackendService.PartnerPendingRequest] = []
     @Published var activeSessionId: UUID? = nil
     @Published var chatViewKey: UUID = UUID()
     @Published var myAvatarURL: String? = nil
     @Published var partnerAvatarURL: String? = nil
     @Published var partnerInfo: BackendService.PartnerInfo? = nil
 
-    var onSwitchToDialogue: (() -> Void)?
     var onRefreshPendingRequests: (() -> Void)?
 
     private var observers: [NSObjectProtocol] = []
@@ -35,7 +34,7 @@ class ChatSessionsViewModel: ObservableObject {
         chatViewKey = UUID()
     }
 
-    func openPendingRequest(_ request: DialogueViewModel.DialogueRequest) {
+    func openPendingRequest(_ request: BackendService.PartnerPendingRequest) {
         Task { await acceptPendingRequest(request) }
     }
 
@@ -137,7 +136,7 @@ class ChatSessionsViewModel: ObservableObject {
         do {
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
-            let response = try await BackendService.shared.getPendingRequests(accessToken: accessToken)
+            let response = try await BackendService.shared.getPartnerPendingRequests(accessToken: accessToken)
             await MainActor.run {
                 self.pendingRequests = response.requests
             }
@@ -203,7 +202,7 @@ class ChatSessionsViewModel: ObservableObject {
             print("Failed to load avatars: \(error)")
         }
     }
-    
+
     func loadPartnerInfo() async {
         do {
             let session = try await AuthService.shared.client.auth.session
@@ -217,14 +216,14 @@ class ChatSessionsViewModel: ObservableObject {
         }
     }
 
-    private func acceptPendingRequest(_ request: DialogueViewModel.DialogueRequest) async {
+    private func acceptPendingRequest(_ request: BackendService.PartnerPendingRequest) async {
         do {
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
 
             if let currentUserId = AuthService.shared.currentUser?.id,
-               request.senderUserId != currentUserId {
-                let (partnerSessionId, _) = try await BackendService.shared.markRequestAsAccepted(requestId: request.id, accessToken: accessToken)
+               request.sender_user_id != currentUserId {
+                let partnerSessionId = try await BackendService.shared.acceptPartnerRequest(requestId: request.id, accessToken: accessToken)
 
                 await MainActor.run {
                     self.pendingRequests.removeAll { $0.id == request.id }
@@ -235,8 +234,6 @@ class ChatSessionsViewModel: ObservableObject {
 
                 // Refresh sessions to get the latest data including timestamps
                 await loadSessions()
-
-                await MainActor.run { self.onSwitchToDialogue?() }
                 await loadPendingRequests()
             }
         } catch {

@@ -7,9 +7,8 @@ struct ChatScreenView: View {
     let isInputFocused: FocusState<Bool>.Binding
 
     @ObservedObject var chatViewModel: ChatViewModel
-    @ObservedObject var dialogueViewModel: DialogueViewModel
 
-    let onDoubleTapPartnerMessage: (DialogueViewModel.DialogueMessage) -> Void
+    let onDoubleTapPartnerMessage: (_: Any) -> Void
     let onSendToPartner: () -> Void
 
     @State private var inputBarHeight: CGFloat = 0
@@ -21,15 +20,14 @@ struct ChatScreenView: View {
         VStack(spacing: 0) {
             ChatHeaderView(
                 selectedMode: $selectedMode,
-                showDivider: selectedMode == .personal ? !chatViewModel.messages.isEmpty : !dialogueViewModel.messages.isEmpty
+                showDivider: !chatViewModel.messages.isEmpty
             )
 
             ChatContentView(
                 selectedMode: selectedMode,
                 personalMessages: chatViewModel.messages,
-                dialogueMessages: dialogueViewModel.messages,
                 emptyPrompt: chatViewModel.emptyPrompt,
-                onDoubleTapPartnerMessage: onDoubleTapPartnerMessage,
+                onDoubleTapPartnerMessage: { _ in },
                 isInputFocused: isInputFocused.wrappedValue,
                 onBackgroundTap: { isInputFocused.wrappedValue = false },
                 personalPreScrollToken: personalPreScrollToken,

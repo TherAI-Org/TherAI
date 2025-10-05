@@ -33,7 +33,13 @@ struct SlidebarView: View {
             VStack(spacing: 0) {
             HStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    let searchTint = colorScheme == .dark ? Color.white.opacity(0.85) : Color.black.opacity(0.7)
+                    let searchTint: Color = {
+                        if colorScheme == .dark {
+                            return Color.white.opacity(0.85)
+                        } else {
+                            return Color.black.opacity(0.7)
+                        }
+                    }()
                     if !isSearching {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 17, weight: .regular))
@@ -144,7 +150,7 @@ struct SlidebarView: View {
 
                         if hasPending {
                             VStack(alignment: .leading, spacing: 12) {
-                                ForEach(sessionsViewModel.pendingRequests) { request in
+                                ForEach(sessionsViewModel.pendingRequests, id: \.id) { request in
                                     Button(action: {
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
                                             sessionsViewModel.openPendingRequest(request)
@@ -159,7 +165,7 @@ struct SlidebarView: View {
                                                 Text("Partner Request")
                                                     .font(.system(size: 14, weight: .medium))
                                                     .foregroundColor(.primary)
-                                                Text(request.requestContent)
+                                                Text(request.content)
                                                     .font(.system(size: 13))
                                                     .foregroundColor(.secondary)
                                                     .lineLimit(2)
@@ -462,20 +468,20 @@ struct SlidebarView: View {
             sessionsVM.isLoadingSessions = false
             // Seed example pending requests
             sessionsVM.pendingRequests = [
-                DialogueViewModel.DialogueRequest(
+                BackendService.PartnerPendingRequest(
                     id: UUID(),
-                    senderUserId: UUID(),
-                    senderSessionId: UUID(),
-                    requestContent: "Partner request: Share chat access?",
-                    createdAt: ISO8601DateFormatter().string(from: Date()),
+                    sender_user_id: UUID(),
+                    sender_session_id: UUID(),
+                    content: "Partner request: Share chat access?",
+                    created_at: ISO8601DateFormatter().string(from: Date()),
                     status: "pending"
                 ),
-                DialogueViewModel.DialogueRequest(
+                BackendService.PartnerPendingRequest(
                     id: UUID(),
-                    senderUserId: UUID(),
-                    senderSessionId: UUID(),
-                    requestContent: "Invite from S: Connect for dialogue session",
-                    createdAt: ISO8601DateFormatter().string(from: Date()),
+                    sender_user_id: UUID(),
+                    sender_session_id: UUID(),
+                    content: "Invite from S: Connect for partner session",
+                    created_at: ISO8601DateFormatter().string(from: Date()),
                     status: "pending"
                 )
             ]

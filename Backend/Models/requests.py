@@ -61,52 +61,6 @@ class LinkStatusResponse(BaseModel):
     relationship_id: UUID | None = None
     linked_at: str | None = None
 
-# Dialogue models
-class DialogueRequestBody(BaseModel):
-    message: str
-    session_id: UUID
-
-class DialogueRequestResponse(BaseModel):
-    success: bool
-    request_id: UUID
-    dialogue_session_id: UUID
-
-class DialogueMessageDTO(BaseModel):
-    id: UUID
-    dialogue_session_id: UUID
-    request_id: Optional[UUID] = None
-    content: str
-    message_type: str  # "request" or "ai_mediation"
-    sender_user_id: UUID
-    created_at: str
-
-class DialogueMessagesResponse(BaseModel):
-    messages: list[DialogueMessageDTO]
-    dialogue_session_id: UUID
-
-class PendingRequestDTO(BaseModel):
-    id: UUID
-    sender_user_id: UUID
-    sender_session_id: UUID
-    request_content: str
-    created_at: str
-    status: str
-
-class PendingRequestsResponse(BaseModel):
-    requests: list[PendingRequestDTO]
-
-class ExtractContextRequest(BaseModel):
-    relationship_id: UUID
-    target_session_id: UUID  # Personal session to extract context into
-
-# Dialogue acceptance response
-class AcceptDialogueResponse(BaseModel):
-    success: bool
-    partner_session_id: UUID
-    dialogue_session_id: UUID
-
-
-
 # Relationship health
 class RelationshipHealthRequest(BaseModel):
     last_run_at: Optional[str] = None  # ISO8601
@@ -117,3 +71,23 @@ class RelationshipHealthResponse(BaseModel):
     last_run_at: str
     reason: Optional[str] = None
     has_any_messages: bool = True
+
+# Partner request models (new)
+class PartnerRequestBody(BaseModel):
+    message: str
+    session_id: UUID
+
+class PartnerRequestResponse(BaseModel):
+    success: bool
+    request_id: UUID
+
+class PartnerPendingRequestDTO(BaseModel):
+    id: UUID
+    sender_user_id: UUID
+    sender_session_id: UUID
+    content: str
+    created_at: str
+    status: str
+
+class PartnerPendingRequestsResponse(BaseModel):
+    requests: list[PartnerPendingRequestDTO]

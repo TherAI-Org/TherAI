@@ -6,66 +6,35 @@ struct ChatView: View {
     @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
 
     @StateObject private var viewModel: ChatViewModel
-    @StateObject private var dialogueViewModel = DialogueViewModel()
 
     @FocusState private var isInputFocused: Bool
 
     @State private var selectedMode: ChatMode = .personal
-    @State private var dialogueSessionId: UUID? = nil
 
     init(sessionId: UUID? = nil) {
         _viewModel = StateObject(wrappedValue: ChatViewModel(sessionId: sessionId))
     }
 
     var body: some View {
-        let handleDoubleTapPartnerMessage: (DialogueViewModel.DialogueMessage) -> Void = { tapped in
-            Haptics.impact(.light)
-            withAnimation(.easeInOut(duration: 0.15)) { selectedMode = .personal }
-            if navigationViewModel.isDialogueOpen { navigationViewModel.closeDialogue() }
-            // TODO: Implement insight generation from dialogue message
-        }
-
         let handleSendToPartner: () -> Void = {
-            // Prefer the most recent suggested partner message; fallback to input text
-            let latestPartnerText: String? = {
-                for msg in viewModel.messages.reversed() {
-                    if let content = (msg as ChatMessage).partnerMessageContent, (msg as ChatMessage).isPartnerMessage, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        return content
-                    }
-                }
-                return nil
-            }()
-
+            let latestPartnerText = findLatestPartnerMessage()
             let inputTextTrimmed = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
             let textToSend = latestPartnerText ?? (inputTextTrimmed.isEmpty ? nil : inputTextTrimmed)
             guard let text = textToSend, !text.isEmpty else { return }
-
             if latestPartnerText == nil { viewModel.inputText = "" }
-
-            Task {
-                await ChatCoordinator.shared.sendToPartner(
-                    chatViewModel: viewModel,
-                    sessionsViewModel: sessionsViewModel,
-                    dialogueViewModel: dialogueViewModel,
-                    customMessage: text
-                )
-            }
+            Task { await ChatCoordinator.shared.sendToPartner(chatViewModel: viewModel, sessionsViewModel: sessionsViewModel, customMessage: text) }
         }
 
         return ChatScreenView(
             selectedMode: $selectedMode,
             isInputFocused: $isInputFocused,
             chatViewModel: viewModel,
-            dialogueViewModel: dialogueViewModel,
-            onDoubleTapPartnerMessage: handleDoubleTapPartnerMessage,
+            onDoubleTapPartnerMessage: { _ in },
             onSendToPartner: handleSendToPartner
         )
         .contentShape(Rectangle())
         .onTapGesture { isInputFocused = false }
         .onAppear {
-            if navigationViewModel.isDialogueOpen {
-                selectedMode = .dialogue
-            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 if selectedMode == .personal && sessionsViewModel.activeSessionId == nil {
                     isInputFocused = true
@@ -75,13 +44,7 @@ struct ChatView: View {
         .onChange(of: navigationViewModel.dragOffset) { _, newValue in if abs(newValue) > 10 { isInputFocused = false } }
         .onChange(of: navigationViewModel.isOpen) { _, newValue in if newValue { isInputFocused = false } }
         .onAppear {
-            ChatCoordinator.shared.configureCallbacksOnAppear(
-                sessionsViewModel: sessionsViewModel,
-                navigationViewModel: navigationViewModel,
-                dialogueViewModel: dialogueViewModel,
-                setSelectedMode: { selectedMode = $0 },
-                refreshPending: { Task { await sessionsViewModel.loadPendingRequests() } }
-            )
+            Task { await sessionsViewModel.loadPendingRequests() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("AskTherAISelectedSnippet"))) { note in
             if let snippet = note.userInfo?["snippet"] as? String {
@@ -97,62 +60,31 @@ struct ChatView: View {
         .onReceive(NotificationCenter.default.publisher(for: .init("SendPartnerMessageFromBubble"))) { note in
             if let text = note.userInfo?["content"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Task {
-                    await ChatCoordinator.shared.sendToPartner(
-                        chatViewModel: viewModel,
-                        sessionsViewModel: sessionsViewModel,
-                        dialogueViewModel: dialogueViewModel,
-                        customMessage: text
-                    )
+                    await ChatCoordinator.shared.sendToPartner(chatViewModel: viewModel, sessionsViewModel: sessionsViewModel, customMessage: text)
                 }
             }
         }
         .onChange(of: sessionsViewModel.activeSessionId) { _, newSessionId in
-            ChatCoordinator.shared.handleActiveSessionChanged(
-                newSessionId,
-                viewModel: viewModel,
-                selectedMode: selectedMode,
-                dialogueSessionId: dialogueSessionId,
-                sessionsViewModel: sessionsViewModel,
-                dialogueViewModel: dialogueViewModel,
-                setSelectedMode: { selectedMode = $0 },
-                setDialogueSessionId: { dialogueSessionId = $0 }
-            )
+            if let sid = newSessionId { Task { await viewModel.presentSession(sid) } }
         }
         .onChange(of: sessionsViewModel.chatViewKey) { _, _ in
             if sessionsViewModel.activeSessionId == nil {
                 viewModel.sessionId = nil
-                dialogueViewModel.clearMessages()
-                dialogueSessionId = nil
                 Task { await viewModel.loadHistory() }
             }
         }
-        .onChange(of: navigationViewModel.isDialogueOpen) { _, newValue in
-            ChatCoordinator.shared.handleIsDialogueOpenChanged(
-                newValue,
-                selectedMode: selectedMode,
-                navigationViewModel: navigationViewModel,
-                sessionsViewModel: sessionsViewModel,
-                dialogueViewModel: dialogueViewModel,
-                setSelectedMode: { selectedMode = $0 },
-                setInputFocused: { isInputFocused = $0 }
-            )
-        }
-        .onChange(of: selectedMode) { oldMode, newMode in
-            ChatCoordinator.shared.handleSelectedModeChanged(
-                oldMode: oldMode,
-                newMode: newMode,
-                navigationViewModel: navigationViewModel,
-                sessionsViewModel: sessionsViewModel,
-                chatViewModel: viewModel,
-                dialogueViewModel: dialogueViewModel,
-                dialogueSessionId: dialogueSessionId,
-                setInputFocused: { isInputFocused = $0 },
-                setSelectedMode: { selectedMode = $0 }
-            )
-        }
     }
 
-
+    private func findLatestPartnerMessage() -> String? {
+        for msg in viewModel.messages.reversed() {
+            if let content = (msg as ChatMessage).partnerMessageContent,
+               (msg as ChatMessage).isPartnerMessage,
+               !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return content
+            }
+        }
+        return nil
+    }
 }
 
 #Preview {

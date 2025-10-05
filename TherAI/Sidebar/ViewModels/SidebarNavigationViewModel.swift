@@ -11,7 +11,6 @@ enum SidebarTab: String, CaseIterable, Identifiable {
 class SidebarNavigationViewModel: ObservableObject {
 
     @Published var isOpen = false
-    @Published var isDialogueOpen = false
     @Published var selectedTab: SidebarTab = .chat
     @Published var dragOffset: CGFloat = 0
 
@@ -27,7 +26,6 @@ class SidebarNavigationViewModel: ObservableObject {
     func openSidebar() {
         Haptics.impact(.light)
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-            isDialogueOpen = false
             isOpen = true
             dragOffset = 0
         }
@@ -56,23 +54,6 @@ class SidebarNavigationViewModel: ObservableObject {
         }
     }
 
-    func openDialogue() {
-        Haptics.impact(.light)
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-            isOpen = false
-            isDialogueOpen = true
-            dragOffset = 0
-        }
-    }
-
-    func closeDialogue() {
-        Haptics.impact(.light)
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
-            isDialogueOpen = false
-            dragOffset = 0
-        }
-    }
-
     func handleDragGesture(_ translation: CGFloat, width: CGFloat) {
         // Allow interactive dragging from both states.
         // Positive translation (dragging right) begins opening; negative begins closing.
@@ -80,9 +61,6 @@ class SidebarNavigationViewModel: ObservableObject {
         if isOpen {
             // When open, offset moves left from 0 towards -width
             dragOffset = max(-width, min(0, clamped))
-        } else if isDialogueOpen {
-            // If a dialogue overlay is open, ignore sidebar dragging
-            dragOffset = 0
         } else {
             // When closed, offset moves right from 0 towards +width to preview opening
             dragOffset = max(0, min(width, clamped))
@@ -102,20 +80,10 @@ class SidebarNavigationViewModel: ObservableObject {
                     dragOffset = 0
                 }
             }
-        } else if isDialogueOpen {
-            if translation > threshold || velocity > velocityThreshold {
-                closeDialogue()
-            } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0)) {
-                    dragOffset = 0
-                }
-            }
         } else {
             // Decide based on direction and distance
             if translation > threshold || velocity > velocityThreshold {
                 openSidebar()
-            } else if translation < -threshold || velocity < -velocityThreshold {
-                openDialogue()
             } else {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0)) {
                     dragOffset = 0
