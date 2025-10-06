@@ -12,7 +12,6 @@ from .Database.link_repo import get_link_status_for_user, get_partner_user_id
 from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
 from .Database.session_repo import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user, update_session_title, delete_session
 from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
-from .Database.linked_sessions_repo import count_relationship_personal_sessions
 from .Routers.aasa_router import router as aasa_router
 from .Routers.link_router import router as link_router
 from .Routers.partner_router import router as partner_router
@@ -29,103 +28,6 @@ app.include_router(relationship_router)
 
 personal_agent = PersonalAgent()
 
-# Send a message and receive an assistant response, creating a session if needed
-@app.post("/chat/sessions/message", response_model = ChatResponse)
-async def chat_message(request: ChatRequest, current_user: dict = Depends(get_current_user)):
-    try:
-        try:
-            user_uuid = uuid.UUID(current_user.get("sub"))
-        except Exception:
-            raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
-
-        # Determine session id: if provided, verify ownership; else create one
-        if request.session_id is not None:
-            try:
-                await assert_session_owned_by_user(user_id=user_uuid, session_id=request.session_id)
-                session_uuid = request.session_id
-            except PermissionError:
-                raise HTTPException(status_code=403, detail="Forbidden: invalid session")
-        else:
-            session_row = await create_session(user_id=user_uuid, title=None)
-            session_uuid = uuid.UUID(session_row["id"])
-
-        await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)
-
-        # Update the session's last_message_content for sidebar preview
-        await update_session_last_message(session_id = session_uuid, content = request.message)
-
-        # Convert chat history to the format expected by the chat agent
-        chat_history_for_agent = None
-        if request.chat_history:
-            chat_history_for_agent = [
-                {"role": msg.role, "content": msg.content}
-                for msg in request.chat_history
-            ]
-
-        # AUTO-ENHANCED CONTEXT: Get linked session context automatically
-        partner_context = None
-
-        try:
-            linked, relationship_id, _ = await get_link_status_for_user(user_id=user_uuid)
-            if linked and relationship_id:
-                # Get partner's personal chat history, but scoped to the mapped row for this source session
-                try:
-                    mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
-                    partner_session_id_str = None
-                    if mapped:
-                        cur_id = str(user_uuid)
-                        if mapped.get("user_a_id") == cur_id:
-                            partner_session_id_str = mapped.get("user_b_personal_session_id")
-                        elif mapped.get("user_b_id") == cur_id:
-                            partner_session_id_str = mapped.get("user_a_personal_session_id")
-                    if partner_session_id_str:
-                        partner_user_id = await get_partner_user_id(user_id=user_uuid)
-                        if partner_user_id:
-                            partner_messages = await list_messages_for_session(
-                                user_id=partner_user_id,
-                                session_id=uuid.UUID(partner_session_id_str),
-                                limit=50
-                            )
-                            partner_context = partner_messages
-                except Exception:
-                    partner_context = None
-        except Exception as e:
-            print(f"Context retrieval warning: {e}")
-
-        # Resolve Partner A id for labeling (use linked row if present, else caller)
-        try:
-            a_id = uuid.UUID(linked_session["user_a_id"]) if linked_session else user_uuid  # type: ignore[index]
-        except Exception:
-            a_id = user_uuid
-
-        # Optional focus snippet: prepend a short instruction as a system message
-        if getattr(request, "focus_snippet", None):
-            focus_text = f"Focus on this snippet from the conversation: \n\n\"{request.focus_snippet}\"\n\nExplain and answer the user's question in relation to it."
-            injected_history = chat_history_for_agent or []
-            injected_history = injected_history[:]  # shallow copy
-            injected_history.insert(0, {"role": "system", "content": focus_text})
-            chat_history_for_agent = injected_history
-
-        response = personal_agent.generate_response(
-            request.message,
-            chat_history_for_agent,
-            partner_context = partner_context,
-            user_a_id = a_id,
-        )
-
-        # Persist assistant message
-        await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = response)
-        await touch_session(session_id=session_uuid)
-
-        return ChatResponse(
-            response = response,
-            success = True,
-            session_id = session_uuid
-        )
-    except Exception as e:
-        raise HTTPException(status_code = 500, detail = f"Error processing message: {str(e)}")
-
-
 # Stream assistant response as Server-Sent Events (SSE)
 @app.post("/chat/sessions/message/stream")
 async def chat_message_stream(request: ChatRequest, current_user: dict = Depends(get_current_user)):
@@ -135,24 +37,19 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
         except Exception:
             raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
 
-        # Determine session id: if provided, verify ownership; else create one
         if request.session_id is not None:
             try:
                 await assert_session_owned_by_user(user_id=user_uuid, session_id=request.session_id)
                 session_uuid = request.session_id
             except PermissionError:
-                raise HTTPException(status_code=403, detail="Forbidden: invalid session")
+                raise HTTPException(status_code = 403, detail = "Forbidden: invalid session")
         else:
             session_row = await create_session(user_id=user_uuid, title=None)
             session_uuid = uuid.UUID(session_row["id"])
 
-        # Persist user message immediately
-        await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)
+        await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)  # Persist user message
+        await update_session_last_message(session_id = session_uuid, content = request.message)  # Update the session's last_message_content for sidebar preview
 
-        # Update the session's last_message_content for sidebar preview
-        await update_session_last_message(session_id = session_uuid, content = request.message)
-
-        # Convert chat history to the format expected by the chat agent
         chat_history_for_agent = None
         if request.chat_history:
             chat_history_for_agent = [
@@ -160,7 +57,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                 for msg in request.chat_history
             ]
 
-        # AUTO-ENHANCED CONTEXT
+        # Get partner's personal chat messages (for enhanced context)
         partner_context = None
         linked_session = None
         try:
@@ -169,7 +66,6 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                 linked_session = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
                 try:
                     mapped = await get_linked_session_by_relationship_and_source_session(relationship_id=relationship_id, source_session_id=session_uuid)
-                    # Update cached linked_session if available
                     linked_session = mapped if mapped else linked_session
                     partner_session_id_str = None
                     if mapped:
@@ -192,25 +88,22 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
         except Exception as e:
             print(f"Context retrieval warning (stream): {e}")
 
-        # Resolve Partner A id for labeling and partner message generation
+        # Gets the user_a_id (for labeling and partner message generation)
         try:
             a_id = uuid.UUID(linked_session["user_a_id"]) if linked_session and linked_session.get("user_a_id") else user_uuid  # type: ignore[index]
         except Exception:
             a_id = user_uuid
 
         def iter_sse():
-            # Anti-buffering prelude (2KB of comments) to force flush through some proxies/CDNs
             yield (":" + " " * 2048 + "\n\n").encode()
-            # Send session id to client first so UI can bind to it
+
             sess_payload = json.dumps({"session_id": str(session_uuid)})
             yield f"event: session\ndata: {sess_payload}\n\n".encode()
 
             full_text_parts = []
             final_text = ""
             try:
-                print(f"[SSE] /chat stream start session_id={session_uuid}")
-                # AI-only detection of partner message intent
-                is_partner_message_request = personal_agent._is_requesting_partner_message(request.message)
+                is_partner_message_request = personal_agent.should_offer_partner_message(request.message, chat_history_for_agent)
 
                 if is_partner_message_request:
                     try:
@@ -220,12 +113,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                             partner_context = partner_context,
                             user_a_id = a_id,
                         )
-                        # Remove surrounding quotes from partner message if present
                         cleaned_message = partner_message.strip()
-                        # Debug: log the original message
-                        print(f"[DEBUG] Original partner message: '{partner_message}'")
-
-                        # Remove various types of quotes from start and end
                         quote_types = ['"', "'", '"', '"', ''', ''']
                         for quote in quote_types:
                             if cleaned_message.startswith(quote) and cleaned_message.endswith(quote) and len(cleaned_message) > len(quote) * 2:
@@ -314,10 +202,6 @@ Just respond with the conversational introduction, nothing else."""
                             is_partner_message_request = False
 
                 input_messages = [{"role": "system", "content": personal_agent.system_prompt}] if hasattr(personal_agent, "system_prompt") else []
-                # Optional focus snippet: inject before user message if provided
-                if getattr(request, "focus_snippet", None):
-                    focus_text = f"Focus on this snippet from the conversation: \n\n\"{request.focus_snippet}\"\n\nExplain and answer the user's question in relation to it."
-                    input_messages.append({"role": "system", "content": focus_text})
                 if chat_history_for_agent:
                     for msg in chat_history_for_agent:
                         role = "user" if msg.get("role") == "user" else "assistant"

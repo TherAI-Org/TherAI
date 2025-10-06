@@ -14,7 +14,7 @@ class RelationshipHealthAgent:
             raise ValueError("Missing OPENAI_MODEL in environment")
         self.model = model
 
-        prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "relationship_health_prompt.txt"
+        prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "iOS" / "relationship_health_prompt.txt"
         with open(prompt_path, "r", encoding = "utf-8") as f:
             self.system_prompt = f.read().strip()
 

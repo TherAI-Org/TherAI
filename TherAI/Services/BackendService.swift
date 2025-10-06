@@ -18,42 +18,6 @@ struct BackendService {
         print("🌐 BackendService: Initialized with base URL: \(url)")
     }
 
-    func sendChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String, focusSnippet: String? = nil) async throws -> (response: String, sessionId: UUID) {
-        let url = baseURL
-            .appendingPathComponent("chat")
-            .appendingPathComponent("sessions")
-            .appendingPathComponent("message")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        // Do not advertise SSE for the non-streaming endpoint
-
-        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory, focus_snippet: focusSnippet)
-        request.httpBody = try jsonEncoder.encode(payload)
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await urlSession.data(for: request)
-        } catch {
-            throw error
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-
-        let decoded = try jsonDecoder.decode(ChatResponseBody.self, from: data)
-        guard decoded.success, let sid = decoded.session_id else {
-            throw NSError(domain: "Backend", code: -3, userInfo: [NSLocalizedDescriptionKey: "Request failed"])
-        }
-        return (decoded.response, sid)
-    }
-
     // MARK: - Streaming (SSE)
 
     enum StreamEvent: Equatable {
@@ -73,7 +37,7 @@ struct BackendService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory, focus_snippet: focusSnippet)
+        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory)
         request.httpBody = try? jsonEncoder.encode(payload)
 
         return SSEService.shared.stream(request: request)
@@ -437,7 +401,6 @@ private struct ChatRequestBody: Codable {
     let message: String
     let session_id: UUID?
     let chat_history: [ChatHistoryMessage]?
-    let focus_snippet: String?
 }
 
 private struct ChatResponseBody: Codable {

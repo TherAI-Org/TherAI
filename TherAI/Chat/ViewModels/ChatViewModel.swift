@@ -23,7 +23,6 @@ class ChatViewModel: ObservableObject {
     private let backend = BackendService.shared
     private let authService = AuthService.shared
     private var currentTask: Task<Void, Never>?
-    private var fallbackTask: Task<Void, Never>?
 
     // Cache of messages per session to avoid unnecessary refetches when revisiting
     private struct MessagesCacheEntry {
@@ -186,39 +185,12 @@ class ChatViewModel: ObservableObject {
                 var accumulated = ""
                 let stream = backend.streamChatMessage(messageToSend, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken, focusSnippet: self.focusSnippet)
 
-                // Fallback timer: if no token received after 6s, call non-stream API
-                self.fallbackTask?.cancel()
-                self.fallbackTask = Task { [weak self] in
-                    try? await Task.sleep(nanoseconds: 6_000_000_000)
-                    guard let self = self, !Task.isCancelled else { return }
-                    if let result = try? await self.backend.sendChatMessage(messageToSend, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken, focusSnippet: self.focusSnippet) {
-                        await MainActor.run {
-                            if self.sessionId == nil { self.sessionId = result.sessionId }
-                            if !self.messages.isEmpty {
-                                let last = self.messages[self.messages.count - 1]
-                                self.messages[self.messages.count - 1] = ChatMessage(id: last.id, content: result.response, isFromUser: last.isFromUser, timestamp: last.timestamp)
-                            }
-                            self.isLoading = false
-                        }
-                    } else {
-                        await MainActor.run {
-                            if !self.messages.isEmpty {
-                                let last = self.messages[self.messages.count - 1]
-                                self.messages[self.messages.count - 1] = ChatMessage(id: last.id, content: "Error: request failed", isFromUser: last.isFromUser, timestamp: last.timestamp)
-                            }
-                            self.isLoading = false
-                        }
-                    }
-                }
-
                 for await event in stream {
                     guard !Task.isCancelled else { break }
                     switch event {
                     case .session(let sid):
                         if self.sessionId == nil { self.sessionId = sid }
-                        self.fallbackTask?.cancel()
                     case .token(let token):
-                        self.fallbackTask?.cancel()
                         accumulated += token
                         await MainActor.run {
                             if !self.messages.isEmpty {
@@ -233,7 +205,6 @@ class ChatViewModel: ObservableObject {
                         }
                     case .done:
                         await MainActor.run { self.isLoading = false }
-                        self.fallbackTask?.cancel()
                     case .error(let message):
                         await MainActor.run {
                             if !self.messages.isEmpty {
@@ -241,12 +212,10 @@ class ChatViewModel: ObservableObject {
                             }
                             self.isLoading = false
                         }
-                        self.fallbackTask?.cancel()
                     }
                 }
 
                 // Safety: ensure loading state is cleared if stream ends without a .done event
-                self.fallbackTask?.cancel()
                 await MainActor.run {
                     self.isLoading = false
                 }
@@ -265,7 +234,6 @@ class ChatViewModel: ObservableObject {
 
     func stopGeneration() {
         currentTask?.cancel()
-        fallbackTask?.cancel()
         isLoading = false
 
         // Remove the placeholder AI message if it exists

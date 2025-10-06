@@ -237,37 +237,21 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
         parts = []
         final_text = ""
         try:
-            # Build prompt for partner message generation using PersonalAgent
-            input_messages = []
-            if current_history:
-                text = "PARTNER MESSAGE CONTEXT:\n" + "\n".join([
-                    ("User" if m.get("role") == "user" else "Assistant") + f": {m.get('content','')}" for m in current_history
-                ])
-                input_messages.append({"role": "system", "content": text})
-            input_messages.append({"role": "user", "content": body.message})
-
-            print("[PartnerStream] OPEN LLM stream")
-            with agent.client.responses.stream(model=agent.model, input=input_messages) as stream:  # type: ignore[attr-defined]
-                try:
-                    token_count = 0
-                    for delta in stream.text_deltas:  # type: ignore[attr-defined]
-                        if delta:
-                            parts.append(delta)
-                            token_count += 1
-                            if token_count % 10 == 0:
-                                print(f"[PartnerStream] TOKENS so far={token_count}")
-                            yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                except Exception:
-                    for event in stream:
-                        ev_type = getattr(event, "type", "")
-                        if ev_type.endswith("output_text.delta"):
-                            delta = getattr(event, "delta", "") or ""
-                            if delta:
-                                parts.append(delta)
-                                yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                final = stream.get_final_response()
-                final_text = getattr(final, "output_text", None) or "".join(parts)
-                print(f"[PartnerStream] LLM stream DONE tokens={len(parts)} final_len={len(final_text)}")
+            # Use the dedicated partner message prompt for clean, first-person output
+            final_text = agent.generate_partner_message(
+                user_message = body.message,
+                chat_history = current_history,
+                partner_context = None,
+                user_a_id = None,
+            )
+            print(f"[PartnerStream] GENERATED partner message len={len(final_text)}")
+            # Stream the generated text to keep client UX consistent
+            if final_text:
+                words = final_text.split(' ')
+                for i, word in enumerate(words):
+                    chunk = word + (' ' if i < len(words) - 1 else '')
+                    parts.append(chunk)
+                    yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
 
             # Deliver based on mode
             final_content = (final_text or "").strip() or body.message.strip()

@@ -11,7 +11,6 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[UUID] = None
     chat_history: Optional[list[ChatHistoryMessage]] = None
-    focus_snippet: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
