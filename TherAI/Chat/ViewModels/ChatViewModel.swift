@@ -250,30 +250,30 @@ class ChatViewModel: ObservableObject {
     func generateEmptyPrompt() {
         // Short, varied, therapist-style prompts
         let prompts = [
-            "What’s on your mind today?",
+            "What feels stuck today daddy?",
             "Where would you like to start?",
             "What feels heavy today?",
             "What would feel supportive to talk through?",
             "What’s been on your heart lately?",
-            "What do you need right now?",
+            "What you wanna know nigga",
             "What’s asking for your attention?",
-            "What feels stuck today?",
+            "What’s on your mind today?",
             "What would make today easier?",
             "What’s been weighing on you?",
             "What’s going well—and what isn’t?",
             "What feels most important to share?",
             "What are you hoping to figure out?",
-            "What’s a small win you want today?",
+            "Are you singing to me boy?",
             "What would you like space for?",
             "What’s one thing you want to unpack?",
             "What’s been taking up mental space?",
             "What would help you feel grounded?",
-            "What’s been coming up lately?",
-            "What feels unclear right now?",
+            "Are you a good boy?",
+            "Just like that babe, dont stop",
             "What’s the story today?",
             "What do you want to get off your chest?",
             "What are you navigating today?",
-            "What would you like to process?"
+            "What you wanna know today nigger?"
         ]
 
         // Use a seed per new chat so it changes each new session but stays stable per view appearance
