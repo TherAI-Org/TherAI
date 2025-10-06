@@ -17,7 +17,7 @@ struct InputAreaView: View {
     var body: some View {
 
         let isSendDisabled = !isLoading && inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let sendSize: CGFloat = 32
+        let sendSize: CGFloat = 34
 
         VStack(alignment: .leading, spacing: 8) {
             if let snippet = focusSnippet, !snippet.isEmpty {
@@ -50,17 +50,20 @@ struct InputAreaView: View {
                 )
             }
 
-            HStack(spacing: 12) {
-                TextField("Share what's on your mind", text: $inputText)
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundColor(.primary)
-                    .onSubmit {
-                        guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                        Haptics.impact(.light)
-                        isInputFocused.wrappedValue = false
-                        send()
-                    }
-                    .focused(isInputFocused)
+            HStack(alignment: .bottom, spacing: 4) {
+                VStack {
+                    TextField("Share what's on your mind", text: $inputText, axis: .vertical)
+                        .lineLimit(1...5)
+                        .lineSpacing(2)
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundColor(.primary)
+                        .textFieldStyle(.plain)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 6)
+                        .focused(isInputFocused)
+                }
+                .frame(minHeight: 36)
 
                 Button(action: {
                     Haptics.impact(.light)
@@ -110,38 +113,19 @@ struct InputAreaView: View {
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            Group {
-                if #available(iOS 26.0, *) {
-                    // iOS 26+ Liquid Glass effect using .glassEffect()
-                    Color.clear
-                        .glassEffect()
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                } else {
-                    // Fallback for older iOS versions
-                    Color.clear
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                }
-            }
-        )
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 5)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 25, style: .continuous))
         .overlay(
-            Group {
-                if #available(iOS 26.0, *) {
-                    // No border for iOS 26+ glass effect
-                    EmptyView()
-                } else {
-                    // Keep border for older iOS versions
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(
-                            colorScheme == .dark ?
-                                Color.white.opacity(0.15) :
-                                Color.black.opacity(0.08),
-                            lineWidth: 1
-                        )
-                }
-            }
+            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                .strokeBorder(
+                    colorScheme == .dark ?
+                        Color.white.opacity(0.15) :
+                        Color.black.opacity(0.08),
+                    lineWidth: 1
+                )
         )
         .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
         .padding(.horizontal, 16)
