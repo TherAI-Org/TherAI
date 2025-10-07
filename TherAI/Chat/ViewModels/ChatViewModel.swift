@@ -350,16 +350,6 @@ class ChatViewModel: ObservableObject {
         // Here we just no-op; UI layer will trigger a resend flow if desired
     }
 
-    // Handle Reject: cancel stream and discard the in-progress assistant message
-    func rejectCurrentAssistantDraft() {
-        print("[ChatVM] rejectCurrentAssistantDraft invoked")
-        stopGeneration()
-        if !messages.isEmpty, messages.last?.isFromUser == false {
-            messages.removeLast()
-            print("[ChatVM] removed in-progress assistant message")
-        }
-    }
-
     func clearChat() {
         messages.removeAll()
         generateEmptyPrompt()

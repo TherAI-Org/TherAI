@@ -31,7 +31,7 @@ struct MessagesListView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     ForEach(messages) { message in
-                        MessageBubble(message: message, onSendToPartner: { text in
+                        MessageBubbleView(message: message, onSendToPartner: { text in
                             NotificationCenter.default.post(name: .init("SendPartnerMessageFromBubble"), object: nil, userInfo: ["content": text])
                         })
                             .id(message.id)

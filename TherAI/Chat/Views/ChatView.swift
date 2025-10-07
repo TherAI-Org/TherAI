@@ -63,9 +63,6 @@ struct ChatView: View {
         .onReceive(NotificationCenter.default.publisher(for: .init("SkipPartnerDraftRequested"))) { _ in
             viewModel.requestNewPartnerDraft()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .init("RejectPartnerDraftRequested"))) { _ in
-            viewModel.rejectCurrentAssistantDraft()
-        }
         .onChange(of: sessionsViewModel.activeSessionId) { _, newSessionId in
             if let sid = newSessionId { Task { await viewModel.presentSession(sid) } }
         }
