@@ -187,6 +187,13 @@ class ChatSessionsViewModel: ObservableObject {
             }
         }
         observers.append(sent)
+        
+        // Sessions need refresh (e.g., after title generation)
+        let needRefresh = NotificationCenter.default.addObserver(forName: .chatSessionsNeedRefresh, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self else { return }
+            Task { await self.refreshSessions() }
+        }
+        observers.append(needRefresh)
     }
 
     func loadPairedAvatars() async {

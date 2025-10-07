@@ -75,3 +75,58 @@ async def delete_messages_for_session(*, user_id: uuid.UUID, session_id: uuid.UU
         return len(res.data or [])
     except Exception:
         return 0
+
+
+# Check if a session has any messages (returns True if session is empty, False if it has messages)
+async def is_session_empty(*, session_id: uuid.UUID) -> bool:
+    def _count():
+        return (
+            supabase
+            .table(TABLE_NAME)
+            .select("id", count="exact")
+            .eq("session_id", str(session_id))
+            .limit(1)
+            .execute()
+        )
+    res = await run_in_threadpool(_count)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase count messages failed: {res.error}")
+    # Check if any messages exist
+    return len(res.data or []) == 0
+
+
+# Count the number of user messages in a session
+async def count_user_messages(*, session_id: uuid.UUID) -> int:
+    def _count():
+        return (
+            supabase
+            .table(TABLE_NAME)
+            .select("id", count="exact")
+            .eq("session_id", str(session_id))
+            .eq("role", "user")
+            .execute()
+        )
+    res = await run_in_threadpool(_count)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase count user messages failed: {res.error}")
+    # Return the count
+    return len(res.data or [])
+
+
+# Get the last N user messages from a session (for title generation)
+async def get_recent_user_messages(*, session_id: uuid.UUID, limit: int = 2) -> List[str]:
+    def _select():
+        return (
+            supabase
+            .table(TABLE_NAME)
+            .select("content")
+            .eq("session_id", str(session_id))
+            .eq("role", "user")
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        )
+    res = await run_in_threadpool(_select)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase select user messages failed: {res.error}")
+    return [row["content"] for row in res.data or []]

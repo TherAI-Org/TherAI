@@ -326,6 +326,9 @@ class ChatViewModel: ObservableObject {
                         "sessionId": sid,
                         "messageContent": messageToSend
                     ])
+                    
+                    // Refresh sessions to pick up any title changes (e.g., auto-generated titles)
+                    NotificationCenter.default.post(name: .chatSessionsNeedRefresh, object: nil)
                 }
         }
     }
