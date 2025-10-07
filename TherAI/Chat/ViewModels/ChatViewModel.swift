@@ -153,6 +153,7 @@ class ChatViewModel: ObservableObject {
                 print("ACCESS_TOKEN: <nil>")
                 return
             }
+            print("[ChatVM] stream starting; sessionId=\(String(describing: self.sessionId)) messagesCount=\(self.messages.count)")
                 // Ensure we have a stable session id before sending to avoid backend auto-creating new sessions
                 if self.sessionId == nil {
                     do {
@@ -184,10 +185,62 @@ class ChatViewModel: ObservableObject {
 
                 var accumulated = ""
                 let stream = backend.streamChatMessage(messageToSend, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken, focusSnippet: self.focusSnippet)
-
+                var sawToolStart = false
+                var sawPartnerMessage = false
+                var eventCounter = 0
                 for await event in stream {
                     guard !Task.isCancelled else { break }
+                    eventCounter += 1
                     switch event {
+                    case .toolStart:
+                        sawToolStart = true
+                        await MainActor.run {
+                            if self.messages.isEmpty || self.messages.last?.isFromUser == true {
+                                self.messages.append(ChatMessage(content: "", isFromUser: false))
+                            }
+                            if !self.messages.isEmpty {
+                                var newMessages = self.messages
+                                let lastIndex = newMessages.count - 1
+                                let last = newMessages[lastIndex]
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: last.content,
+                                    isFromUser: last.isFromUser,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: last.isPartnerMessage,
+                                    partnerMessageContent: last.partnerMessageContent,
+                                    isToolLoading: true
+                                )
+                                newMessages[lastIndex] = updated
+                                self.messages = newMessages
+                            }
+                            print("[ChatVM] toolStart received; showing loader (no hardcoded intro)")
+                        }
+                    case .toolArgs:
+                        if !sawToolStart {
+                            print("[ChatVM] toolArgs before toolStart; loader may be delayed")
+                        }
+                        break
+                    case .toolDone:
+                        await MainActor.run {
+                            if !self.messages.isEmpty {
+                                var newMessages = self.messages
+                                let lastIndex = newMessages.count - 1
+                                let last = newMessages[lastIndex]
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: last.content,
+                                    isFromUser: last.isFromUser,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: last.isPartnerMessage,
+                                    partnerMessageContent: last.partnerMessageContent,
+                                    isToolLoading: false
+                                )
+                                newMessages[lastIndex] = updated
+                                self.messages = newMessages
+                            }
+                            print("[ChatVM] toolDone received; hiding loader (fallback)")
+                        }
                     case .session(let sid):
                         if self.sessionId == nil { self.sessionId = sid }
                     case .token(let token):
@@ -196,14 +249,60 @@ class ChatViewModel: ObservableObject {
                             if !self.messages.isEmpty {
                                 let lastIndex = self.messages.count - 1
                                 let last = self.messages[lastIndex]
-                                let updated = ChatMessage(id: last.id, content: accumulated, isFromUser: last.isFromUser, timestamp: last.timestamp)
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: accumulated,
+                                    isFromUser: last.isFromUser,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: last.isPartnerMessage,
+                                    partnerMessageContent: last.partnerMessageContent,
+                                    isToolLoading: last.isToolLoading
+                                )
                                 var newMessages = self.messages
                                 newMessages[lastIndex] = updated
                                 self.messages = newMessages
                                 print("[ChatVM] token update length=\(accumulated.count)")
                             }
                         }
+                    case .partnerMessage(let text):
+                        sawPartnerMessage = true
+                        await MainActor.run {
+                            print("[ChatVM] partner_message received len=\(text.count)")
+                            // Attach the partner draft to the current assistant message; fallback to append if needed
+                            if self.messages.isEmpty {
+                                self.messages.append(ChatMessage.partnerDraft(text))
+                                print("[ChatVM] appended standalone partnerDraft (no messages present)")
+                                return
+                            }
+                            var newMessages = self.messages
+                            let lastIndex = newMessages.count - 1
+                            let last = newMessages[lastIndex]
+                            if last.isFromUser == false {
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: last.content,
+                                    isFromUser: last.isFromUser,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: true,
+                                    partnerMessageContent: text,
+                                    isToolLoading: false
+                                )
+                                newMessages[lastIndex] = updated
+                                self.messages = newMessages
+                                print("[ChatVM] attached partnerDraft to assistant message id=\(last.id) contentLen=\(last.content.count)")
+                            } else {
+                                self.messages.append(ChatMessage.partnerDraft(text))
+                                print("[ChatVM] appended partnerDraft after user message (no assistant placeholder)")
+                            }
+
+                            // Safety: if, for any reason, the last message still isn't marked as partner draft, append one
+                            if let last = self.messages.last, (last.isPartnerMessage == false || (last.partnerMessageContent ?? "").isEmpty) {
+                                self.messages.append(ChatMessage.partnerDraft(text))
+                                print("[ChatVM] safety-append partnerDraft to ensure visibility")
+                            }
+                        }
                     case .done:
+                        print("[ChatVM] stream done; sawToolStart=\(sawToolStart) sawPartnerMessage=\(sawPartnerMessage) events=\(eventCounter)")
                         await MainActor.run { self.isLoading = false }
                     case .error(let message):
                         await MainActor.run {
@@ -219,6 +318,7 @@ class ChatViewModel: ObservableObject {
                 await MainActor.run {
                     self.isLoading = false
                 }
+                print("[ChatVM] stream ended loop (Task end); cancelled=\(Task.isCancelled)")
 
                 // Session creation notification is now sent immediately when session is created above
                 if let sid = self.sessionId {
@@ -239,6 +339,24 @@ class ChatViewModel: ObservableObject {
         // Remove the placeholder AI message if it exists
         if !messages.isEmpty && messages.last?.content.isEmpty == true {
             messages.removeLast()
+        }
+    }
+
+    // Handle Skip: request a new draft only, replacing the block on the current assistant message
+    func requestNewPartnerDraft() {
+        print("[ChatVM] requestNewPartnerDraft invoked")
+        // For now, simply resend the same user prompt to regenerate a new draft via the same stream
+        // Optional future: implement a dedicated /chat/draft/stream endpoint to return only partner_message
+        // Here we just no-op; UI layer will trigger a resend flow if desired
+    }
+
+    // Handle Reject: cancel stream and discard the in-progress assistant message
+    func rejectCurrentAssistantDraft() {
+        print("[ChatVM] rejectCurrentAssistantDraft invoked")
+        stopGeneration()
+        if !messages.isEmpty, messages.last?.isFromUser == false {
+            messages.removeLast()
+            print("[ChatVM] removed in-progress assistant message")
         }
     }
 

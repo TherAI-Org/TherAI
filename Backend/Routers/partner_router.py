@@ -252,6 +252,8 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
                     chunk = word + (' ' if i < len(words) - 1 else '')
                     parts.append(chunk)
                     yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
+                    if len(parts) % 16 == 0:
+                        print(f"[PartnerStream] tokens emitted so far: {len(parts)}")
 
             # Deliver based on mode
             final_content = (final_text or "").strip() or body.message.strip()

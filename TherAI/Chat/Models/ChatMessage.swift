@@ -7,6 +7,7 @@ struct ChatMessage: Identifiable {
     let timestamp: Date
     let isPartnerMessage: Bool
     let partnerMessageContent: String?
+    let isToolLoading: Bool
 
     // Initializes a chat message locally
     init(id: UUID = UUID(), content: String, isFromUser: Bool, timestamp: Date = Date()) {
@@ -17,6 +18,32 @@ struct ChatMessage: Identifiable {
         let parsed = Self.parsePartnerMessage(content)
         self.isPartnerMessage = parsed.isPartner
         self.partnerMessageContent = parsed.content
+        self.isToolLoading = false
+    }
+
+    // Initializes a partner message coming from SSE event
+    static func partnerDraft(_ text: String) -> ChatMessage {
+        // Render partner draft within assistant bubble and explicitly mark as partner message
+        return ChatMessage(
+            id: UUID(),
+            content: text,
+            isFromUser: false,
+            timestamp: Date(),
+            isPartnerMessage: true,
+            partnerMessageContent: text,
+            isToolLoading: false
+        )
+    }
+
+    // Explicit initializer to construct a message with partner flags
+    init(id: UUID = UUID(), content: String, isFromUser: Bool, timestamp: Date = Date(), isPartnerMessage: Bool, partnerMessageContent: String?, isToolLoading: Bool = false) {
+        self.id = id
+        self.content = content
+        self.isFromUser = isFromUser
+        self.timestamp = timestamp
+        self.isPartnerMessage = isPartnerMessage
+        self.partnerMessageContent = partnerMessageContent
+        self.isToolLoading = isToolLoading
     }
 
     // Initializes a chat message from a backend DTO
@@ -28,6 +55,7 @@ struct ChatMessage: Identifiable {
         let parsed = Self.parsePartnerMessage(dto.content)
         self.isPartnerMessage = parsed.isPartner
         self.partnerMessageContent = parsed.content
+        self.isToolLoading = false
     }
 
     // Extracts the clean partner message from the formatted content

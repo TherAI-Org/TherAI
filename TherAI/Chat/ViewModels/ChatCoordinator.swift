@@ -44,6 +44,12 @@ struct ChatCoordinator {
                 let stream = BackendService.shared.streamPartnerRequest(body, accessToken: accessToken)
                 for await event in stream {
                     switch event {
+                    case .toolStart(_):
+                        break
+                    case .toolArgs(_):
+                        break
+                    case .toolDone:
+                        break
                     case .token(_):
                         break
                     case .done:
@@ -52,6 +58,9 @@ struct ChatCoordinator {
                         print("[PartnerStream][iOS] error=\(msg)")
                         return
                     case .session(_):
+                        break
+                    case .partnerMessage(_):
+                        // No UI change here; partner UI comes from personal chat stream path
                         break
                     }
                 }

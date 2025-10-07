@@ -23,6 +23,10 @@ struct BackendService {
     enum StreamEvent: Equatable {
         case session(UUID)
         case token(String)
+        case partnerMessage(String)
+        case toolStart(String)    // tool name
+        case toolArgs(String)     // arg delta (optional)
+        case toolDone
         case done
         case error(String)
     }

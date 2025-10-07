@@ -3,6 +3,9 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 import json
+import traceback
+from pydantic import BaseModel
+from openai import pydantic_function_tool
 
 from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
 from .Agents.personal import PersonalAgent
@@ -36,6 +39,15 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             user_uuid = uuid.UUID(current_user.get("sub"))
         except Exception:
             raise HTTPException(status_code = 401, detail = "Invalid user ID in token")
+
+        try:
+            print(
+                f"[SSE] /chat stream REQUEST user={current_user.get('sub')} "
+                f"session_in={request.session_id} msg_len={len((request.message or '').strip())} "
+                f"history={len(request.chat_history or [])}"
+            )
+        except Exception:
+            print("[SSE] /chat stream REQUEST log-failed")
 
         if request.session_id is not None:
             try:
@@ -99,108 +111,12 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
 
             sess_payload = json.dumps({"session_id": str(session_uuid)})
             yield f"event: session\ndata: {sess_payload}\n\n".encode()
+            print(f"[SSE] /chat session event sent session_id={session_uuid}")
 
             full_text_parts = []
             final_text = ""
             try:
-                is_partner_message_request = personal_agent.should_offer_partner_message(request.message, chat_history_for_agent)
-
-                if is_partner_message_request:
-                    try:
-                        partner_message = personal_agent.generate_partner_message(
-                            user_message = request.message,
-                            chat_history = chat_history_for_agent,
-                            partner_context = partner_context,
-                            user_a_id = a_id,
-                        )
-                        cleaned_message = partner_message.strip()
-                        quote_types = ['"', "'", '"', '"', ''', ''']
-                        for quote in quote_types:
-                            if cleaned_message.startswith(quote) and cleaned_message.endswith(quote) and len(cleaned_message) > len(quote) * 2:
-                                cleaned_message = cleaned_message[len(quote):-len(quote)]
-                                print(f"[DEBUG] Removed quotes, cleaned message: '{cleaned_message}'")
-                                break
-
-                        # Also remove any remaining quotes from the entire message as a fallback
-                        if '"' in cleaned_message or "'" in cleaned_message:
-                            # Only remove quotes if they appear to be wrapping the entire message
-                            temp = cleaned_message.strip()
-                            if (temp.startswith('"') and temp.endswith('"')) or (temp.startswith("'") and temp.endswith("'")):
-                                cleaned_message = temp[1:-1]
-                                print(f"[DEBUG] Fallback quote removal: '{cleaned_message}'")
-
-                        # Generate a conversational introduction for the message
-                        try:
-                            intro_prompt = f"""The user asked for help with a message to send to their partner. Generate a brief, warm conversational response that introduces the message you're about to provide.
-
-Examples:
-- "Yes, of course! Here's a message for your wife:"
-- "I'd be happy to help! Here's something you can tell your partner:"
-- "Absolutely! Here's a message for your husband:"
-- "Of course! Here's what you can say to them:"
-
-Keep it brief, warm, and natural. The user's request was: "{request.message}"
-
-Just respond with the conversational introduction, nothing else."""
-
-                            intro_messages = [
-                                {"role": "system", "content": intro_prompt}
-                            ]
-                            intro_resp = personal_agent.client.responses.create(
-                                model=personal_agent.model,
-                                input=intro_messages,
-                                temperature=0.7
-                            )
-
-                            intro_text = getattr(intro_resp, "output_text", None)
-                            if not intro_text:
-                                parts = []
-                                for block in getattr(intro_resp, "output", []) or []:
-                                    if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
-                                        parts.append(block.text)
-                                intro_text = "".join(parts) if parts else "Here's a message for your partner:"
-
-                            intro_text = intro_text.strip()
-                        except Exception as e:
-                            print(f"[DEBUG] Error generating intro: {e}")
-                            intro_text = "Here's a message for your partner:"
-
-                        formatted = f"{intro_text}\n\n{cleaned_message}" if cleaned_message else ""
-                        if formatted:
-                            words = formatted.split(' ')
-                            for i, word in enumerate(words):
-                                chunk = word + (' ' if i < len(words) - 1 else '')
-                                full_text_parts.append(chunk)
-                                yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
-                            final_text = formatted
-                        else:
-                            # If partner message generation failed, create a fallback message
-                            print(f"[DEBUG] Partner message generation failed, creating fallback")
-                            fallback_message = "I understand you want to communicate with your partner. Let me help you express your feelings clearly."
-                            fallback_formatted = f"{intro_text}\n\n{fallback_message}"
-                            words = fallback_formatted.split(' ')
-                            for i, word in enumerate(words):
-                                chunk = word + (' ' if i < len(words) - 1 else '')
-                                full_text_parts.append(chunk)
-                                yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
-                            final_text = fallback_formatted
-                    except Exception as e:
-                        print(f"[SSE] partner message generation error: {e}")
-                        # Create a fallback partner message instead of falling back to regular response
-                        try:
-                            intro_text = "Here's a message for your partner:"
-                            fallback_message = "I understand you want to communicate with your partner. Let me help you express your feelings clearly."
-                            fallback_formatted = f"{intro_text}\n\n{fallback_message}"
-                            words = fallback_formatted.split(' ')
-                            for i, word in enumerate(words):
-                                chunk = word + (' ' if i < len(words) - 1 else '')
-                                full_text_parts.append(chunk)
-                                yield f"event: token\ndata: {json.dumps(chunk)}\n\n".encode()
-                            final_text = fallback_formatted
-                        except Exception as fallback_error:
-                            print(f"[SSE] Fallback partner message also failed: {fallback_error}")
-                            is_partner_message_request = False
-
+                # Build input for a single-call flow
                 input_messages = [{"role": "system", "content": personal_agent.system_prompt}] if hasattr(personal_agent, "system_prompt") else []
                 if chat_history_for_agent:
                     for msg in chat_history_for_agent:
@@ -214,60 +130,128 @@ Just respond with the conversational introduction, nothing else."""
                     input_messages.append({"role": "system", "content": partner_text.strip()})
                 input_messages.append({"role": "user", "content": request.message})
 
-                if not is_partner_message_request:
-                    with personal_agent.client.responses.stream(
-                        model=personal_agent.model,
-                        input=input_messages,
-                    ) as stream:  # type: ignore[attr-defined]
-                        used_iterator = False
+                # Function tool schema (per OpenAI Responses function-calling docs)
+                # Tool defined using the SDK helper required by Responses API
+                class EmitPartnerMessageArgs(BaseModel):
+                    text: str
+
+                tools = [
+                    pydantic_function_tool(
+                        EmitPartnerMessageArgs,
+                        name = "emit_partner_message",
+                        description = "Emit a clean first-person message to send to the partner. No quotes.",
+                    )
+                ]
+
+                # Stream model output with tools so function_call can be emitted mid-stream
+                print("[SSE] /chat stream start tools_enabled=True")
+                partner_text_value = None
+                with personal_agent.client.responses.stream(
+                    model = personal_agent.model,
+                    input = input_messages,
+                    tools = tools,
+                ) as stream:  # type: ignore[attr-defined]
+                    used_iterator = False
+                    fc_args_by_item_id = {}
+                    event_count = 0
+                    tool_start_emitted = False
+                    for event in stream:
                         try:
-                            for delta in stream.text_deltas:  # type: ignore[attr-defined]
-                                used_iterator = True
-                                try:
-                                    if delta:
-                                        full_text_parts.append(delta)
-                                        yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                                except Exception:
-                                    continue
+                            ev_type = getattr(event, "type", "")
+                            event_count += 1
+                            if event_count <= 15:
+                                print(f"[SSE] /chat stream ev#{event_count} type={ev_type}")
+                            if ev_type.endswith("output_text.delta"):
+                                delta = getattr(event, "delta", "") or ""
+                                if delta:
+                                    used_iterator = True
+                                    full_text_parts.append(delta)
+                                    yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
+                            elif ev_type.endswith("output_item.added"):
+                                item = getattr(event, "item", None)
+                                if item and getattr(item, "type", "") == "function_call":
+                                    name = getattr(item, "name", "")
+                                    if name == "emit_partner_message":
+                                        item_id = getattr(item, "id", None)
+                                        if item_id is not None:
+                                            fc_args_by_item_id[item_id] = fc_args_by_item_id.get(item_id, "")
+                                            print(f"[SSE] /chat tool-call item added id={item_id}")
+                                            try:
+                                                payload = json.dumps({"name": name})
+                                                yield f"event: tool_start\ndata: {payload}\n\n".encode()
+                                                tool_start_emitted = True
+                                                print("[SSE] /chat tool_start emitted (from output_item.added)")
+                                            except Exception:
+                                                pass
+                            elif ev_type.endswith("function_call.arguments.delta") or ev_type.endswith("function_call_arguments.delta"):
+                                item_id = getattr(event, "item_id", None)
+                                delta = getattr(event, "delta", "") or ""
+                                if item_id is not None and delta:
+                                    fc_args_by_item_id[item_id] = fc_args_by_item_id.get(item_id, "") + delta
+                                    if len(fc_args_by_item_id[item_id]) % 64 < len(delta):
+                                        print(f"[SSE] /chat tool-call args delta id={item_id} len={len(fc_args_by_item_id[item_id])}")
+                                    if not tool_start_emitted:
+                                        print("[SSE] /chat WARNING: tool args arrived before tool_start was emitted (name may be delayed)")
+                                    # Optionally surface arg deltas to client (not required for final UI)
+                                    try:
+                                        yield f"event: tool_args\ndata: {json.dumps(delta)}\n\n".encode()
+                                    except Exception:
+                                        pass
+                            elif ev_type.endswith("function_call.arguments.done") or ev_type.endswith("function_call_arguments.done") or ev_type.endswith("output_item.done"):
+                                item = getattr(event, "item", None)
+                                if item and getattr(item, "type", "") == "function_call":
+                                    name = getattr(item, "name", "")
+                                    if name == "emit_partner_message":
+                                        args_str = getattr(item, "arguments", None)
+                                        if not args_str:
+                                            item_id = getattr(event, "item_id", None)
+                                            if item_id is not None:
+                                                args_str = fc_args_by_item_id.get(item_id)
+                                        if args_str:
+                                            try:
+                                                parsed = json.loads(args_str) if isinstance(args_str, str) else args_str
+                                                text_val = (parsed.get("text") or "").strip()
+                                                text_val = text_val.strip('"').strip('“”')
+                                                partner_text_value = text_val
+                                                yield f"event: partner_message\ndata: {json.dumps(partner_text_value)}\n\n".encode()
+                                                try:
+                                                    yield b"event: tool_done\ndata: {}\n\n"
+                                                except Exception:
+                                                    pass
+                                                preview = partner_text_value[:120].replace("\n", " ")
+                                                print(f"[SSE] /chat partner_message len={len(partner_text_value)} preview={preview!r}")
+                                            except Exception as e:
+                                                print(f"[SSE] /chat stream function_call parse error: {e}")
+                            elif ev_type.endswith("error"):
+                                err = getattr(event, "error", None)
+                                if err:
+                                    yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
+                                    print(f"[SSE] /chat stream model-error: {err}")
+                            # ignore other event types
                         except Exception:
-                            # Fallback to raw event loop if text_deltas isn't available
-                            for event in stream:
-                                try:
-                                    ev_type = getattr(event, "type", "")
-                                    if ev_type.endswith("output_text.delta"):
-                                        delta = getattr(event, "delta", "") or ""
-                                        if delta:
-                                            full_text_parts.append(delta)
-                                            yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                                    elif ev_type.endswith("error"):
-                                        err = getattr(event, "error", None)
-                                        if err:
-                                            yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
-                                except Exception:
-                                    continue
+                            print("[SSE] /chat stream event-handler exception:\n" + traceback.format_exc())
+                            continue
 
-                        final = stream.get_final_response()
-                        final_text = getattr(final, "output_text", None) or "".join(full_text_parts)
-                        print(f"[SSE] /chat stream completed tokens={len(full_text_parts)} final_len={len(final_text)}")
+                    final = stream.get_final_response()
+                    chat_response = getattr(final, "output_text", None) or "".join(full_text_parts)
+                    try:
+                        streamed_len = sum(len(p) for p in full_text_parts)
+                        print(f"[SSE] /chat stream finished streamed_chars={streamed_len} tool_start_emitted={tool_start_emitted} partner_present={(partner_text_value is not None)}")
+                    except Exception:
+                        pass
 
-                # If no tokens were sent during streaming, emit the final text now so clients show something
+                final_text = chat_response
+
                 if not full_text_parts and final_text:
                     yield f"event: token\ndata: {json.dumps(final_text)}\n\n".encode()
-
-                # Persist assistant message at the end
-                try:
-                    import asyncio
-                    asyncio.run(save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = final_text))
-                    asyncio.run(touch_session(session_id=session_uuid))
-                except Exception as e:
-                    warn_msg = json.dumps(f"Failed to save message: {e}")
-                    yield f"event: warn\ndata: {warn_msg}\n\n".encode()
 
                 yield b"event: done\ndata: {}\n\n"
                 print(f"[SSE] /chat stream done sent for session_id={session_uuid}")
             except Exception as e:
-                print(f"[SSE] /chat stream error: {e}")
+                print(f"[SSE] /chat stream error: {e}\n" + traceback.format_exc())
                 yield f"event: error\ndata: {json.dumps(str(e))}\n\n".encode()
+            finally:
+                print(f"[SSE] /chat stream generator closed session_id={session_uuid}")
 
         return StreamingResponse(
             iterate_in_threadpool(iter_sse()),
