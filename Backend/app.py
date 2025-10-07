@@ -10,7 +10,7 @@ from openai import pydantic_function_tool
 from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
 from .Agents.personal import PersonalAgent
 from .auth import get_current_user
-from .Database.chat_repo import save_message, list_messages_for_session, update_session_last_message
+from .Database.chat_repo import save_message, list_messages_for_session, update_session_last_message, is_session_empty, count_user_messages, get_recent_user_messages
 from .Database.link_repo import get_link_status_for_user, get_partner_user_id
 from .Database.linked_sessions_repo import get_linked_session_by_relationship_and_source_session
 from .Database.session_repo import create_session, list_sessions_for_user, touch_session, assert_session_owned_by_user, update_session_title, delete_session
@@ -59,8 +59,28 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             session_row = await create_session(user_id=user_uuid, title=None)
             session_uuid = uuid.UUID(session_row["id"])
 
+        # Save the user message first
         await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)  # Persist user message
         await update_session_last_message(session_id = session_uuid, content = request.message)  # Update the session's last_message_content for sidebar preview
+        
+        # Count how many user messages now exist (after saving this one)
+        user_message_count = await count_user_messages(session_id=session_uuid)
+        
+        # Generate/regenerate title on 1st and 2nd user messages
+        if user_message_count == 1 or user_message_count == 2:
+            try:
+                # Get recent user messages for context
+                recent_user_messages = await get_recent_user_messages(session_id=session_uuid, limit=2)
+                chat_title = personal_agent.generate_chat_title(recent_user_messages)
+                
+                if chat_title:
+                    await update_session_title(user_id=user_uuid, session_id=session_uuid, title=chat_title)
+                    if user_message_count == 1:
+                        print(f"[TITLE] Generated initial title for session {session_uuid}: '{chat_title}'")
+                    else:
+                        print(f"[TITLE] Refined title for session {session_uuid}: '{chat_title}'")
+            except Exception as e:
+                print(f"[TITLE] Failed to generate chat title: {e}")
 
         chat_history_for_agent = None
         if request.chat_history:
