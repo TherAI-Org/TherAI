@@ -38,12 +38,14 @@ struct MessageBubbleView: View {
                             )
                     )
                     .foregroundColor(.white)
+                    .textSelection(.enabled)
                     .frame(maxWidth: 320, alignment: .trailing)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     let body = assistantBodyExcludingDraft(message)
                     if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         MarkdownRendererView(markdown: body)
+                            .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 4)
