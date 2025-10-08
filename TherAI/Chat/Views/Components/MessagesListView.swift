@@ -40,8 +40,6 @@ struct MessagesListView: View {
                 .padding(.top, 24)
                 .padding(.horizontal)
             }
-            .contentShape(Rectangle())
-            .onTapGesture { onBackgroundTap() }
             .scrollBounceBehavior(.always)
             .scrollIndicators(.visible)
             .onChange(of: preScrollTrigger) { _, _ in
