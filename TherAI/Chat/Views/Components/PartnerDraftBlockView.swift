@@ -7,10 +7,12 @@ struct PartnerDraftBlockView: View {
 
     @State private var text: String
     @State private var showCheck: Bool = false
+    let initialText: String
 
     let onAction: (Action) -> Void
 
     init(initialText: String, onAction: @escaping (Action) -> Void) {
+        self.initialText = initialText
         self._text = State(initialValue: initialText)
         self.onAction = onAction
     }
@@ -46,6 +48,8 @@ struct PartnerDraftBlockView: View {
                 .background(Color.clear)
                 .scrollContentBackground(.hidden)
                 .font(.callout)
+                .foregroundColor(.primary)
+                .frame(minHeight: 96)
 
             HStack {
                 Button(action: { onAction(.skip) }) {
@@ -74,6 +78,14 @@ struct PartnerDraftBlockView: View {
                     RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))
                 )
         )
+        .onAppear {
+            if self.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                self.text = self.initialText
+            }
+        }
+        .onChange(of: initialText) { _, newValue in
+            self.text = newValue
+        }
     }
 }
 

@@ -21,9 +21,6 @@ class PersonalAgent:
         with open(partner_message_prompt_path, "r", encoding = "utf-8") as f:
             self.partner_message_prompt = f.read().strip()
 
-        send_detection_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "send_detection_prompt.txt"
-        with open(send_detection_prompt_path, "r", encoding = "utf-8") as f:
-            self.send_detection_prompt = f.read().strip()
 
         title_generation_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "chat_title_generation_prompt.txt"
         with open(title_generation_prompt_path, "r", encoding = "utf-8") as f:
@@ -66,38 +63,6 @@ class PersonalAgent:
         except Exception as e:
             print(f"OpenAI API error: {e}")
             return ""
-
-    # Detect if user wants a message crafted for their partner (invokes the 'send to partner' feature)
-    def should_offer_partner_message(self, user_message: str, chat_history: list | None = None) -> bool:
-        try:
-            if not user_message:
-                return False
-
-            # Build a minimal context from the last 15 messages if provided
-            messages = [{"role": "system", "content": self.send_detection_prompt}]
-            if chat_history:
-                recent = chat_history[-15:]
-                context_lines = []
-                for m in recent:
-                    role = "User" if m.get("role") == "user" else "Assistant"
-                    context_lines.append(f"{role}: {m.get('content','')}")
-                context_block = "Recent conversation (last 15 messages):\n" + "\n".join(context_lines)
-                messages.append({"role": "system", "content": context_block})
-
-            messages.append({"role": "user", "content": user_message})
-            resp = self.client.responses.create(model = self.model, input = messages, temperature = 0)
-            text = getattr(resp, "output_text", None)
-            if not text:
-                parts = []
-                for block in getattr(resp, "output", []) or []:
-                    if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
-                        parts.append(block.text)
-                text = "".join(parts) if parts else ""
-            verdict = (text or "").strip().upper()
-            return verdict.startswith("YES")
-        except Exception as e:
-            print(f"Partner message detection error: {e}")
-            return False
 
     # Craft a concise and caring message the user can send to their partner.
     def generate_partner_message(self, user_message: str, chat_history: list = None,
@@ -172,7 +137,7 @@ class PersonalAgent:
 
             # Clean up the title (remove quotes, extra punctuation)
             title = title.strip('"\'""''')
-            
+
             # Fallback if title is empty or too long
             if not title or len(title) > 60:
                 return "New chat"

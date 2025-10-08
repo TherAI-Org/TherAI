@@ -1,6 +1,7 @@
 import uuid
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from starlette.concurrency import iterate_in_threadpool
 import json
 import traceback
@@ -62,17 +63,17 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
         # Save the user message first
         await save_message(user_id = user_uuid, session_id = session_uuid, role = "user", content = request.message)  # Persist user message
         await update_session_last_message(session_id = session_uuid, content = request.message)  # Update the session's last_message_content for sidebar preview
-        
+
         # Count how many user messages now exist (after saving this one)
         user_message_count = await count_user_messages(session_id=session_uuid)
-        
+
         # Generate/regenerate title on 1st and 2nd user messages
         if user_message_count == 1 or user_message_count == 2:
             try:
                 # Get recent user messages for context
                 recent_user_messages = await get_recent_user_messages(session_id=session_uuid, limit=2)
                 chat_title = personal_agent.generate_chat_title(recent_user_messages)
-                
+
                 if chat_title:
                     await update_session_title(user_id=user_uuid, session_id=session_uuid, title=chat_title)
                     if user_message_count == 1:
@@ -125,6 +126,32 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             a_id = uuid.UUID(linked_session["user_a_id"]) if linked_session and linked_session.get("user_a_id") else user_uuid  # type: ignore[index]
         except Exception:
             a_id = user_uuid
+
+        # Shared state for background persistence after stream completes
+        state = {"final_text": "", "partner_text": None}
+
+        async def persist_stream_results():
+            try:
+                final_text = (state.get("final_text") or "").strip()
+                partner_text_value = (state.get("partner_text") or "")
+                if final_text:
+                    try:
+                        row = await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = final_text)
+                        print(f"[SSE] persist assistant ok id={row.get('id') if isinstance(row, dict) else 'unknown'}")
+                    except Exception as e:
+                        print(f"[SSE] persist assistant error: {e}")
+                if partner_text_value and partner_text_value.strip():
+                    try:
+                        # Persist a structured annotation (JSON) alongside the assistant content so UI can reliably render the partner block without content markers
+                        annotation = json.dumps({"_therai": {"type": "partner_draft", "text": partner_text_value}}, ensure_ascii=False)
+                        preview_pd = partner_text_value[:120].replace("\n", " ")
+                        print(f"[SSE][persist] saving partner_draft annotation len={len(partner_text_value)} preview={preview_pd!r}")
+                        row2 = await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = annotation)
+                        print(f"[SSE] persist partner_draft annotation ok id={row2.get('id') if isinstance(row2, dict) else 'unknown'} role=assistant")
+                    except Exception as e:
+                        print(f"[SSE] persist partner_draft error: {e}")
+            except Exception as e:
+                print(f"[SSE] persist task fatal: {e}")
 
         def iter_sse():
             yield (":" + " " * 2048 + "\n\n").encode()
@@ -233,6 +260,12 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                                                 text_val = (parsed.get("text") or "").strip()
                                                 text_val = text_val.strip('"').strip('“”')
                                                 partner_text_value = text_val
+                                                try:
+                                                    state["partner_text"] = partner_text_value
+                                                    preview = partner_text_value[:120].replace("\n", " ")
+                                                    print(f"[SSE][tool] partner_message parsed len={len(partner_text_value)} preview={preview!r}")
+                                                except Exception:
+                                                    pass
                                                 yield f"event: partner_message\ndata: {json.dumps(partner_text_value)}\n\n".encode()
                                                 try:
                                                     yield b"event: tool_done\ndata: {}\n\n"
@@ -261,6 +294,12 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                         pass
 
                 final_text = chat_response
+                try:
+                    state["final_text"] = final_text or ""
+                    if partner_text_value:
+                        state["partner_text"] = partner_text_value
+                except Exception:
+                    pass
 
                 if not full_text_parts and final_text:
                     yield f"event: token\ndata: {json.dumps(final_text)}\n\n".encode()
@@ -283,6 +322,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                 "Content-Encoding": "identity",
                 "Content-Type": "text/event-stream; charset=utf-8",
             },
+            background=BackgroundTask(persist_stream_results),
         )
     except HTTPException:
         raise

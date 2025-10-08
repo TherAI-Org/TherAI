@@ -14,13 +14,25 @@ async def save_message(*, user_id: uuid.UUID, session_id: uuid.UUID, role: str, 
         "role": role,
         "content": content,
     }
+    try:
+        preview = (content or "")[:120].replace("\n", " ")
+        print(f"[DB] save_message insert role={role} session_id={session_id} user_id={user_id} preview={preview!r}")
+    except Exception:
+        pass
     def _insert():
         return supabase.table(TABLE_NAME).insert(payload).execute()
     res = await run_in_threadpool(_insert)
     if getattr(res, "error", None):
+        print(f"[DB] save_message error: {getattr(res, 'error', None)}")
         raise RuntimeError(f"Supabase insert failed: {res.error}")
     if not hasattr(res, 'data') or not res.data:
+        print("[DB] save_message returned no data")
         raise RuntimeError("Supabase insert returned no data")
+    try:
+        inserted = res.data[0]
+        print(f"[DB] save_message ok id={inserted.get('id')}")
+    except Exception:
+        pass
     return res.data[0]
 
 # List user/assistant messages for a specific session (from oldest to newest)
