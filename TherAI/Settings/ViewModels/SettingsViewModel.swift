@@ -3,6 +3,7 @@ import SwiftUI
 
 enum SettingsDestination: Hashable {
     case link
+    case personalization
 }
 
 extension SettingsDestination: Identifiable {
@@ -10,6 +11,8 @@ extension SettingsDestination: Identifiable {
         switch self {
         case .link:
             return "link"
+        case .personalization:
+            return "personalization"
         }
     }
 }
@@ -54,6 +57,7 @@ class SettingsViewModel: ObservableObject {
                 gradient: [Color.blue, Color.purple],
                 settings: [
                     SettingItem(title: "Notifications", subtitle: "Email and push notifications", type: .navigation, icon: "bell"),
+                    SettingItem(title: "Personalization", subtitle: "About you and preferences", type: .navigation, icon: "slider.horizontal.3"),
                     SettingItem(title: "Appearance", subtitle: currentAppearance, type: .picker(["System", "Light", "Dark"]), icon: "paintpalette"),
                     SettingItem(title: "Haptic Feedback", subtitle: "Vibration feedback for interactions", type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]
@@ -129,6 +133,8 @@ class SettingsViewModel: ObservableObject {
         case "Notifications":
             // Navigate to notifications detail view
             break
+        case "Personalization":
+            destination = .personalization
         case "Account Settings":
             // Navigate to account settings
             break
