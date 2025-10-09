@@ -186,6 +186,16 @@ struct SettingsView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                 .animation(.easeInOut(duration: 0.2), value: showingAvatarSelection)
             }
+            .sheet(item: $viewModel.destination) { dest in
+                switch dest {
+                case .link:
+                    MainLinkView(accessTokenProvider: {
+                        try await AuthService.shared.getAccessToken() ?? ""
+                    })
+                case .personalization:
+                    PersonalizationView()
+                }
+            }
         }
         .padding(.bottom, 12)
         .background(Color(.systemBackground).ignoresSafeArea())
