@@ -190,10 +190,8 @@ struct SettingsView: View {
                 switch dest {
                 case .link:
                     MainLinkView(accessTokenProvider: {
-                        try await AuthService.shared.getAccessToken() ?? ""
+                        await AuthService.shared.getAccessToken() ?? ""
                     })
-                case .personalization:
-                    PersonalizationView()
                 }
             }
         }
