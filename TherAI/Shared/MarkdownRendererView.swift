@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MarkdownRendererView: View {
+
     let markdown: String
 
     private enum Block: Equatable {
@@ -18,25 +19,37 @@ struct MarkdownRendererView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             ForEach(parse(markdown)) { item in
                 switch item.block {
-                case .heading(let level, let text):
-                    headingView(level: level, text: text)
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
+                case .heading(_, let text):
+                    Group {
+                        if let attributed = try? AttributedString(
+                            markdown: text,
+                            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                        ) {
+                            Text(attributed)
+                        } else {
+                            Text(text)
+                        }
+                    }
+                    .font(.system(size: 21, weight: .semibold))
+                    .padding(.top, 16)
+                    .padding(.bottom, 18)
                 case .unorderedList(let items):
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 16) {
                         ForEach(Array(items.enumerated()), id: \.0) { _, raw in
-                            HStack(alignment: .top, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text("•")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .padding(.top, 4)
+                                    .font(.system(size: 12, weight: .bold))
+                                    .baselineOffset(2)
                                 inlineText(raw)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
+                        .padding(.horizontal, 6)
                     }
+                    .padding(.vertical, 18)
                 case .orderedList(let items):
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(Array(items.enumerated()), id: \.0) { idx, raw in
@@ -48,6 +61,7 @@ struct MarkdownRendererView: View {
                             }
                         }
                     }
+                    .padding(.vertical, 18)
                 case .paragraph(let text):
                     inlineText(text)
                 case .quote(let text):
@@ -66,19 +80,6 @@ struct MarkdownRendererView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func headingView(level: Int, text: String) -> some View {
-        let attributed = (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-        let base: Text = attributed.map(Text.init) ?? Text(text)
-        switch level {
-        case 1:
-            return AnyView(base.font(.system(size: 27, weight: .semibold)))
-        case 2:
-            return AnyView(base.font(.system(size: 23, weight: .semibold)))
-        default:
-            return AnyView(base.font(.system(size: 17, weight: .semibold)))
-        }
     }
 
     private func inlineText(_ text: String) -> some View {

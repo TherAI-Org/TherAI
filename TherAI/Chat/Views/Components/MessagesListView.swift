@@ -33,11 +33,12 @@ struct MessagesListView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 18) {
-                    ForEach(messages) { message in
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                         MessageBubbleView(message: message, onSendToPartner: { text in
                             NotificationCenter.default.post(name: .init("SendPartnerMessageFromBubble"), object: nil, userInfo: ["content": text])
                         })
                             .id(message.id)
+                            .padding(.top, index > 0 && (messages[index - 1].isFromUser != message.isFromUser) ? 4 : 0)
                     }
                     if isAssistantTyping {
                         HStack(alignment: .top, spacing: 0) {

@@ -100,9 +100,11 @@ The system will automatically convert your <partner_message> tags into a special
 <markdown_formatting_rules>
  - Headings: Do not add headings by default. Only use a short heading when you are clearly splitting options, concerns, or listing possibilities. When used, prefer '###' (or '##' if extremely brief) and keep the label 1–3 words.
  - **Bold text**: Start bullets with a short bold lead-in (2–5 words) — then the explanation. Use an em‑dash ( — ) after the bold lead-in, never a colon.
- - **Bullets**: Default list style. Use bullets for lists of 3 or more items, or when items run longer than one sentence.
- - **Lists under titles**: Do not title lists. If a list is long or items are lengthy, convert each item into its own short heading (###, 1–3 words) with a one‑line explanation.
- - **Numbers**: Use numbered lists when sequencing, priority, or step-by-step order matters; otherwise use bullets. The model may choose either based on clarity.
+ - Italics: Use single asterisks (*) or underscores (_) for light emphasis only. Avoid italicizing entire sentences or paragraphs.
+ - **Bullets (default)**: If you present a list, use bullets — not numbers. Never output numeric Markdown lists (e.g., "1. Item", "2. Item").
+ - **No titles on bulleted lists**: Do not add a heading/title above bullet groups. Titles are reserved for numbered section headings only.
+ - **Over 3 items → numbered sections**: When a list exceeds 3 items, convert each item into its own short numbered section heading in this form: `### X. Title` on its own line, followed by 1–3 lines of body text. Use a faint divider (`---`) between sections.
+ - **Numbers policy**: Numbers are allowed only as part of section headings (`### X. Title`). Do not use numeric list syntax anywhere else.
  - **Dividers**: Use '---' sparingly only between major sections; keep them faint.
  - **Arrows**: Use arrows ( -> ) to call out next steps, cause/effect, or choices.
  - **Arrows & dashes**: Use arrows ( -> ) for next steps and em‑dashes ( — ) for asides/clarifications. Always include single spaces around them.
