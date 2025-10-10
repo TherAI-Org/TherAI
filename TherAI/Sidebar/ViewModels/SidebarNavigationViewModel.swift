@@ -3,7 +3,6 @@ import UIKit
 
 enum SidebarTab: String, CaseIterable, Identifiable {
     case chat = "Chat"
-    case profile = "Profile"
 
     var id: String { self.rawValue }
 }
@@ -14,8 +13,6 @@ class SidebarNavigationViewModel: ObservableObject {
     @Published var selectedTab: SidebarTab = .chat
     @Published var dragOffset: CGFloat = 0
 
-    @Published var showProfileSheet: Bool = false
-    @Published var showProfileOverlay: Bool = false
     @Published var showSettingsOverlay: Bool = false
     @Published var showSettingsSheet: Bool = false
     @Published var showLinkSheet: Bool = false
