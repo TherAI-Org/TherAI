@@ -22,7 +22,7 @@ struct MessageBubbleView: View {
             if message.isFromUser {
                 Text(message.content)
                     .font(.system(size: 17, weight: .regular))
-                    .padding(.horizontal, 18)
+                    .padding(.horizontal, 16)
                     .padding(.vertical, 14)
                     .background(
                         RoundedRectangle(cornerRadius: 20)
@@ -154,7 +154,7 @@ struct MessageBubbleView: View {
 
 #Preview {
     VStack(spacing: 20) {
-        MessageBubbleView(message: ChatMessage(content: "Hello! How are you?", isFromUser: true))
+        MessageBubbleView(message: ChatMessage(content: "Hello! How are you? I'm Stephan, and I'd like to chat with you.", isFromUser: true))
         MessageBubbleView(message: ChatMessage(content: "I’m doing great, thanks for asking!", isFromUser: false))
         MessageBubbleView(
             message: ChatMessage(
