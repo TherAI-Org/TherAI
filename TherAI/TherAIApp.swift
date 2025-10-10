@@ -24,7 +24,6 @@ struct TherAIApp: App {
 
     init() {
         // Register BGTask handlers before app finishes launching
-        ProfileBackgroundRefresh.register()
     }
 
     var body: some Scene {
