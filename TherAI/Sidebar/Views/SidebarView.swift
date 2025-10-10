@@ -378,18 +378,6 @@ struct SlidebarView: View {
                     .frame(height: 100) // This creates space for the gradient to start earlier
 
                 HStack {
-                    if case .linked = linkVM.state {
-                        Button(action: {
-                            Haptics.impact(.medium)
-                            withAnimation(.easeOut(duration: 0.22)) {
-                                navigationViewModel.showProfileOverlay = true
-                            }
-                        }) {
-                            ProfileButtonView(profileNamespace: profileNamespace, compact: true)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-
                     Spacer()
 
                     // Settings on lower right
