@@ -6,6 +6,7 @@ struct PartnerDraftBlockView: View {
     enum Action { case send(String), skip}
 
     @State private var text: String
+    @State private var measuredTextHeight: CGFloat = 0
     @State private var showCheck: Bool = false
     let initialText: String
 
@@ -47,12 +48,25 @@ struct PartnerDraftBlockView: View {
                 .padding(.horizontal, -12)
                 .offset(y: -4)
 
-            TextEditor(text: $text)
-                .background(Color.clear)
-                .scrollContentBackground(.hidden)
-                .font(.callout)
-                .foregroundColor(.primary)
-                .frame(minHeight: 96)
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $text)
+                    .background(Color.clear)
+                    .scrollContentBackground(.hidden)
+                    .font(.callout)
+                    .foregroundColor(.primary)
+                    .disabled(true)
+                    .frame(height: max(40, measuredTextHeight))
+
+                // Invisible sizing text to measure height needed for the editor content
+                Text(text.isEmpty ? " " : text)
+                    .font(.callout)
+                    .foregroundColor(.clear)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(HeightReader(height: $measuredTextHeight))
+                    .allowsHitTesting(false)
+            }
 
             HStack {
                 Button(action: { onAction(.skip) }) {
@@ -88,6 +102,31 @@ struct PartnerDraftBlockView: View {
         }
         .onChange(of: initialText) { _, newValue in
             self.text = newValue
+        }
+    }
+}
+
+// MARK: - Height measurement helpers
+
+private struct ViewHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct HeightReader: View {
+    @Binding var height: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .preference(key: ViewHeightKey.self, value: proxy.size.height)
+        }
+        .onPreferenceChange(ViewHeightKey.self) { newValue in
+            if abs(newValue - height) > 0.5 { // avoid tight update loops
+                height = newValue
+            }
         }
     }
 }

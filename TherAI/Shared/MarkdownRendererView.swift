@@ -28,10 +28,12 @@ struct MarkdownRendererView: View {
                 case .unorderedList(let items):
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(Array(items.enumerated()), id: \.0) { _, raw in
-                            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            HStack(alignment: .top, spacing: 10) {
                                 Text("•")
                                     .font(.system(size: 16, weight: .bold))
+                                    .padding(.top, 4)
                                 inlineText(raw)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
                     }
@@ -39,10 +41,12 @@ struct MarkdownRendererView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(items.enumerated()), id: \.0) { idx, raw in
                             VStack(alignment: .leading, spacing: 6) {
-                                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                HStack(alignment: .top, spacing: 10) {
                                     Text("\(idx + 1).")
                                         .font(.system(size: 16, weight: .semibold))
+                                        .padding(.top, 4)
                                     inlineText(raw)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 if idx < items.count - 1 {
                                     Divider()
@@ -85,12 +89,18 @@ struct MarkdownRendererView: View {
         }
     }
 
-    private func inlineText(_ text: String) -> Text {
+    private func inlineText(_ text: String) -> some View {
         let transformed = applyInlineTypography(to: text)
         if let attributed = try? AttributedString(markdown: transformed, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-            return Text(attributed).font(.system(size: 17, weight: .regular))
+            return Text(attributed)
+                .font(.system(size: 17, weight: .regular))
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
         } else {
-            return Text(transformed).font(.system(size: 17, weight: .regular))
+            return Text(transformed)
+                .font(.system(size: 17, weight: .regular))
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
         }
     }
 

@@ -127,32 +127,33 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             a_id = user_uuid
 
         # Shared state for background persistence after stream completes
-        state = {"final_text": "", "partner_texts": []}
+        state = {"final_text": "", "partner_texts": [], "segments": []}
 
         async def persist_stream_results():
             try:
                 final_text = (state.get("final_text") or "").strip()
                 partner_texts = state.get("partner_texts") or []
+                segments = state.get("segments") or []
+                # Prefer saving ordered segments when they include partner drafts
+                if segments:
+                    try:
+                        has_partner = any((isinstance(s, dict) and s.get("type") == "partner_draft") for s in segments)
+                        if has_partner:
+                            annotation_obj = {"_therai": {"type": "segments", "segments": segments}}
+                            annotation = json.dumps(annotation_obj, ensure_ascii=False)
+                            print(f"[SSE][persist] saving segments (ordered) parts={len(segments)}")
+                            row_seg = await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = annotation)
+                            print(f"[SSE] persist segments ok id={row_seg.get('id') if isinstance(row_seg, dict) else 'unknown'}")
+                            return
+                    except Exception as e:
+                        print(f"[SSE] persist segments error: {e}")
                 if final_text:
                     try:
                         row = await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = final_text)
                         print(f"[SSE] persist assistant ok id={row.get('id') if isinstance(row, dict) else 'unknown'}")
                     except Exception as e:
                         print(f"[SSE] persist assistant error: {e}")
-                if partner_texts:
-                    try:
-                        # Persist a single annotation object with optional body so history can render multi-draft under one assistant item
-                        annotation_obj = {
-                            "_therai": {"type": "partner_draft_list", "texts": partner_texts},
-                            "body": final_text
-                        }
-                        annotation = json.dumps(annotation_obj, ensure_ascii=False)
-                        preview_pd = ", ".join([t[:40].replace("\n", " ") for t in partner_texts])
-                        print(f"[SSE][persist] saving partner_draft_list count={len(partner_texts)} preview={preview_pd!r}")
-                        row2 = await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = annotation)
-                        print(f"[SSE] persist partner_draft_list ok id={row2.get('id') if isinstance(row2, dict) else 'unknown'} role=assistant")
-                    except Exception as e:
-                        print(f"[SSE] persist partner_draft_list error: {e}")
+                # Legacy partner_draft_list persistence removed in favor of ordered segments.
             except Exception as e:
                 print(f"[SSE] persist task fatal: {e}")
 
@@ -165,6 +166,9 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
 
             full_text_parts = []
             final_text = ""
+            # Build ordered segments to reconstruct placement on reload
+            segments_list = []
+            current_text_segment = ""
             try:
                 # Build input for a single-call flow
                 input_messages = [{"role": "system", "content": personal_agent.system_prompt}] if hasattr(personal_agent, "system_prompt") else []
@@ -248,6 +252,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                                     if before:
                                         full_text_parts.append(before)
                                         yield f"event: token\ndata: {json.dumps(before)}\n\n".encode()
+                                        current_text_segment += before
 
                                     # Start collecting partner message
                                     buffer = after
@@ -262,6 +267,7 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                                         if to_stream:
                                             full_text_parts.append(to_stream)
                                             yield f"event: token\ndata: {json.dumps(to_stream)}\n\n".encode()
+                                            current_text_segment += to_stream
                                     break
                             else:
                                 # Look for end of partner message
@@ -280,6 +286,12 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                                     yield b"event: tool_done\ndata: {}\n\n"
 
                                     print(f"[SSE] Partner message emitted: {partner_message_content[:50]}...")
+
+                                    # Flush accumulated text as a text segment, then append partner segment to preserve order
+                                    if current_text_segment:
+                                        segments_list.append({"type": "text", "content": current_text_segment})
+                                        current_text_segment = ""
+                                    segments_list.append({"type": "partner_draft", "text": partner_message_content})
 
                                     # Continue with remaining content after the closing tag
                                     buffer = after
@@ -320,19 +332,18 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                     else:
                         full_text_parts.append(buffer)
                         yield f"event: token\ndata: {json.dumps(buffer)}\n\n".encode()
+                        current_text_segment += buffer
 
                 # Store the final response
                 final_text = "".join(full_text_parts)
-                try:
-                    streamed_len = sum(len(p) for p in full_text_parts)
-                    print(f"[SSE] /chat stream finished streamed_chars={streamed_len} partner_count={len(partner_texts)}")
-                except Exception:
-                    pass
-
+                if current_text_segment:
+                    segments_list.append({"type": "text", "content": current_text_segment})
                 try:
                     state["final_text"] = final_text or ""
                     if partner_texts:
                         state["partner_texts"] = partner_texts
+                    if segments_list:
+                        state["segments"] = segments_list
                 except Exception:
                     pass
 
