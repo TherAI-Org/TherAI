@@ -60,17 +60,6 @@ class LinkStatusResponse(BaseModel):
     relationship_id: UUID | None = None
     linked_at: str | None = None
 
-# Relationship health
-class RelationshipHealthRequest(BaseModel):
-    last_run_at: Optional[str] = None  # ISO8601
-    force: Optional[bool] = False
-
-class RelationshipHealthResponse(BaseModel):
-    summary: str
-    last_run_at: str
-    reason: Optional[str] = None
-    has_any_messages: bool = True
-
 # Partner request models (new)
 class PartnerRequestBody(BaseModel):
     message: str
