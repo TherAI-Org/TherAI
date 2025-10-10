@@ -68,18 +68,9 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     profileNamespace: profileNamespace
                 )
                 .offset(x: sidebarOffsetX)
-                .blur(radius: (navigationViewModel.showProfileOverlay || navigationViewModel.showSettingsOverlay) ? 8 : 0)
+                .blur(radius: navigationViewModel.showSettingsOverlay ? 8 : 0)
                 .animation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.isOpen)
                 .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
-
-                if navigationViewModel.showProfileOverlay {
-                    ProfileView(
-                        isPresented: $navigationViewModel.showProfileOverlay,
-                        profileNamespace: profileNamespace,
-                        linkedMonthYear: linkedMonthYear
-                    )
-                    .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showProfileOverlay)
-                }
 
                 if navigationViewModel.showSettingsOverlay {
                     SettingsView(
@@ -95,13 +86,13 @@ struct SlideOutSidebarContainerView<Content: View>: View {
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        guard !navigationViewModel.showProfileOverlay && !navigationViewModel.showSettingsOverlay else { return }
+                        guard !navigationViewModel.showSettingsOverlay else { return }
                         // Clamp to reduce layout thrash on rapid drags
                         let clamped = max(min(value.translation.width, width), -width)
                         navigationViewModel.handleDragGesture(clamped, width: width)
                     }
                     .onEnded { value in
-                        guard !navigationViewModel.showProfileOverlay && !navigationViewModel.showSettingsOverlay else { return }
+                        guard !navigationViewModel.showSettingsOverlay else { return }
                         navigationViewModel.handleSwipeGesture(value.translation.width, velocity: value.velocity.width, width: width)
                     }
             )
