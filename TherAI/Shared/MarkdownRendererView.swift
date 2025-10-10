@@ -38,21 +38,13 @@ struct MarkdownRendererView: View {
                         }
                     }
                 case .orderedList(let items):
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
                         ForEach(Array(items.enumerated()), id: \.0) { idx, raw in
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(alignment: .top, spacing: 10) {
-                                    Text("\(idx + 1).")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .padding(.top, 4)
-                                    inlineText(raw)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                                if idx < items.count - 1 {
-                                    Divider()
-                                        .overlay(Color.secondary.opacity(0.12))
-                                        .padding(.vertical, 4)
-                                }
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Text("\(idx + 1).")
+                                    .font(.system(size: 17, weight: .semibold))
+                                inlineText(raw)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
                     }
@@ -68,8 +60,8 @@ struct MarkdownRendererView: View {
                     }
                 case .rule:
                     Divider()
-                        .overlay(Color.secondary.opacity(0.08))
-                        .padding(.vertical, 8)
+                        .overlay(Color.secondary.opacity(0.02))
+                        .padding(.vertical, 10)
                 }
             }
         }
@@ -81,9 +73,9 @@ struct MarkdownRendererView: View {
         let base: Text = attributed.map(Text.init) ?? Text(text)
         switch level {
         case 1:
-            return AnyView(base.font(.system(size: 22, weight: .semibold)))
+            return AnyView(base.font(.system(size: 27, weight: .semibold)))
         case 2:
-            return AnyView(base.font(.system(size: 20, weight: .semibold)))
+            return AnyView(base.font(.system(size: 23, weight: .semibold)))
         default:
             return AnyView(base.font(.system(size: 17, weight: .semibold)))
         }
@@ -94,11 +86,13 @@ struct MarkdownRendererView: View {
         if let attributed = try? AttributedString(markdown: transformed, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
             return Text(attributed)
                 .font(.system(size: 17, weight: .regular))
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
         } else {
             return Text(transformed)
                 .font(.system(size: 17, weight: .regular))
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
         }
@@ -106,9 +100,18 @@ struct MarkdownRendererView: View {
 
     private func applyInlineTypography(to input: String) -> String {
         var s = input
-        s = s.replacingOccurrences(of: "->", with: "→")
-        s = s.replacingOccurrences(of: "<-", with: "←")
+        s = s.replacingOccurrences(of: "->", with: " → ")
+        s = s.replacingOccurrences(of: "<-", with: " ← ")
+        // Normalize common hyphen patterns to em‑dash for readability
+        s = s.replacingOccurrences(of: " --- ", with: " — ")
         s = s.replacingOccurrences(of: " -- ", with: " — ")
+        s = s.replacingOccurrences(of: " - ", with: " — ")
+        // Ensure spacing around em‑dash and arrows
+        s = s.replacingOccurrences(of: "—", with: " — ")
+        s = s.replacingOccurrences(of: "→", with: " → ")
+        s = s.replacingOccurrences(of: "←", with: " ← ")
+        // Collapse duplicate spaces introduced by replacements
+        while s.contains("  ") { s = s.replacingOccurrences(of: "  ", with: " ") }
         return s
     }
 
@@ -120,6 +123,7 @@ struct MarkdownRendererView: View {
         var ulBuffer: [String] = []
         var olBuffer: [String] = []
         var quoteBuffer: [String] = []
+        // Note: we intentionally allow ordered lists to continue across single blank lines
 
         func flushParagraph() {
             if !paragraphBuffer.isEmpty {
@@ -148,51 +152,69 @@ struct MarkdownRendererView: View {
             }
         }
 
-        for raw in lines {
+        var idx = 0
+        while idx < lines.count {
+            let raw = lines[idx]
             let line = raw.trimmingCharacters(in: CharacterSet.whitespaces)
+
             if line.isEmpty {
-                flushParagraph(); flushUL(); flushOL(); flushQuote()
+                // Do not flush ordered list on a blank line; allow continued numbering across soft breaks
+                flushParagraph(); flushUL(); flushQuote()
+                idx += 1
                 continue
+            }
+
+            let isOrdered = line.range(of: "^\\d+\\.\\s+", options: .regularExpression) != nil
+            if !olBuffer.isEmpty && !isOrdered {
+                // We were in an ordered list and now a non-ordered line begins → close the list
+                flushOL()
             }
 
             if line == "---" || line == "***" || line == "___" {
                 flushParagraph(); flushUL(); flushOL(); flushQuote()
                 items.append(BlockItem(block: .rule))
+                idx += 1
                 continue
             }
 
             if line.hasPrefix("#") {
                 let hashes = line.prefix { $0 == "#" }
                 let after = line.dropFirst(hashes.count).trimmingCharacters(in: CharacterSet.whitespaces)
-                let level = min(max(hashes.count, 1), 3) // limit to H1–H3 in chat
+                let level = min(max(hashes.count, 1), 3)
                 flushParagraph(); flushUL(); flushOL(); flushQuote()
                 items.append(BlockItem(block: .heading(level: level, text: String(after))))
+                idx += 1
                 continue
             }
 
-            if let range = line.range(of: "^>\\s+", options: String.CompareOptions.regularExpression) {
+            if let range = line.range(of: "^>\\s+", options: .regularExpression) {
                 flushParagraph(); flushUL(); flushOL()
                 let content = String(line[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
                 quoteBuffer.append(content)
+                idx += 1
                 continue
             }
 
-            if let range = line.range(of: "^\\d+\\.\\s+", options: String.CompareOptions.regularExpression) {
+            if let range = line.range(of: "^\\d+\\.\\s+", options: .regularExpression) {
+                // Continue same ordered list across single blank lines
                 flushParagraph(); flushUL(); flushQuote()
                 let item = String(line[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
                 olBuffer.append(item)
+                idx += 1
                 continue
             }
 
-            if let range = line.range(of: "^[-*+]\\s+", options: String.CompareOptions.regularExpression) {
+            if let range = line.range(of: "^[-*+]\\s+", options: .regularExpression) {
                 flushParagraph(); flushOL(); flushQuote()
                 let item = String(line[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
                 ulBuffer.append(item)
+                idx += 1
                 continue
             }
 
             if !quoteBuffer.isEmpty { flushQuote() }
             paragraphBuffer.append(line)
+            idx += 1
         }
 
         flushParagraph(); flushUL(); flushOL(); flushQuote()

@@ -22,6 +22,7 @@ struct MessageBubbleView: View {
             if message.isFromUser {
                 Text(message.content)
                     .font(.system(size: 17, weight: .regular))
+                    .lineSpacing(2)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
                     .background(
