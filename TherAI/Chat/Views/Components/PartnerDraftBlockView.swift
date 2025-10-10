@@ -21,8 +21,9 @@ struct PartnerDraftBlockView: View {
         VStack(alignment: .leading) {
             HStack {
                 Text("Message")
-                    .font(.system(size: 14))
+                    .font(.footnote)
                     .foregroundColor(Color.secondary)
+                    .offset(y: -4)
 
                 Spacer()
 
@@ -39,10 +40,12 @@ struct PartnerDraftBlockView: View {
                         .font(.system(size: 14))
                         .foregroundColor(Color.secondary)
                 }
+                .offset(y: -4)
             }
 
             Divider()
                 .padding(.horizontal, -12)
+                .offset(y: -4)
 
             TextEditor(text: $text)
                 .background(Color.clear)

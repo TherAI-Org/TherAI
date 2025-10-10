@@ -184,6 +184,7 @@ class ChatViewModel: ObservableObject {
                 }
 
                 var accumulated = ""
+                var currentSegments: [MessageSegment] = []
                 let stream = backend.streamChatMessage(messageToSend, sessionId: self.sessionId, chatHistory: Array(chatHistory), accessToken: accessToken, focusSnippet: self.focusSnippet)
                 var sawToolStart = false
                 var sawPartnerMessage = false
@@ -196,7 +197,13 @@ class ChatViewModel: ObservableObject {
                         sawToolStart = true
                         await MainActor.run {
                             if self.messages.isEmpty || self.messages.last?.isFromUser == true {
-                                self.messages.append(ChatMessage(content: "", isFromUser: false))
+                                self.messages.append(ChatMessage(
+                                    content: "",
+                                    segments: [],
+                                    isFromUser: false,
+                                    isPartnerMessage: false,
+                                    partnerMessageContent: nil
+                                ))
                             }
                             if !self.messages.isEmpty {
                                 var newMessages = self.messages
@@ -205,10 +212,12 @@ class ChatViewModel: ObservableObject {
                                 let updated = ChatMessage(
                                     id: last.id,
                                     content: last.content,
+                                    segments: last.segments,
                                     isFromUser: last.isFromUser,
                                     timestamp: last.timestamp,
                                     isPartnerMessage: last.isPartnerMessage,
                                     partnerMessageContent: last.partnerMessageContent,
+                                    partnerDrafts: last.partnerDrafts,
                                     isToolLoading: true
                                 )
                                 newMessages[lastIndex] = updated
@@ -230,10 +239,12 @@ class ChatViewModel: ObservableObject {
                                 let updated = ChatMessage(
                                     id: last.id,
                                     content: last.content,
+                                    segments: last.segments,
                                     isFromUser: last.isFromUser,
                                     timestamp: last.timestamp,
                                     isPartnerMessage: last.isPartnerMessage,
                                     partnerMessageContent: last.partnerMessageContent,
+                                    partnerDrafts: last.partnerDrafts,
                                     isToolLoading: false
                                 )
                                 newMessages[lastIndex] = updated
@@ -245,17 +256,35 @@ class ChatViewModel: ObservableObject {
                         if self.sessionId == nil { self.sessionId = sid }
                     case .token(let token):
                         accumulated += token
+
+                        // Update segments properly
+                        if !currentSegments.isEmpty, case .text(let existingText) = currentSegments[currentSegments.count - 1] {
+                            // Append to existing text segment
+                            currentSegments[currentSegments.count - 1] = .text(existingText + token)
+                        } else {
+                            // Start new text segment or it's the first segment
+                            if currentSegments.isEmpty {
+                                currentSegments = [.text(token)]
+                            } else {
+                                // Last segment is partner message, start new text segment
+                                currentSegments.append(.text(token))
+                            }
+                        }
+
                         await MainActor.run {
                             if !self.messages.isEmpty {
                                 let lastIndex = self.messages.count - 1
                                 let last = self.messages[lastIndex]
+
                                 let updated = ChatMessage(
                                     id: last.id,
                                     content: accumulated,
+                                    segments: currentSegments,
                                     isFromUser: last.isFromUser,
                                     timestamp: last.timestamp,
                                     isPartnerMessage: last.isPartnerMessage,
                                     partnerMessageContent: last.partnerMessageContent,
+                                    partnerDrafts: last.partnerDrafts,
                                     isToolLoading: last.isToolLoading
                                 )
                                 var newMessages = self.messages
@@ -266,9 +295,13 @@ class ChatViewModel: ObservableObject {
                         }
                     case .partnerMessage(let text):
                         sawPartnerMessage = true
+
+                        // Add partner message as a segment
+                        currentSegments.append(.partnerMessage(text))
+
                         await MainActor.run {
                             print("[ChatVM] partner_message received len=\(text.count)")
-                            // Attach the partner draft to the current assistant message; fallback to append if needed
+                            // Update the current assistant message with the new segments
                             if self.messages.isEmpty {
                                 self.messages.append(ChatMessage.partnerDraft(text))
                                 print("[ChatVM] appended standalone partnerDraft (no messages present)")
@@ -278,27 +311,25 @@ class ChatViewModel: ObservableObject {
                             let lastIndex = newMessages.count - 1
                             let last = newMessages[lastIndex]
                             if last.isFromUser == false {
+                                var drafts = last.partnerDrafts
+                                drafts.append(text)
                                 let updated = ChatMessage(
                                     id: last.id,
                                     content: last.content,
+                                    segments: currentSegments,
                                     isFromUser: last.isFromUser,
                                     timestamp: last.timestamp,
                                     isPartnerMessage: true,
-                                    partnerMessageContent: text,
+                                    partnerMessageContent: drafts.first,
+                                    partnerDrafts: drafts,
                                     isToolLoading: false
                                 )
                                 newMessages[lastIndex] = updated
                                 self.messages = newMessages
-                                print("[ChatVM] attached partnerDraft to assistant message id=\(last.id) contentLen=\(last.content.count)")
+                                print("[ChatVM] appended draft as segment; total segments=\(currentSegments.count)")
                             } else {
                                 self.messages.append(ChatMessage.partnerDraft(text))
                                 print("[ChatVM] appended partnerDraft after user message (no assistant placeholder)")
-                            }
-
-                            // Safety: if, for any reason, the last message still isn't marked as partner draft, append one
-                            if let last = self.messages.last, (last.isPartnerMessage == false || (last.partnerMessageContent ?? "").isEmpty) {
-                                self.messages.append(ChatMessage.partnerDraft(text))
-                                print("[ChatVM] safety-append partnerDraft to ensure visibility")
                             }
                         }
                     case .done:
@@ -326,7 +357,7 @@ class ChatViewModel: ObservableObject {
                         "sessionId": sid,
                         "messageContent": messageToSend
                     ])
-                    
+
                     // Refresh sessions to pick up any title changes (e.g., auto-generated titles)
                     NotificationCenter.default.post(name: .chatSessionsNeedRefresh, object: nil)
                 }

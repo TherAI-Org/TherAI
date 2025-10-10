@@ -42,25 +42,57 @@ struct MessageBubbleView: View {
                     .frame(maxWidth: 320, alignment: .trailing)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    let body = assistantBodyExcludingDraft(message)
-                    if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        MarkdownRendererView(markdown: body)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 4)
-                    }
-                    if message.isPartnerMessage, let text = message.partnerMessageContent, !text.isEmpty {
-                        PartnerDraftBlockView(initialText: text) { action in
-                            switch action {
-                            case .send(let edited):
-                                onSendToPartner?(edited)
-                            case .skip:
-                                NotificationCenter.default.post(name: .init("SkipPartnerDraftRequested"), object: nil, userInfo: ["messageId": message.id.uuidString])
+                    // Render segments if available, otherwise fall back to old behavior
+                    if !message.segments.isEmpty {
+                        ForEach(message.segments) { segment in
+                            switch segment {
+                            case .text(let text):
+                                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    MarkdownRendererView(markdown: text)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 4)
+                                }
+                            case .partnerMessage(let text):
+                                if !text.isEmpty {
+                                    PartnerDraftBlockView(initialText: text) { action in
+                                        switch action {
+                                        case .send(let edited):
+                                            onSendToPartner?(edited)
+                                        case .skip:
+                                            NotificationCenter.default.post(name: .init("SkipPartnerDraftRequested"), object: nil, userInfo: ["messageId": message.id.uuidString])
+                                        }
+                                    }
+                                    .id(text)
+                                    .padding(.top, 6)
+                                }
                             }
                         }
-                        .id(text)
-                        .padding(.top, 6)
+                    } else {
+                        // Fallback to old rendering for backward compatibility
+                        let body = assistantBodyExcludingDraft(message)
+                        if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            MarkdownRendererView(markdown: body)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 4)
+                        }
+                        // Render multiple drafts if present; fallback to single draft
+                        let drafts = message.partnerDrafts.isEmpty ? (message.partnerMessageContent.map { [$0] } ?? []) : message.partnerDrafts
+                        ForEach(Array(drafts.enumerated()), id: \.offset) { idx, text in
+                            if !text.isEmpty {
+                                PartnerDraftBlockView(initialText: text) { action in
+                                    switch action {
+                                    case .send(let edited):
+                                        onSendToPartner?(edited)
+                                    case .skip:
+                                        NotificationCenter.default.post(name: .init("SkipPartnerDraftRequested"), object: nil, userInfo: ["messageId": message.id.uuidString, "index": idx])
+                                    }
+                                }
+                                .id(text + "_\(idx)")
+                                .padding(.top, 6)
+                            }
+                        }
                     }
                 }
             }

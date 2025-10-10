@@ -6,7 +6,6 @@ from starlette.concurrency import iterate_in_threadpool
 import json
 import traceback
 from pydantic import BaseModel
-from openai import pydantic_function_tool
 
 from .Models.requests import ChatRequest, ChatResponse, MessagesResponse, MessageDTO, SessionsResponse, SessionDTO
 from .Agents.personal import PersonalAgent
@@ -128,28 +127,32 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
             a_id = user_uuid
 
         # Shared state for background persistence after stream completes
-        state = {"final_text": "", "partner_text": None}
+        state = {"final_text": "", "partner_texts": []}
 
         async def persist_stream_results():
             try:
                 final_text = (state.get("final_text") or "").strip()
-                partner_text_value = (state.get("partner_text") or "")
+                partner_texts = state.get("partner_texts") or []
                 if final_text:
                     try:
                         row = await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = final_text)
                         print(f"[SSE] persist assistant ok id={row.get('id') if isinstance(row, dict) else 'unknown'}")
                     except Exception as e:
                         print(f"[SSE] persist assistant error: {e}")
-                if partner_text_value and partner_text_value.strip():
+                if partner_texts:
                     try:
-                        # Persist a structured annotation (JSON) alongside the assistant content so UI can reliably render the partner block without content markers
-                        annotation = json.dumps({"_therai": {"type": "partner_draft", "text": partner_text_value}}, ensure_ascii=False)
-                        preview_pd = partner_text_value[:120].replace("\n", " ")
-                        print(f"[SSE][persist] saving partner_draft annotation len={len(partner_text_value)} preview={preview_pd!r}")
+                        # Persist a single annotation object with optional body so history can render multi-draft under one assistant item
+                        annotation_obj = {
+                            "_therai": {"type": "partner_draft_list", "texts": partner_texts},
+                            "body": final_text
+                        }
+                        annotation = json.dumps(annotation_obj, ensure_ascii=False)
+                        preview_pd = ", ".join([t[:40].replace("\n", " ") for t in partner_texts])
+                        print(f"[SSE][persist] saving partner_draft_list count={len(partner_texts)} preview={preview_pd!r}")
                         row2 = await save_message(user_id = user_uuid, session_id = session_uuid, role = "assistant", content = annotation)
-                        print(f"[SSE] persist partner_draft annotation ok id={row2.get('id') if isinstance(row2, dict) else 'unknown'} role=assistant")
+                        print(f"[SSE] persist partner_draft_list ok id={row2.get('id') if isinstance(row2, dict) else 'unknown'} role=assistant")
                     except Exception as e:
-                        print(f"[SSE] persist partner_draft error: {e}")
+                        print(f"[SSE] persist partner_draft_list error: {e}")
             except Exception as e:
                 print(f"[SSE] persist task fatal: {e}")
 
@@ -177,132 +180,167 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                     input_messages.append({"role": "system", "content": partner_text.strip()})
                 input_messages.append({"role": "user", "content": request.message})
 
-                # Function tool schema (per OpenAI Responses function-calling docs)
-                # Tool defined using the SDK helper required by Responses API
-                class EmitPartnerMessageArgs(BaseModel):
-                    text: str
+                # Stream model output WITHOUT OpenAI function calling
+                # Instead, we'll parse special markers in the text
+                print(f"[SSE] /chat stream start model={personal_agent.model}")
+                print(f"[SSE] Number of messages: {len(input_messages)}")
 
-                tools = [
-                    pydantic_function_tool(
-                        EmitPartnerMessageArgs,
-                        name = "emit_partner_message",
-                        description = "Emit a clean first-person message to send to the partner. No quotes.",
-                    )
-                ]
+                model_to_use = personal_agent.model
+                partner_texts: list[str] = []
 
-                # Stream model output with tools so function_call can be emitted mid-stream
-                print("[SSE] /chat stream start tools_enabled=True")
-                partner_text_value = None
-                with personal_agent.client.responses.stream(
-                    model = personal_agent.model,
-                    input = input_messages,
-                    tools = tools,
-                ) as stream:  # type: ignore[attr-defined]
-                    used_iterator = False
-                    fc_args_by_item_id = {}
-                    event_count = 0
-                    tool_start_emitted = False
-                    for event in stream:
-                        try:
-                            ev_type = getattr(event, "type", "")
-                            event_count += 1
-                            if event_count <= 15:
-                                print(f"[SSE] /chat stream ev#{event_count} type={ev_type}")
-                            if ev_type.endswith("output_text.delta"):
-                                delta = getattr(event, "delta", "") or ""
-                                if delta:
-                                    used_iterator = True
-                                    full_text_parts.append(delta)
-                                    yield f"event: token\ndata: {json.dumps(delta)}\n\n".encode()
-                            elif ev_type.endswith("output_item.added"):
-                                item = getattr(event, "item", None)
-                                if item and getattr(item, "type", "") == "function_call":
-                                    name = getattr(item, "name", "")
-                                    if name == "emit_partner_message":
-                                        item_id = getattr(item, "id", None)
-                                        if item_id is not None:
-                                            fc_args_by_item_id[item_id] = fc_args_by_item_id.get(item_id, "")
-                                            print(f"[SSE] /chat tool-call item added id={item_id}")
-                                            try:
-                                                payload = json.dumps({"name": name})
-                                                yield f"event: tool_start\ndata: {payload}\n\n".encode()
-                                                tool_start_emitted = True
-                                                print("[SSE] /chat tool_start emitted (from output_item.added)")
-                                            except Exception:
-                                                pass
-                            elif ev_type.endswith("function_call.arguments.delta") or ev_type.endswith("function_call_arguments.delta"):
-                                item_id = getattr(event, "item_id", None)
-                                delta = getattr(event, "delta", "") or ""
-                                if item_id is not None and delta:
-                                    fc_args_by_item_id[item_id] = fc_args_by_item_id.get(item_id, "") + delta
-                                    if len(fc_args_by_item_id[item_id]) % 64 < len(delta):
-                                        print(f"[SSE] /chat tool-call args delta id={item_id} len={len(fc_args_by_item_id[item_id])}")
-                                    if not tool_start_emitted:
-                                        print("[SSE] /chat WARNING: tool args arrived before tool_start was emitted (name may be delayed)")
-                                    # Optionally surface arg deltas to client (not required for final UI)
-                                    try:
-                                        yield f"event: tool_args\ndata: {json.dumps(delta)}\n\n".encode()
-                                    except Exception:
-                                        pass
-                            elif ev_type.endswith("function_call.arguments.done") or ev_type.endswith("function_call_arguments.done") or ev_type.endswith("output_item.done"):
-                                item = getattr(event, "item", None)
-                                if item and getattr(item, "type", "") == "function_call":
-                                    name = getattr(item, "name", "")
-                                    if name == "emit_partner_message":
-                                        args_str = getattr(item, "arguments", None)
-                                        if not args_str:
-                                            item_id = getattr(event, "item_id", None)
-                                            if item_id is not None:
-                                                args_str = fc_args_by_item_id.get(item_id)
-                                        if args_str:
-                                            try:
-                                                parsed = json.loads(args_str) if isinstance(args_str, str) else args_str
-                                                text_val = (parsed.get("text") or "").strip()
-                                                text_val = text_val.strip('"').strip('“”')
-                                                partner_text_value = text_val
-                                                try:
-                                                    state["partner_text"] = partner_text_value
-                                                    preview = partner_text_value[:120].replace("\n", " ")
-                                                    print(f"[SSE][tool] partner_message parsed len={len(partner_text_value)} preview={preview!r}")
-                                                except Exception:
-                                                    pass
-                                                yield f"event: partner_message\ndata: {json.dumps(partner_text_value)}\n\n".encode()
-                                                try:
-                                                    yield b"event: tool_done\ndata: {}\n\n"
-                                                except Exception:
-                                                    pass
-                                                preview = partner_text_value[:120].replace("\n", " ")
-                                                print(f"[SSE] /chat partner_message len={len(partner_text_value)} preview={preview!r}")
-                                            except Exception as e:
-                                                print(f"[SSE] /chat stream function_call parse error: {e}")
-                            elif ev_type.endswith("error"):
-                                err = getattr(event, "error", None)
-                                if err:
-                                    yield f"event: error\ndata: {json.dumps(str(err))}\n\n".encode()
-                                    print(f"[SSE] /chat stream model-error: {err}")
-                            # ignore other event types
-                        except Exception:
-                            print("[SSE] /chat stream event-handler exception:\n" + traceback.format_exc())
+                # Regular streaming without tools - model will output special markers
+                stream = personal_agent.client.chat.completions.create(
+                    model = model_to_use,
+                    messages = input_messages,
+                    max_tokens = 1000,  # Ensure enough tokens for complete response
+                    stream = True
+                )
+
+                import re
+                # Parse the stream for special markers
+                buffer = ""
+                in_partner_message = False
+                partner_message_content = ""
+                chunk_count = 0
+
+                for chunk in stream:
+                    try:
+                        chunk_count += 1
+                        delta = chunk.choices[0].delta if chunk.choices else None
+                        finish_reason = chunk.choices[0].finish_reason if chunk.choices else None
+
+                        if finish_reason:
+                            print(f"[SSE] Stream finish_reason={finish_reason} at chunk {chunk_count}, in_partner_message={in_partner_message}")
+
+                        if not delta or not delta.content:
                             continue
 
-                    final = stream.get_final_response()
-                    chat_response = getattr(final, "output_text", None) or "".join(full_text_parts)
-                    try:
-                        streamed_len = sum(len(p) for p in full_text_parts)
-                        print(f"[SSE] /chat stream finished streamed_chars={streamed_len} tool_start_emitted={tool_start_emitted} partner_present={(partner_text_value is not None)}")
-                    except Exception:
-                        pass
+                        buffer += delta.content
 
-                final_text = chat_response
+                        # Debug logging - log every chunk when collecting partner message
+                        if in_partner_message:
+                            print(f"[SSE] In partner msg, chunk {chunk_count}: got '{delta.content}', buffer now: '{buffer[:50]}...'")
+
+                        # Check for partner message markers
+                        # Look for pattern: <partner_message>content</partner_message>
+                        while True:
+                            if not in_partner_message:
+                                # Check for start of partner message (with or without attributes)
+                                # Match <partner_message> or <partner_message ...>
+                                pattern = r'<partner_message(?:\s+[^>]*)?>'
+                                match = re.search(pattern, buffer)
+
+                                # Debug: log what we're searching for
+                                if '<partner_message' in buffer:
+                                    print(f"[SSE] Found '<partner_message' in buffer, regex match: {match is not None}")
+                                    if match:
+                                        print(f"[SSE] Regex matched: '{buffer[match.start():match.end()]}'")
+                                    else:
+                                        print(f"[SSE] Buffer around tag: '{buffer[max(0, buffer.index('<partner_message')-10):buffer.index('<partner_message')+50]}'...")
+                                if match:
+                                    # Split at the marker
+                                    start_pos = match.start()
+                                    end_pos = match.end()
+                                    before = buffer[:start_pos]
+                                    after = buffer[end_pos:]
+
+                                    # Stream the text before the marker
+                                    if before:
+                                        full_text_parts.append(before)
+                                        yield f"event: token\ndata: {json.dumps(before)}\n\n".encode()
+
+                                    # Start collecting partner message
+                                    buffer = after
+                                    in_partner_message = True
+                                    partner_message_content = ""
+                                    print(f"[SSE] Partner message start detected - collecting content. Initial buffer after tag: '{after}'")
+                                else:
+                                    # No marker found, stream what we have except the last bit (might be partial marker)
+                                    if len(buffer) > 20:
+                                        to_stream = buffer[:-20]
+                                        buffer = buffer[-20:]
+                                        if to_stream:
+                                            full_text_parts.append(to_stream)
+                                            yield f"event: token\ndata: {json.dumps(to_stream)}\n\n".encode()
+                                    break
+                            else:
+                                # Look for end of partner message
+                                end_marker = "</partner_message>"
+                                if end_marker in buffer:
+                                    # Found the end
+                                    content, after = buffer.split(end_marker, 1)
+                                    partner_message_content += content
+
+                                    # Emit the complete partner message sequence
+                                    partner_texts.append(partner_message_content)
+
+                                    # Send tool_start, partner_message, and tool_done in sequence
+                                    yield f"event: tool_start\ndata: {json.dumps({'name': 'emit_partner_message'})}\n\n".encode()
+                                    yield f"event: partner_message\ndata: {json.dumps(partner_message_content)}\n\n".encode()
+                                    yield b"event: tool_done\ndata: {}\n\n"
+
+                                    print(f"[SSE] Partner message emitted: {partner_message_content[:50]}...")
+
+                                    # Continue with remaining content after the closing tag
+                                    buffer = after
+                                    in_partner_message = False
+                                    partner_message_content = ""
+
+                                    # If there's content after the partner message, continue streaming it
+                                    # The frontend will append it to the message with the partner draft
+                                    # Don't break - continue processing the buffer which may have more text
+                                else:
+                                    # Still collecting partner message - save partial content
+                                    if len(buffer) > 20:
+                                        # Keep last 20 chars in case end marker is split across chunks
+                                        partner_message_content += buffer[:-20]
+                                        buffer = buffer[-20:]
+                                    else:
+                                        # Buffer too small, keep it all
+                                        pass
+                                    break
+
+                    except Exception as e:
+                        print(f"[SSE] Stream chunk error: {e}")
+                        continue
+
+                # Flush any remaining buffer
+                if buffer:
+                    if in_partner_message:
+                        # Stream ended while collecting partner message
+                        # The model didn't close the tag properly - emit what we have as a partner message
+                        partner_message_content += buffer
+                        if partner_message_content:
+                            # Emit as a complete partner message even though tag wasn't closed
+                            partner_texts.append(partner_message_content)
+                            yield f"event: tool_start\ndata: {json.dumps({'name': 'emit_partner_message'})}\n\n".encode()
+                            yield f"event: partner_message\ndata: {json.dumps(partner_message_content)}\n\n".encode()
+                            yield b"event: tool_done\ndata: {}\n\n"
+                            print(f"[SSE] WARNING: Stream ended with incomplete partner message tag. Emitted content as partner message: {partner_message_content[:100]}...")
+                    else:
+                        full_text_parts.append(buffer)
+                        yield f"event: token\ndata: {json.dumps(buffer)}\n\n".encode()
+
+                # Store the final response
+                final_text = "".join(full_text_parts)
                 try:
-                    state["final_text"] = final_text or ""
-                    if partner_text_value:
-                        state["partner_text"] = partner_text_value
+                    streamed_len = sum(len(p) for p in full_text_parts)
+                    print(f"[SSE] /chat stream finished streamed_chars={streamed_len} partner_count={len(partner_texts)}")
                 except Exception:
                     pass
 
+                try:
+                    state["final_text"] = final_text or ""
+                    if partner_texts:
+                        state["partner_texts"] = partner_texts
+                except Exception:
+                    pass
+
+                # If there were no tokens streamed (rare), push the full text once
                 if not full_text_parts and final_text:
                     yield f"event: token\ndata: {json.dumps(final_text)}\n\n".encode()
+
+                # No synthesis or heuristics: the model decides when to emit drafts via tool calls.
 
                 yield b"event: done\ndata: {}\n\n"
                 print(f"[SSE] /chat stream done sent for session_id={session_uuid}")
