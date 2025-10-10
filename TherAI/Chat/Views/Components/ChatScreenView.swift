@@ -28,7 +28,8 @@ struct ChatScreenView: View {
                 isInputFocused: isInputFocused.wrappedValue,
                 onBackgroundTap: { isInputFocused.wrappedValue = false },
                 personalPreScrollToken: personalPreScrollToken,
-                keyboardScrollToken: keyboardScrollToken
+                keyboardScrollToken: keyboardScrollToken,
+                isAssistantTyping: chatViewModel.isAssistantTyping
             )
             .safeAreaInset(edge: .bottom) {
                 Color.clear

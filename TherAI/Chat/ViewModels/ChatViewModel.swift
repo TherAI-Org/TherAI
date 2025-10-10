@@ -19,10 +19,13 @@ class ChatViewModel: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var isLoadingHistory: Bool = false
     @Published var emptyPrompt: String = ""
+    @Published var isAssistantTyping: Bool = false
 
     private let backend = BackendService.shared
     private let authService = AuthService.shared
     private var currentTask: Task<Void, Never>?
+    private var typingDelayTask: Task<Void, Never>?
+    private var receivedAnyAssistantOutput: Bool = false
 
     // Cache of messages per session to avoid unnecessary refetches when revisiting
     private struct MessagesCacheEntry {
@@ -138,6 +141,18 @@ class ChatViewModel: ObservableObject {
         let messageToSend = trimmedMessage
         inputText = ""  // Clear input text
         isLoading = true
+        isAssistantTyping = false
+        receivedAnyAssistantOutput = false
+        typingDelayTask?.cancel()
+        typingDelayTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            await MainActor.run {
+                guard let self = self else { return }
+                if self.isLoading && !self.receivedAnyAssistantOutput {
+                    self.isAssistantTyping = true
+                }
+            }
+        }
 
         // Cancel any existing task (this allows interrupting current AI response)
         currentTask?.cancel()
@@ -255,6 +270,11 @@ class ChatViewModel: ObservableObject {
                     case .session(let sid):
                         if self.sessionId == nil { self.sessionId = sid }
                     case .token(let token):
+                        if !receivedAnyAssistantOutput {
+                            receivedAnyAssistantOutput = true
+                            typingDelayTask?.cancel()
+                            await MainActor.run { self.isAssistantTyping = false }
+                        }
                         accumulated += token
 
                         // Update segments properly
@@ -294,6 +314,11 @@ class ChatViewModel: ObservableObject {
                             }
                         }
                     case .partnerMessage(let text):
+                        if !receivedAnyAssistantOutput {
+                            receivedAnyAssistantOutput = true
+                            typingDelayTask?.cancel()
+                            await MainActor.run { self.isAssistantTyping = false }
+                        }
                         sawPartnerMessage = true
 
                         // Add partner message as a segment
@@ -334,13 +359,14 @@ class ChatViewModel: ObservableObject {
                         }
                     case .done:
                         print("[ChatVM] stream done; sawToolStart=\(sawToolStart) sawPartnerMessage=\(sawPartnerMessage) events=\(eventCounter)")
-                        await MainActor.run { self.isLoading = false }
+                        await MainActor.run { self.isLoading = false; self.isAssistantTyping = false }
                     case .error(let message):
                         await MainActor.run {
                             if !self.messages.isEmpty {
                                 self.messages[self.messages.count - 1] = ChatMessage(content: "Error: \(message)", isFromUser: false)
                             }
                             self.isLoading = false
+                            self.isAssistantTyping = false
                         }
                     }
                 }
@@ -348,6 +374,7 @@ class ChatViewModel: ObservableObject {
                 // Safety: ensure loading state is cleared if stream ends without a .done event
                 await MainActor.run {
                     self.isLoading = false
+                    self.isAssistantTyping = false
                 }
                 print("[ChatVM] stream ended loop (Task end); cancelled=\(Task.isCancelled)")
 

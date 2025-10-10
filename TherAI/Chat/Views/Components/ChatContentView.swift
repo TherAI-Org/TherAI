@@ -9,6 +9,7 @@ struct ChatContentView: View {
     let onBackgroundTap: () -> Void
     let personalPreScrollToken: Int
     let keyboardScrollToken: Int
+    var isAssistantTyping: Bool = false
 
     @State private var showPersonalPreScrollOverlay: Bool = false
     @State private var preScrollToken: Int = 0
@@ -31,9 +32,12 @@ struct ChatContentView: View {
                             keyboardScrollTrigger: keyboardScrollToken,
                             onPreScrollComplete: {
                                 withAnimation(.easeInOut(duration: 0.2)) { showPersonalPreScrollOverlay = false }
-                            }
+                            },
+                            isAssistantTyping: isAssistantTyping
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        // Removed global overlay indicator; indicator will appear in message area instead.
 
                         if showPersonalPreScrollOverlay {
                             PersonalEmptyStateView(prompt: emptyPrompt)

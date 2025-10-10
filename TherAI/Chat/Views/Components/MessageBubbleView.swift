@@ -68,6 +68,13 @@ struct MessageBubbleView: View {
                                 }
                             }
                         }
+                        if message.isToolLoading || (message.content.isEmpty && message.segments.isEmpty) {
+                            HStack {
+                                TypingIndicatorView(showAfter: 0.5)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.top, 2)
+                        }
                     } else {
                         // Fallback to old rendering for backward compatibility
                         let body = assistantBodyExcludingDraft(message)
@@ -92,6 +99,13 @@ struct MessageBubbleView: View {
                                 .id(text + "_\(idx)")
                                 .padding(.top, 6)
                             }
+                        }
+                        if message.isToolLoading || (message.content.isEmpty && message.segments.isEmpty) {
+                            HStack {
+                                TypingIndicatorView(showAfter: 0.5)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.top, 2)
                         }
                     }
                 }

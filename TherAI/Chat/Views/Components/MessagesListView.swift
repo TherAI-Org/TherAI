@@ -7,6 +7,7 @@ struct MessagesListView: View {
     let preScrollTrigger: Int
     let keyboardScrollTrigger: Int
     let onPreScrollComplete: (() -> Void)?
+    let isAssistantTyping: Bool
 
     @State private var savedScrollPosition: UUID?
 
@@ -16,7 +17,8 @@ struct MessagesListView: View {
         onBackgroundTap: @escaping () -> Void,
         preScrollTrigger: Int = 0,
         keyboardScrollTrigger: Int = 0,
-        onPreScrollComplete: (() -> Void)? = nil
+        onPreScrollComplete: (() -> Void)? = nil,
+        isAssistantTyping: Bool = false
     ) {
         self.messages = messages
         self.isInputFocused = isInputFocused
@@ -24,6 +26,7 @@ struct MessagesListView: View {
         self.preScrollTrigger = preScrollTrigger
         self.keyboardScrollTrigger = keyboardScrollTrigger
         self.onPreScrollComplete = onPreScrollComplete
+        self.isAssistantTyping = isAssistantTyping
     }
 
     var body: some View {
@@ -35,6 +38,14 @@ struct MessagesListView: View {
                             NotificationCenter.default.post(name: .init("SendPartnerMessageFromBubble"), object: nil, userInfo: ["content": text])
                         })
                             .id(message.id)
+                    }
+                    if isAssistantTyping {
+                        HStack(alignment: .top, spacing: 0) {
+                            TypingIndicatorView(showAfter: 0)
+                                .padding(.top, -10) // nudge slightly higher to align with message start
+                            Spacer(minLength: 0)
+                        }
+                        .id("typing-indicator")
                     }
                 }
                 .padding(.top, 24)
