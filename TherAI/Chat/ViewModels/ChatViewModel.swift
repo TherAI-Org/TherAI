@@ -417,32 +417,28 @@ class ChatViewModel: ObservableObject {
     }
 
     func generateEmptyPrompt() {
-        // Short, varied, therapist-style prompts
+        // Short, varied, natural prompts that real therapists use to begin conversations
         let prompts = [
-            "What feels stuck today daddy?",
             "Where would you like to start?",
-            "What feels heavy today?",
-            "What would feel supportive to talk through?",
-            "What’s been on your heart lately?",
-            "What you wanna know nigga",
-            "What’s asking for your attention?",
-            "What’s on your mind today?",
-            "What would make today easier?",
-            "What’s been weighing on you?",
-            "What’s going well—and what isn’t?",
-            "What feels most important to share?",
-            "What are you hoping to figure out?",
-            "Are you singing to me boy?",
-            "What would you like space for?",
-            "What’s one thing you want to unpack?",
-            "What’s been taking up mental space?",
-            "What would help you feel grounded?",
-            "Are you a good boy?",
-            "Just like that babe, dont stop",
-            "What’s the story today?",
-            "What do you want to get off your chest?",
-            "What are you navigating today?",
-            "What you wanna know today nigger?"
+            "What's on your mind today?",
+            "What would you like to talk about today?",
+            "How are things going?",
+            "What's been going on?",
+            "How have you been?",
+            "What's on your mind?",
+            "How have things been?",
+            "What would you like to discuss?",
+            "What brings you here today?",
+            "What would be most helpful to focus on today?",
+            "Tell me what's been happening",
+            "What would you like to work on today?",
+            "How are you doing?",
+            "What's been on your heart?",
+            "How are you feeling today?",
+            "Where shall we begin?",
+            "What feels most pressing right now?",
+            "What's happening for you?",
+            "What would you like to explore today?"
         ]
 
         // Use a seed per new chat so it changes each new session but stays stable per view appearance
@@ -450,7 +446,7 @@ class ChatViewModel: ObservableObject {
         if let choice = prompts.randomElement(using: &generator) {
             emptyPrompt = choice
         } else {
-            emptyPrompt = "What’s on your mind today?"
+            emptyPrompt = "What's on your mind today?"
         }
     }
 }
