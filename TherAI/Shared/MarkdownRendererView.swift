@@ -45,7 +45,7 @@ struct MarkdownRendererView: View {
                         ForEach(Array(items.enumerated()), id: \.0) { _, raw in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text("•")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(.system(size: 13, weight: .bold))
                                     .baselineOffset(2)
                                 inlineText(raw)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,16 +124,16 @@ struct MarkdownRendererView: View {
 
     private func topPadding(previous: Block?, current: Block, currentIndex: Int, firstHeadingIndex: Int?) -> CGFloat {
         if currentIndex == 0 { return 0 }  // No top padding for the very first block
-        if case .rule = current { return 24 }  // 24 above the divider
-        if case .rule? = previous { return 24 }  // 24 below the divider
+        if case .rule = current { return 30 }  // 24 above the divider
+        if case .rule? = previous { return 30 }  // 24 below the divider
 
         // First heading -> next paragraph: 22; other headings -> paragraph: 16
         if case .heading = previous, case .paragraph = current {
             if let first = firstHeadingIndex, currentIndex - 1 == first { return 22 }
-            return 16
+            return 30
         }
 
-        return 26  // Default
+        return 30  // Default
     }
 
     private func parse(_ input: String) -> [BlockItem] {
