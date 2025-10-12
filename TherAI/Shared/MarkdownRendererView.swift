@@ -4,6 +4,9 @@ struct MarkdownRendererView: View {
 
     let markdown: String
 
+    private let dividerTopSpacing: CGFloat = 30
+    private let dividerBottomSpacing: CGFloat = 30
+
     private enum Block: Equatable {
         case heading(level: Int, text: String)
         case unorderedList(items: [String])
@@ -27,19 +30,27 @@ struct MarkdownRendererView: View {
                 let top = topPadding(previous: prev, current: item.block, currentIndex: index, firstHeadingIndex: firstHeadingIndex)
                 switch item.block {
                 case .heading(_, let text):
-                    Group {
-                        if let attributed = try? AttributedString(
-                            markdown: text,
-
-                            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-                        ) {
-                            Text(attributed)
-                        } else {
-                            Text(text)
+                    let showDivider = shouldInsertDivider(beforeHeadingAt: index, previous: prev, firstHeadingIndex: firstHeadingIndex)
+                    VStack(alignment: .leading, spacing: 0) {
+                        if showDivider {
+                            Divider()
+                                .opacity(0.3)
+                                .padding(.top, dividerTopSpacing)
                         }
+                        Group {
+                            if let attributed = try? AttributedString(
+                                markdown: text,
+
+                                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+                            ) {
+                                Text(attributed)
+                            } else {
+                                Text(text)
+                            }
+                        }
+                        .font(.system(size: 21, weight: .semibold))
+                        .padding(.top, showDivider ? dividerBottomSpacing : top)
                     }
-                    .font(.system(size: 21, weight: .semibold))
-                    .padding(.top, top)
                 case .unorderedList(let items):
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach(Array(items.enumerated()), id: \.0) { _, raw in
@@ -107,6 +118,7 @@ struct MarkdownRendererView: View {
 
     private func applyInlineTypography(to input: String) -> String {
         var s = input
+        s = stripFullSentenceItalics(s)
         s = s.replacingOccurrences(of: "->", with: " → ")
         s = s.replacingOccurrences(of: "<-", with: " ← ")
         // Normalize common hyphen patterns to em‑dash for readability
@@ -122,10 +134,29 @@ struct MarkdownRendererView: View {
         return s
     }
 
+    private func stripFullSentenceItalics(_ input: String) -> String {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        // Remove outer single-asterisk italics if it wraps the entire string (no other asterisks inside)
+        if trimmed.hasPrefix("*") && trimmed.hasSuffix("*") {
+            let inner = String(trimmed.dropFirst().dropLast())
+            if !inner.contains("*") && !inner.contains("**") {
+                return inner
+            }
+        }
+        // Also handle underscore italics wrapper
+        if trimmed.hasPrefix("_") && trimmed.hasSuffix("_") {
+            let inner = String(trimmed.dropFirst().dropLast())
+            if !inner.contains("_") && !inner.contains("__") {
+                return inner
+            }
+        }
+        return input
+    }
+
     private func topPadding(previous: Block?, current: Block, currentIndex: Int, firstHeadingIndex: Int?) -> CGFloat {
         if currentIndex == 0 { return 0 }  // No top padding for the very first block
-        if case .rule = current { return 30 }  // 24 above the divider
-        if case .rule? = previous { return 30 }  // 24 below the divider
+        if case .rule = current { return dividerTopSpacing }
+        if case .rule? = previous { return dividerBottomSpacing }
 
         // First heading -> next paragraph: 22; other headings -> paragraph: 16
         if case .heading = previous, case .paragraph = current {
@@ -133,7 +164,14 @@ struct MarkdownRendererView: View {
             return 30
         }
 
-        return 30  // Default
+        return 30  // Default for other transitions
+    }
+
+    private func shouldInsertDivider(beforeHeadingAt index: Int, previous: Block?, firstHeadingIndex: Int?) -> Bool {
+        if index == 0 { return false }
+        if let first = firstHeadingIndex, index == first { return false }
+        if case .rule? = previous { return false }
+        return true
     }
 
     private func parse(_ input: String) -> [BlockItem] {
@@ -155,7 +193,15 @@ struct MarkdownRendererView: View {
         }
         func flushUL() {
             if !ulBuffer.isEmpty {
-                items.append(BlockItem(block: .unorderedList(items: ulBuffer)))
+                if ulBuffer.count == 1,
+                   let last = items.last,
+                   case .heading = last.block,
+                   !ulBuffer[0].trimmingCharacters(in: .whitespaces).hasSuffix("?") {
+                    // Single bullet immediately under a title and not a question → treat as a paragraph
+                    items.append(BlockItem(block: .paragraph(ulBuffer[0])))
+                } else {
+                    items.append(BlockItem(block: .unorderedList(items: ulBuffer)))
+                }
                 ulBuffer.removeAll()
             }
         }
