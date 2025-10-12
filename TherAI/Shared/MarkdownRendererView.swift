@@ -19,13 +19,18 @@ struct MarkdownRendererView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(parse(markdown)) { item in
+        let items = parse(markdown)
+        let firstHeadingIndex = items.firstIndex { if case .heading = $0.block { return true } else { return false } }
+        return VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                let prev: Block? = index > 0 ? items[index - 1].block : nil
+                let top = topPadding(previous: prev, current: item.block, currentIndex: index, firstHeadingIndex: firstHeadingIndex)
                 switch item.block {
                 case .heading(_, let text):
                     Group {
                         if let attributed = try? AttributedString(
                             markdown: text,
+
                             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
                         ) {
                             Text(attributed)
@@ -34,8 +39,7 @@ struct MarkdownRendererView: View {
                         }
                     }
                     .font(.system(size: 21, weight: .semibold))
-                    .padding(.top, 16)
-                    .padding(.bottom, 18)
+                    .padding(.top, top)
                 case .unorderedList(let items):
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach(Array(items.enumerated()), id: \.0) { _, raw in
@@ -49,7 +53,7 @@ struct MarkdownRendererView: View {
                         }
                         .padding(.horizontal, 6)
                     }
-                    .padding(.vertical, 18)
+                    .padding(.top, top)
                 case .orderedList(let items):
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(Array(items.enumerated()), id: \.0) { idx, raw in
@@ -61,9 +65,10 @@ struct MarkdownRendererView: View {
                             }
                         }
                     }
-                    .padding(.vertical, 18)
+                    .padding(.top, top)
                 case .paragraph(let text):
                     inlineText(text)
+                        .padding(.top, top)
                 case .quote(let text):
                     HStack(alignment: .top, spacing: 10) {
                         Rectangle()
@@ -72,10 +77,11 @@ struct MarkdownRendererView: View {
                             .cornerRadius(1.5)
                         inlineText(text)
                     }
+                    .padding(.top, top)
                 case .rule:
                     Divider()
-                        .overlay(Color.secondary.opacity(0.02))
-                        .padding(.vertical, 10)
+                        .opacity(0.3)
+                        .padding(.top, top)
                 }
             }
         }
@@ -114,6 +120,20 @@ struct MarkdownRendererView: View {
         // Collapse duplicate spaces introduced by replacements
         while s.contains("  ") { s = s.replacingOccurrences(of: "  ", with: " ") }
         return s
+    }
+
+    private func topPadding(previous: Block?, current: Block, currentIndex: Int, firstHeadingIndex: Int?) -> CGFloat {
+        if currentIndex == 0 { return 0 }  // No top padding for the very first block
+        if case .rule = current { return 24 }  // 24 above the divider
+        if case .rule? = previous { return 24 }  // 24 below the divider
+
+        // First heading -> next paragraph: 22; other headings -> paragraph: 16
+        if case .heading = previous, case .paragraph = current {
+            if let first = firstHeadingIndex, currentIndex - 1 == first { return 22 }
+            return 16
+        }
+
+        return 26  // Default
     }
 
     private func parse(_ input: String) -> [BlockItem] {
