@@ -32,16 +32,16 @@ struct SettingRowView: View {
                 )
             } else if case .picker(let options) = setting.type {
                 HStack(spacing: 12) {
-                    // Icon - smaller, iOS Settings style
+                    // Icon - iOS Settings style
                     Image(systemName: setting.icon)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .foregroundColor(.primary)
                         .frame(width: 24, height: 24)
                     
                     // Content
                     VStack(alignment: .leading, spacing: 2) {
                         Text(setting.title)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 16, weight: .regular))
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
                         
@@ -80,7 +80,7 @@ struct SettingRowView: View {
                         .contentShape(Rectangle())
                     }
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(Color(.systemBackground))
             } else if case .toggle = setting.type {
@@ -88,12 +88,12 @@ struct SettingRowView: View {
                 HStack(spacing: 12) {
                     Image(systemName: setting.icon)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .foregroundColor(.primary)
                         .frame(width: 24, height: 24)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(setting.title)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 16, weight: .regular))
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
 
@@ -119,9 +119,9 @@ struct SettingRowView: View {
                         }
                     ))
                     .labelsHidden()
-                    .tint(.accentColor)
+                    .tint(.green)
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(Color(.systemBackground))
             } else {
@@ -139,61 +139,61 @@ struct SettingRowView: View {
                     }
                 }) {
                     HStack(spacing: 12) {
-                // Icon - smaller, iOS Settings style
-                Image(systemName: setting.icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                    .frame(width: 24, height: 24)
-                
-                // Content
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(setting.title)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.primary)
-                        .multilineTextAlignment(.leading)
-                    
-                    if let subtitle = setting.subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.leading)
-                    }
-                }
-                
-                Spacer()
-                
-                // Right side content
-                switch setting.type {
-                case .toggle(let isOn):
-                    Toggle("", isOn: .constant(isOn))
-                        .labelsHidden()
-                        .tint(.accentColor)
-                        .onTapGesture {
-                            onToggle()
+                        // Icon - iOS Settings style
+                        Image(systemName: setting.icon)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 24, height: 24)
+                        
+                        // Content
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(setting.title)
+                                .font(.system(size: 16, weight: .regular))
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                            
+                            if let subtitle = setting.subtitle {
+                                Text(subtitle)
+                                    .font(.system(size: 13, weight: .regular))
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.leading)
+                            }
                         }
-                case .navigation:
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                case .action:
-                    if setting.title == "Sign Out" {
-                        Text("Sign Out")
-                            .font(.system(size: 16, weight: .regular))
-                            .foregroundColor(.red)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(Color(.tertiaryLabel))
+                        
+                        Spacer()
+                        
+                        // Right side content
+                        switch setting.type {
+                        case .toggle(let isOn):
+                            Toggle("", isOn: .constant(isOn))
+                                .labelsHidden()
+                                .tint(.green)
+                                .onTapGesture {
+                                    onToggle()
+                                }
+                        case .navigation:
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.secondary)
+                        case .action:
+                            if setting.title == "Sign Out" {
+                                Text("Sign Out")
+                                    .font(.system(size: 16, weight: .regular))
+                                    .foregroundColor(.red)
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                            }
+                        case .picker:
+                            EmptyView()
+                        case .linkPartner:
+                            EmptyView()
+                        }
                     }
-                case .picker:
-                    EmptyView()
-                case .linkPartner:
-                    EmptyView()
-                }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .background(Color(.systemBackground))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemBackground))
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -219,11 +219,11 @@ struct LinkPartnerSettingRow: View {
             // Header
             HStack {
                 Image(systemName: setting.icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
                 
                 Text(setting.title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 16, weight: .regular))
                     .foregroundColor(.primary)
                 
                 Spacer()
@@ -393,15 +393,8 @@ struct LinkPartnerSettingRow: View {
                 .padding(.bottom, 16)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
-        )
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .onAppear {
             Task {
                 await linkViewModel.ensureInviteReady()
