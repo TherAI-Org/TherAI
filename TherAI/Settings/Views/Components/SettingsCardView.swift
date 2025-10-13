@@ -7,7 +7,7 @@ struct SettingsCardView: View {
     let onPickerSelect: ((Int, String) -> Void)?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             // Section Header - iOS Settings style
             HStack {
                 Text(section.title)
@@ -18,7 +18,7 @@ struct SettingsCardView: View {
                 Spacer()
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 6)
+            .padding(.bottom, 4)
             
             // Settings Items in grouped card
             VStack(spacing: 0) {
@@ -32,16 +32,8 @@ struct SettingsCardView: View {
                     )
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.systemGray6))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.12), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             
             // Section Footer (if needed)
             if shouldShowFooter() {
