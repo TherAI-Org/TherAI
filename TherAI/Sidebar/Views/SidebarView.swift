@@ -117,11 +117,9 @@ struct SlidebarView: View {
                         Haptics.impact(.medium)
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
                             if sessionsViewModel.activeSessionId != nil {
-                                // User has an active session, return to it
                                 navigationViewModel.selectedTab = .chat
                                 isOpen = false
                             } else {
-                                // No active session, start a new one
                                 sessionsViewModel.startNewChat()
                                 navigationViewModel.selectedTab = .chat
                                 isOpen = false
@@ -129,8 +127,21 @@ struct SlidebarView: View {
                         }
                     }) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .frame(width: 44, height: 44)
+                            .background(
+                                Group {
+                                    if #available(iOS 26.0, *) {
+                                        Color.clear
+                                            .glassEffect(.regular)
+                                    } else {
+                                        Color(.systemGray6)
+                                            .opacity(0.85)
+                                    }
+                                }
+                            )
+                            .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
@@ -377,44 +388,11 @@ struct SlidebarView: View {
                 Spacer()
                     .frame(height: 100) // This creates space for the gradient to start earlier
 
-                HStack {
-                    Spacer()
-
-                    // Settings on lower right
-                    Button(action: {
-                        Haptics.impact(.medium)
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
-                            navigationViewModel.showSettingsOverlay = true
-                        }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.26, green: 0.58, blue: 1.00),
-                                            Color(red: 0.63, green: 0.32, blue: 0.98)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Circle().stroke(Color.white.opacity(0.8), lineWidth: 1)
-                                )
-
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .offset(y: 2)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
+                // Profile Section
+                ProfileSectionView()
                 .padding(.horizontal, 20)
                 .padding(.top, 6)
-                .padding(.bottom, 34) // More bottom padding to bring icons further up
+                .padding(.bottom, 34) // More bottom padding to bring profile section further up
             }
             .background(
                 LinearGradient(
