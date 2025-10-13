@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from ..auth import get_current_user
 from ..Database.link_repo import get_partner_user_id, get_link_status_for_user
 from ..Database.supabase_client import supabase
@@ -17,7 +17,15 @@ async def upload_avatar(file: UploadFile = File(...), current_user: dict = Depen
         data = await file.read()
         content_type = file.content_type or "application/octet-stream"
 
-        key = f"{user_id}.jpg" if content_type == "image/jpeg" else f"{user_id}"
+        # Preserve original file extension based on content type
+        if content_type == "image/jpeg":
+            key = f"{user_id}.jpg"
+        elif content_type == "image/png":
+            key = f"{user_id}.png"
+        elif content_type == "image/webp":
+            key = f"{user_id}.webp"
+        else:
+            key = f"{user_id}"
 
         res = supabase.storage.from_("avatar").upload(
             path = key,
@@ -41,6 +49,116 @@ async def upload_avatar(file: UploadFile = File(...), current_user: dict = Depen
         raise
     except Exception as e:
         raise HTTPException(status_code = 500, detail = str(e))
+
+# Update user profile information (PUT)
+@router.put("/update")
+async def update_profile(
+    first_name: str = Form(None),
+    last_name: str = Form(None), 
+    bio: str = Form(None),
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        try:
+            user_id = uuid.UUID(current_user.get("sub"))
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+        # Build update payload with only provided fields
+        update_data = {}
+        if first_name is not None:
+            update_data["first_name"] = first_name
+        if last_name is not None:
+            update_data["last_name"] = last_name
+        if bio is not None:
+            update_data["bio"] = bio
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields provided for update")
+
+        # Update the profile
+        result = supabase.table("profiles").upsert({
+            "user_id": str(user_id),
+            **update_data
+        }).execute()
+
+        if getattr(result, "error", None):
+            raise HTTPException(status_code=500, detail=f"Failed to update profile: {result.error}")
+
+        return {"success": True, "message": "Profile updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Update user profile information (POST mirror for environments that block PUT)
+@router.post("/update")
+async def update_profile_post(
+    first_name: str = Form(None),
+    last_name: str = Form(None), 
+    bio: str = Form(None),
+    current_user: dict = Depends(get_current_user)
+):
+    try:
+        try:
+            user_id = uuid.UUID(current_user.get("sub"))
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+        update_data = {}
+        if first_name is not None:
+            update_data["first_name"] = first_name
+        if last_name is not None:
+            update_data["last_name"] = last_name
+        if bio is not None:
+            update_data["bio"] = bio
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No fields provided for update")
+
+        result = supabase.table("profiles").upsert({
+            "user_id": str(user_id),
+            **update_data
+        }).execute()
+
+        if getattr(result, "error", None):
+            raise HTTPException(status_code=500, detail=f"Failed to update profile: {result.error}")
+
+        return {"success": True, "message": "Profile updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Get user profile information
+@router.get("/info")
+async def get_profile_info(current_user: dict = Depends(get_current_user)):
+    try:
+        try:
+            user_id = uuid.UUID(current_user.get("sub"))
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+        # Get profile from database
+        result = supabase.table("profiles").select("first_name, last_name, bio").eq("user_id", str(user_id)).limit(1).execute()
+        
+        if getattr(result, "error", None):
+            raise HTTPException(status_code=500, detail=f"Failed to get profile: {result.error}")
+
+        profile_data = result.data[0] if result.data else {}
+        
+        # Fallback to auth metadata if profile fields are empty
+        auth_metadata = current_user.get("user_metadata", {})
+        
+        return {
+            "first_name": profile_data.get("first_name") or auth_metadata.get("first_name") or "",
+            "last_name": profile_data.get("last_name") or auth_metadata.get("last_name") or "",
+            "bio": profile_data.get("bio") or "",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Get both the current user's and their partner's avatar URLs
 @router.get("/avatars")
