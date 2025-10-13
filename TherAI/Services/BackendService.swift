@@ -269,12 +269,28 @@ struct BackendService {
             return req
         }
 
+        // Try PUT base
         var request = makeRequest(at: baseURL)
         var (data, response) = try await urlSession.data(for: request)
         var http = response as? HTTPURLResponse
-        if let h = http, h.statusCode == 404 { // try /api fallback
+        // Try POST base if PUT not found
+        if let h = http, h.statusCode == 404 {
+            var postRequest = makeRequest(at: baseURL)
+            postRequest.httpMethod = "POST"
+            (data, response) = try await urlSession.data(for: postRequest)
+            http = response as? HTTPURLResponse
+        }
+        // Try PUT /api if still not found
+        if let h = http, h.statusCode == 404 {
             request = makeRequest(at: baseURL.appendingPathComponent("api"))
             (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        // Try POST /api as final fallback
+        if let h = http, h.statusCode == 404 {
+            var postRequest = makeRequest(at: baseURL.appendingPathComponent("api"))
+            postRequest.httpMethod = "POST"
+            (data, response) = try await urlSession.data(for: postRequest)
             http = response as? HTTPURLResponse
         }
         guard let final = http else {
@@ -392,6 +408,95 @@ extension BackendService {
             throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
         return try jsonDecoder.decode(PairedAvatars.self, from: data)
+    }
+    
+    // Profile information structures
+    struct ProfileInfo: Codable {
+        let first_name: String
+        let last_name: String
+        let bio: String
+    }
+    
+    struct ProfileUpdateResponse: Codable {
+        let success: Bool
+        let message: String
+    }
+    
+    // Get user profile information
+    func fetchProfileInfo(accessToken: String) async throws -> ProfileInfo {
+        func makeRequest(at base: URL) -> URLRequest {
+            let url = base
+                .appendingPathComponent("profile")
+                .appendingPathComponent("info")
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            return request
+        }
+
+        var request = makeRequest(at: baseURL)
+        var (data, response) = try await urlSession.data(for: request)
+        var http = response as? HTTPURLResponse
+        if let h = http, h.statusCode == 404 { // try /api fallback
+            request = makeRequest(at: baseURL.appendingPathComponent("api"))
+            (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        guard let final = http else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(final.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: final.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(ProfileInfo.self, from: data)
+    }
+    
+    // Update user profile information
+    func updateProfile(accessToken: String, firstName: String?, lastName: String?, bio: String?) async throws -> ProfileUpdateResponse {
+        func makeRequest(at base: URL) -> URLRequest {
+            let url = base
+                .appendingPathComponent("profile")
+                .appendingPathComponent("update")
+            var request = URLRequest(url: url)
+            request.httpMethod = "PUT"
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+
+            var formDataComponents: [String] = []
+            if let firstName = firstName, !firstName.isEmpty {
+                let encoded = firstName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? firstName
+                formDataComponents.append("first_name=\(encoded)")
+            }
+            if let lastName = lastName, !lastName.isEmpty {
+                let encoded = lastName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? lastName
+                formDataComponents.append("last_name=\(encoded)")
+            }
+            if let bio = bio, !bio.isEmpty {
+                let encoded = bio.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? bio
+                formDataComponents.append("bio=\(encoded)")
+            }
+            let formDataString = formDataComponents.joined(separator: "&")
+            request.httpBody = formDataString.data(using: .utf8)
+            return request
+        }
+
+        var request = makeRequest(at: baseURL)
+        var (data, response) = try await urlSession.data(for: request)
+        var http = response as? HTTPURLResponse
+        if let h = http, h.statusCode == 404 { // try /api fallback
+            request = makeRequest(at: baseURL.appendingPathComponent("api"))
+            (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        guard let final = http else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(final.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: final.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(ProfileUpdateResponse.self, from: data)
     }
 
     struct PartnerInfo: Codable {
