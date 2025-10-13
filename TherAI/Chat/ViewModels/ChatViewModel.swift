@@ -29,6 +29,10 @@ class ChatViewModel: ObservableObject {
     private var receivedAnyAssistantOutput: Bool = false
     private var currentAssistantMessageId: UUID?
     private var isStreaming: Bool = false
+    // Track assistant placeholder per session when streaming continues off-screen
+    private var assistantMessageIdBySession: [UUID: UUID] = [:]
+    // Session currently streaming, to scope the loading indicator to the right chat
+    private var currentStreamingSessionId: UUID?
 
     // Cache of messages per session to avoid unnecessary refetches when revisiting
     private struct MessagesCacheEntry {
@@ -113,7 +117,18 @@ class ChatViewModel: ObservableObject {
 
     // Present a session using cache-first strategy
     func presentSession(_ id: UUID) async {
-        await MainActor.run { self.sessionId = id }
+        await MainActor.run {
+            self.sessionId = id
+            // If a background stream was active for this session, rebind its placeholder for live updates
+            if let placeholderId = self.assistantMessageIdBySession[id] {
+                self.currentAssistantMessageId = placeholderId
+            } else {
+                self.currentAssistantMessageId = nil
+            }
+            // Scope the loading indicator to only the session that is actually streaming
+            self.isLoading = (self.currentStreamingSessionId == id)
+            self.isAssistantTyping = false
+        }
 
         // Immediately show cached messages if available
         if let entry = messagesCache[id] {
@@ -172,6 +187,9 @@ class ChatViewModel: ObservableObject {
         let placeholderMessage = ChatMessage(content: "", isFromUser: false)
         messages.append(placeholderMessage)
         currentAssistantMessageId = placeholderMessage.id
+        if let sid = self.sessionId {
+            assistantMessageIdBySession[sid] = placeholderMessage.id
+        }
 		// Ensure cache reflects the latest local state (user + placeholder)
 		updateCacheForCurrentSession()
 
@@ -183,6 +201,22 @@ class ChatViewModel: ObservableObject {
                 return
             }
             await MainActor.run { self.isStreaming = true }
+            await MainActor.run { if let sid = self.sessionId { self.currentStreamingSessionId = sid } }
+            // Start a background task to keep the stream alive briefly when app backgrounds
+            #if canImport(UIKit)
+            let bgTask: UIBackgroundTaskIdentifier? = BackgroundTaskManager.shared.begin(name: "chat_stream_\(self.sessionId?.uuidString ?? "unknown")") { [weak self] in
+                guard let self = self else { return }
+                // Expired: cancel stream gracefully; UI will persist partials
+                Task { @MainActor in
+                    ChatStreamManager.shared.cancel(handleId: self.currentStreamHandleId)
+                    self.isStreaming = false
+                    self.isAssistantTyping = false
+                    self.currentStreamingSessionId = nil
+                    self.currentAssistantMessageId = nil
+                    self.updateCacheForCurrentSession()
+                }
+            }
+            #endif
             print("[ChatVM] stream starting (manager); sessionId=\(String(describing: self.sessionId)) messagesCount=\(self.messages.count)")
             // Ensure we have a stable session id before sending to avoid backend auto-creating new sessions
             if self.sessionId == nil {
@@ -218,6 +252,10 @@ class ChatViewModel: ObservableObject {
             var sawToolStart = false
             var sawPartnerMessage = false
             var eventCounter = 0
+            // Track which session this stream belongs to; updated once server sends .session
+            var streamSessionId: UUID? = self.sessionId
+            // Snapshot the on-screen state at stream start to avoid cross-session pollution
+            let (initialMessagesForStream, initialAssistantPlaceholderId): ([ChatMessage], UUID?) = await MainActor.run { (self.messages, self.currentAssistantMessageId) }
 
             let handleId = ChatStreamManager.shared.startStream(
                 params: ChatStreamManager.StartParams(
@@ -234,12 +272,17 @@ class ChatViewModel: ObservableObject {
                     case .toolStart:
                         sawToolStart = true
                         Task { @MainActor in
-                            // Only toggle loader on the existing assistant placeholder
-                            if !self.messages.isEmpty {
+                            let targetSid = streamSessionId ?? self.sessionId
+                            guard let sid = targetSid else { return }
+                            if sid == self.sessionId {
                                 var newMessages = self.messages
                                 let idx: Int = {
                                     if let id = self.currentAssistantMessageId,
                                        let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.currentAssistantMessageId = placeholder.id
+                                    if let sid = self.sessionId { self.assistantMessageIdBySession[sid] = placeholder.id }
                                     return newMessages.count - 1
                                 }()
                                 let last = newMessages[idx]
@@ -256,6 +299,30 @@ class ChatViewModel: ObservableObject {
                                 )
                                 newMessages[idx] = updated
                                 self.messages = newMessages
+                            } else {
+                                var newMessages = self.messagesCache[sid]?.messages ?? []
+                                let idx: Int = {
+                                    if let id = self.assistantMessageIdBySession[sid],
+                                       let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.assistantMessageIdBySession[sid] = placeholder.id
+                                    return newMessages.count - 1
+                                }()
+                                let last = newMessages[idx]
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: last.content,
+                                    segments: last.segments,
+                                    isFromUser: false,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: last.isPartnerMessage,
+                                    partnerMessageContent: last.partnerMessageContent,
+                                    partnerDrafts: last.partnerDrafts,
+                                    isToolLoading: true
+                                )
+                                newMessages[idx] = updated
+                                self.messagesCache[sid] = MessagesCacheEntry(messages: newMessages, lastLoaded: Date())
                             }
                             print("[ChatVM] toolStart received; showing loader (manager)")
                         }
@@ -265,11 +332,17 @@ class ChatViewModel: ObservableObject {
                         }
                     case .toolDone:
                         Task { @MainActor in
-                            if !self.messages.isEmpty {
+                            let targetSid = streamSessionId ?? self.sessionId
+                            guard let sid = targetSid else { return }
+                            if sid == self.sessionId {
                                 var newMessages = self.messages
                                 let idx: Int = {
                                     if let id = self.currentAssistantMessageId,
                                        let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.currentAssistantMessageId = placeholder.id
+                                    if let sid = self.sessionId { self.assistantMessageIdBySession[sid] = placeholder.id }
                                     return newMessages.count - 1
                                 }()
                                 let last = newMessages[idx]
@@ -286,13 +359,49 @@ class ChatViewModel: ObservableObject {
                                 )
                                 newMessages[idx] = updated
                                 self.messages = newMessages
+                            } else {
+                                var newMessages = self.messagesCache[sid]?.messages ?? []
+                                let idx: Int = {
+                                    if let id = self.assistantMessageIdBySession[sid],
+                                       let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.assistantMessageIdBySession[sid] = placeholder.id
+                                    return newMessages.count - 1
+                                }()
+                                let last = newMessages[idx]
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: last.content,
+                                    segments: last.segments,
+                                    isFromUser: false,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: last.isPartnerMessage,
+                                    partnerMessageContent: last.partnerMessageContent,
+                                    partnerDrafts: last.partnerDrafts,
+                                    isToolLoading: false
+                                )
+                                newMessages[idx] = updated
+                                self.messagesCache[sid] = MessagesCacheEntry(messages: newMessages, lastLoaded: Date())
                             }
                             print("[ChatVM] toolDone received; hiding loader (manager)")
                         }
                     case .session(let sid):
-                        Task { @MainActor in if self.sessionId == nil { self.sessionId = sid } }
+                        // Remember which session the stream is tied to; set sessionId only if it was nil
+                        streamSessionId = sid
+                        Task { @MainActor in
+                            if self.sessionId == nil { self.sessionId = sid }
+                            // Initialize cache with the stream's starting messages snapshot (not the currently visible chat)
+                            self.messagesCache[sid] = MessagesCacheEntry(messages: initialMessagesForStream, lastLoaded: Date())
+                            if let placeholderId = initialAssistantPlaceholderId {
+                                self.assistantMessageIdBySession[sid] = placeholderId
+                            }
+                            self.currentStreamingSessionId = sid
+                        }
                     case .token(let token):
                         Task { @MainActor in
+                            let targetSid = streamSessionId ?? self.sessionId
+                            guard let sid = targetSid else { return }
                             if !self.receivedAnyAssistantOutput {
                                 self.receivedAnyAssistantOutput = true
                                 self.typingDelayTask?.cancel()
@@ -309,13 +418,18 @@ class ChatViewModel: ObservableObject {
                                     currentSegments.append(.text(token))
                                 }
                             }
-                            if !self.messages.isEmpty {
+                            if sid == self.sessionId {
+                                var newMessages = self.messages
                                 let idx: Int = {
                                     if let id = self.currentAssistantMessageId,
-                                       let i = self.messages.firstIndex(where: { $0.id == id }) { return i }
-                                    return self.messages.count - 1
+                                       let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.currentAssistantMessageId = placeholder.id
+                                    if let sid = self.sessionId { self.assistantMessageIdBySession[sid] = placeholder.id }
+                                    return newMessages.count - 1
                                 }()
-                                let last = self.messages[idx]
+                                let last = newMessages[idx]
                                 let updated = ChatMessage(
                                     id: last.id,
                                     content: accumulated,
@@ -327,14 +441,39 @@ class ChatViewModel: ObservableObject {
                                     partnerDrafts: last.partnerDrafts,
                                     isToolLoading: last.isToolLoading
                                 )
-                                var newMessages = self.messages
                                 newMessages[idx] = updated
                                 self.messages = newMessages
                                 print("[ChatVM] token update length=\(accumulated.count)")
+                            } else {
+                                var newMessages = self.messagesCache[sid]?.messages ?? []
+                                let idx: Int = {
+                                    if let id = self.assistantMessageIdBySession[sid],
+                                       let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.assistantMessageIdBySession[sid] = placeholder.id
+                                    return newMessages.count - 1
+                                }()
+                                let last = newMessages[idx]
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: accumulated,
+                                    segments: currentSegments,
+                                    isFromUser: false,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: last.isPartnerMessage,
+                                    partnerMessageContent: last.partnerMessageContent,
+                                    partnerDrafts: last.partnerDrafts,
+                                    isToolLoading: last.isToolLoading
+                                )
+                                newMessages[idx] = updated
+                                self.messagesCache[sid] = MessagesCacheEntry(messages: newMessages, lastLoaded: Date())
                             }
                         }
                     case .partnerMessage(let text):
                         Task { @MainActor in
+                            let targetSid = streamSessionId ?? self.sessionId
+                            guard let sid = targetSid else { return }
                             if !self.receivedAnyAssistantOutput {
                                 self.receivedAnyAssistantOutput = true
                                 self.typingDelayTask?.cancel()
@@ -343,19 +482,18 @@ class ChatViewModel: ObservableObject {
                             sawPartnerMessage = true
                             currentSegments.append(.partnerMessage(text))
                             print("[ChatVM] partner_message received len=\(text.count)")
-                            if self.messages.isEmpty {
-                                self.messages.append(ChatMessage.partnerDraft(text))
-                                print("[ChatVM] appended standalone partnerDraft (no messages present)")
-                                return
-                            }
-                            var newMessages = self.messages
-                            let idx: Int = {
-                                if let id = self.currentAssistantMessageId,
-                                   let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
-                                return newMessages.count - 1
-                            }()
-                            let last = newMessages[idx]
-                            if last.isFromUser == false {
+                            if sid == self.sessionId {
+                                var newMessages = self.messages
+                                let idx: Int = {
+                                    if let id = self.currentAssistantMessageId,
+                                       let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.currentAssistantMessageId = placeholder.id
+                                    if let sid = self.sessionId { self.assistantMessageIdBySession[sid] = placeholder.id }
+                                    return newMessages.count - 1
+                                }()
+                                let last = newMessages[idx]
                                 var drafts = last.partnerDrafts
                                 drafts.append(text)
                                 let updated = ChatMessage(
@@ -373,36 +511,88 @@ class ChatViewModel: ObservableObject {
                                 self.messages = newMessages
                                 print("[ChatVM] appended draft as segment; total segments=\(currentSegments.count)")
                             } else {
-                                self.messages.append(ChatMessage.partnerDraft(text))
-                                print("[ChatVM] appended partnerDraft after user message (no assistant placeholder)")
+                                var newMessages = self.messagesCache[sid]?.messages ?? []
+                                let idx: Int = {
+                                    if let id = self.assistantMessageIdBySession[sid],
+                                       let i = newMessages.firstIndex(where: { $0.id == id }) { return i }
+                                    let placeholder = ChatMessage(content: "", isFromUser: false)
+                                    newMessages.append(placeholder)
+                                    self.assistantMessageIdBySession[sid] = placeholder.id
+                                    return newMessages.count - 1
+                                }()
+                                let last = newMessages[idx]
+                                var drafts = last.partnerDrafts
+                                drafts.append(text)
+                                let updated = ChatMessage(
+                                    id: last.id,
+                                    content: last.content,
+                                    segments: currentSegments,
+                                    isFromUser: false,
+                                    timestamp: last.timestamp,
+                                    isPartnerMessage: true,
+                                    partnerMessageContent: drafts.first,
+                                    partnerDrafts: drafts,
+                                    isToolLoading: false
+                                )
+                                newMessages[idx] = updated
+                                self.messagesCache[sid] = MessagesCacheEntry(messages: newMessages, lastLoaded: Date())
                             }
                         }
                     case .done:
                         print("[ChatVM] stream done (manager); sawToolStart=\(sawToolStart) sawPartnerMessage=\(sawPartnerMessage) events=\(eventCounter)")
-                        Task { @MainActor in self.isLoading = false; self.isAssistantTyping = false; self.isStreaming = false }
-                        Task { @MainActor in self.currentAssistantMessageId = nil }
-                        // Sessions list refresh
-                        if let sid = self.sessionId {
-						// Update cache so a quick revisit shows the final assistant reply
-						Task { @MainActor in
-							self.messagesCache[sid] = MessagesCacheEntry(messages: self.messages, lastLoaded: Date())
-						}
-                            NotificationCenter.default.post(name: .chatMessageSent, object: nil, userInfo: [
-                                "sessionId": sid,
-                                "messageContent": messageToSend
-                            ])
-                            NotificationCenter.default.post(name: .chatSessionsNeedRefresh, object: nil)
+                        let targetSid = streamSessionId ?? self.sessionId
+                        if let sid = targetSid, sid != self.sessionId {
+                            // Background stream finished: persist cache and clear per-session placeholder id
+                            Task { @MainActor in
+                                if let arr = self.messagesCache[sid]?.messages {
+                                    self.messagesCache[sid] = MessagesCacheEntry(messages: arr, lastLoaded: Date())
+                                }
+                                self.assistantMessageIdBySession[sid] = nil
+                                if self.currentStreamingSessionId == sid { self.currentStreamingSessionId = nil }
+                            }
+                        } else {
+                            Task { @MainActor in self.isLoading = false; self.isAssistantTyping = false; self.isStreaming = false }
+                            Task { @MainActor in self.currentAssistantMessageId = nil }
+                            Task { @MainActor in self.currentStreamingSessionId = nil }
+                            if let sid = self.sessionId {
+                                Task { @MainActor in
+                                    self.messagesCache[sid] = MessagesCacheEntry(messages: self.messages, lastLoaded: Date())
+                                }
+                                NotificationCenter.default.post(name: .chatMessageSent, object: nil, userInfo: [
+                                    "sessionId": sid,
+                                    "messageContent": messageToSend
+                                ])
+                                NotificationCenter.default.post(name: .chatSessionsNeedRefresh, object: nil)
+                            }
+                            #if canImport(UIKit)
+                            BackgroundTaskManager.shared.end(bgTask)
+                            #endif
                         }
                     case .error(let message):
                         Task { @MainActor in
-                            if !self.messages.isEmpty {
-                                self.messages[self.messages.count - 1] = ChatMessage(content: "Error: \(message)", isFromUser: false)
+                            let targetSid = streamSessionId ?? self.sessionId
+                            if let sid = targetSid, sid != self.sessionId {
+                                var newMessages = self.messagesCache[sid]?.messages ?? []
+                                if !newMessages.isEmpty {
+                                    newMessages[newMessages.count - 1] = ChatMessage(content: "Error: \(message)", isFromUser: false)
+                                } else {
+                                    newMessages.append(ChatMessage(content: "Error: \(message)", isFromUser: false))
+                                }
+                                self.messagesCache[sid] = MessagesCacheEntry(messages: newMessages, lastLoaded: Date())
+                                self.assistantMessageIdBySession[sid] = nil
+                            } else {
+                                if !self.messages.isEmpty {
+                                    self.messages[self.messages.count - 1] = ChatMessage(content: "Error: \(message)", isFromUser: false)
+                                }
+                                self.isLoading = false
+                                self.isAssistantTyping = false
+                                self.isStreaming = false
+                                self.currentStreamingSessionId = nil
+                                self.updateCacheForCurrentSession()
                             }
-                            self.isLoading = false
-                            self.isAssistantTyping = false
-                            self.isStreaming = false
-						// Keep cache updated even on error so user message persists on revisit
-						self.updateCacheForCurrentSession()
+                            #if canImport(UIKit)
+                            BackgroundTaskManager.shared.end(bgTask)
+                            #endif
                         }
                     }
                 },
