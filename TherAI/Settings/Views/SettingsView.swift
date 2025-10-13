@@ -116,17 +116,16 @@ struct SettingsView: View {
                                 
                                 // Version text at bottom
                                 VStack(spacing: 0) {
-                                    Spacer(minLength: 20)
                                     Text("VERSION 1.0.0")
                                         .font(.system(size: 13, weight: .regular))
                                         .foregroundColor(.secondary)
                                         .textCase(.uppercase)
+                                        .padding(.top, 20)
                                 }
                             }
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 24)
                 }
                 .scrollIndicators(.hidden)
                 .background(Color.clear)
@@ -177,7 +176,6 @@ struct SettingsView: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .padding(.bottom, 12)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
         .onAppear {
