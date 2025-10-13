@@ -11,10 +11,12 @@ class ChatSessionsViewModel: ObservableObject {
     @Published var myAvatarURL: String? = nil
     @Published var partnerAvatarURL: String? = nil
     @Published var partnerInfo: BackendService.PartnerInfo? = nil
+    @Published var avatarsLoaded: Bool = false
 
     var onRefreshPendingRequests: (() -> Void)?
 
     private var observers: [NSObjectProtocol] = []
+    private let avatarCacheManager = AvatarCacheManager.shared
 
     init() {
         loadCachedSessions()
@@ -154,6 +156,7 @@ class ChatSessionsViewModel: ObservableObject {
             await loadPendingRequests()
             await loadPairedAvatars()
             await loadPartnerInfo()
+            await preloadAvatars()
         }
 
         // Session created
@@ -194,6 +197,16 @@ class ChatSessionsViewModel: ObservableObject {
             Task { await self.refreshSessions() }
         }
         observers.append(needRefresh)
+        
+        // Avatar changed - reload avatar URLs and preload new avatars
+        let avatarChanged = NotificationCenter.default.addObserver(forName: .avatarChanged, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self else { return }
+            Task { 
+                await self.loadPairedAvatars()
+                await self.preloadAvatars()
+            }
+        }
+        observers.append(avatarChanged)
     }
 
     func loadPairedAvatars() async {
@@ -208,6 +221,34 @@ class ChatSessionsViewModel: ObservableObject {
         } catch {
             print("Failed to load avatars: \(error)")
         }
+    }
+    
+    /// Preload avatar images into cache for immediate access
+    func preloadAvatars() async {
+        var avatarURLs: [String] = []
+        
+        // Collect all avatar URLs
+        if let myAvatar = myAvatarURL, !myAvatar.isEmpty {
+            avatarURLs.append(myAvatar)
+        }
+        if let partnerAvatar = partnerAvatarURL, !partnerAvatar.isEmpty {
+            avatarURLs.append(partnerAvatar)
+        }
+        
+        // Preload all avatars
+        if !avatarURLs.isEmpty {
+            await avatarCacheManager.preloadAvatars(urls: avatarURLs)
+        }
+        
+        await MainActor.run {
+            self.avatarsLoaded = true
+        }
+    }
+    
+    /// Get cached avatar image
+    func getCachedAvatar(urlString: String?) async -> UIImage? {
+        guard let urlString = urlString, !urlString.isEmpty else { return nil }
+        return await avatarCacheManager.getCachedImage(urlString: urlString)
     }
 
     func loadPartnerInfo() async {
