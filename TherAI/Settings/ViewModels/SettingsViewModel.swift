@@ -22,6 +22,19 @@ class SettingsViewModel: ObservableObject {
     @Published var showAppearanceDialog: Bool = false
     @Published var isUploadingAvatar: Bool = false
     @Published var avatarURL: String? = nil
+    @Published var isConnectedToPartner: Bool = false
+    @Published var partnerName: String? = nil
+    @Published var partnerAvatarURL: String? = nil
+    @Published var showPersonalizationEdit: Bool = false
+    @Published var isAvatarPreloaded: Bool = false
+    
+    private let avatarCacheManager = AvatarCacheManager.shared
+    
+    // Profile information
+    @Published var firstName: String = ""
+    @Published var lastName: String = ""
+    @Published var bio: String = ""
+    @Published var isProfileLoaded: Bool = false
     var currentAppearance: String {
         UserDefaults.standard.string(forKey: PreferenceKeys.appearancePreference) ?? "System"
     }
@@ -29,6 +42,7 @@ class SettingsViewModel: ObservableObject {
     init() {
         loadSettings()
         setupSettingsSections()
+        loadPartnerConnectionStatus()
     }
 
     private func loadSettings() {
@@ -58,34 +72,32 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Haptic Feedback", subtitle: "Vibration feedback for interactions", type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]
             ),
-            // 2. Relationship Insights → Weekly Reports removed
+            // 2. Link Your Partner → Separate section for partner linking
             SettingsSection(
-                title: "Relationship Insights",
-                icon: "heart.text.square",
+                title: "Link Your Partner",
+                icon: "link",
                 gradient: [Color.pink, Color.purple],
                 settings: [
                     SettingItem(title: "Link Your Partner", subtitle: "Invite or manage link", type: .linkPartner, icon: "link")
-                    // Weekly Reports setting removed
                 ]
             ),
-            // 3. Account → Account Settings, Sign Out
+            // 3. Help & Support → Support and policies
+            SettingsSection(
+                title: "Help & Support",
+                icon: "questionmark.circle",
+                gradient: [Color.green, Color.blue],
+                settings: [
+                    SettingItem(title: "Contact Support", subtitle: "Get help with your account", type: .navigation, icon: "envelope"),
+                    SettingItem(title: "Privacy Policy", subtitle: "How we protect your data", type: .navigation, icon: "hand.raised")
+                ]
+            ),
+            // 4. Account → Sign out
             SettingsSection(
                 title: "Account",
                 icon: "person.circle",
-                gradient: [Color.indigo, Color.blue],
+                gradient: [Color.red, Color.orange],
                 settings: [
-                    SettingItem(title: "Account Settings", subtitle: "Manage your account", type: .navigation, icon: "person.crop.circle"),
                     SettingItem(title: "Sign Out", subtitle: "Sign out of your account", type: .action, icon: "rectangle.portrait.and.arrow.right")
-                ]
-            ),
-            // 4. About → Version, Help & Support
-            SettingsSection(
-                title: "About",
-                icon: "info.circle",
-                gradient: [Color.gray, Color.secondary],
-                settings: [
-                    SettingItem(title: "Version", subtitle: "1.0.0", type: .navigation, icon: "info.circle"),
-                    SettingItem(title: "Help & Support", subtitle: "Get help and contact support", type: .navigation, icon: "questionmark.circle")
                 ]
             )
         ]
@@ -119,25 +131,26 @@ class SettingsViewModel: ObservableObject {
         let setting = section.settings[settingIndex]
 
         switch setting.title {
-        case "Sign Out":
-            Task {
-                await AuthService.shared.signOut()
-            }
         case "Link Your Partner":
             destination = .link
-        // Clear All Chat History setting removed
         case "Notifications":
             // Navigate to notifications detail view
             break
-        case "Account Settings":
-            // Navigate to account settings
-            break
-        case "Version":
-            // Show app version info
-            break
-        case "Help & Support":
-            // Navigate to help & support
-            break
+        case "Contact Support":
+            // Open support contact
+            if let url = URL(string: "mailto:support@therai.app") {
+                UIApplication.shared.open(url)
+            }
+        case "Privacy Policy":
+            // Open privacy policy
+            if let url = URL(string: "https://therai.app/privacy") {
+                UIApplication.shared.open(url)
+            }
+        case "Sign Out":
+            // Sign out user
+            Task {
+                await AuthService.shared.signOut()
+            }
         default:
             // Handle other navigation and action items
             break
@@ -157,7 +170,97 @@ class SettingsViewModel: ObservableObject {
             selectAppearance(value)
         }
     }
+    
+    // Load partner connection status from backend
+    private func loadPartnerConnectionStatus() {
+        Task { @MainActor in
+            do {
+                guard let token = await AuthService.shared.getAccessToken() else {
+                    self.isConnectedToPartner = false
+                    self.partnerName = nil
+                    self.partnerAvatarURL = nil
+                    return
+                }
+                let partnerInfo = try await BackendService.shared.fetchPartnerInfo(accessToken: token)
+                self.isConnectedToPartner = partnerInfo.linked
+                
+                if partnerInfo.linked, let partner = partnerInfo.partner {
+                    self.partnerName = partner.name
+                    self.partnerAvatarURL = partner.avatar_url
+                } else {
+                    self.partnerName = nil
+                    self.partnerAvatarURL = nil
+                }
+            } catch {
+                print("Failed to load partner connection status: \(error)")
+                self.isConnectedToPartner = false
+                self.partnerName = nil
+                self.partnerAvatarURL = nil
+            }
+        }
+    }
+    
+    func preloadAvatar() {
+        Task { @MainActor in
+            // Use the cache manager to preload avatar
+            if let avatarURL = avatarURL, !avatarURL.isEmpty {
+                let _ = await avatarCacheManager.getCachedImage(urlString: avatarURL)
+                self.isAvatarPreloaded = true
+            } else {
+                self.isAvatarPreloaded = true // No avatar to preload
+            }
+        }
+    }
+    
+    /// Get cached avatar image
+    func getCachedAvatar(urlString: String?) async -> UIImage? {
+        guard let urlString = urlString, !urlString.isEmpty else { return nil }
+        return await avatarCacheManager.getCachedImage(urlString: urlString)
+    }
+    
+    func loadProfileInfo() {
+        Task { @MainActor in
+            do {
+                guard let token = await AuthService.shared.getAccessToken() else {
+                    self.isProfileLoaded = false
+                    return
+                }
+                let profileInfo = try await BackendService.shared.fetchProfileInfo(accessToken: token)
+                self.firstName = profileInfo.first_name
+                self.lastName = profileInfo.last_name
+                self.bio = profileInfo.bio
+                self.isProfileLoaded = true
+            } catch {
+                print("Failed to load profile info: \(error)")
+                self.isProfileLoaded = false
+            }
+        }
+    }
+    
+    func saveProfileInfo(firstName: String, lastName: String, bio: String) async -> Bool {
+        do {
+            guard let token = await AuthService.shared.getAccessToken() else {
+                return false
+            }
+            let response = try await BackendService.shared.updateProfile(
+                accessToken: token,
+                firstName: firstName.isEmpty ? nil : firstName,
+                lastName: lastName.isEmpty ? nil : lastName,
+                bio: bio.isEmpty ? nil : bio
+            )
+            return response.success
+        } catch {
+            print("Failed to save profile info: \(error)")
+            return false
+        }
+    }
+    
+    // Public method to refresh connection status
+    func refreshConnectionStatus() {
+        loadPartnerConnectionStatus()
+    }
 }
+
 extension SettingsViewModel {
     func uploadAvatar(data: Data) async {
         print("DEBUG: ❗️ uploadAvatar called with data size: \(data.count) bytes")
