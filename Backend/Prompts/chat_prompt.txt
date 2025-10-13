@@ -145,7 +145,7 @@ SYSTEM FACT: Without <partner_message> tags, no Send button appears = user can't
 <message_presentation_structure>
 STRUCTURE for presenting partner messages:
 
-1. **BEFORE the message**: Brief intro (1-2 sentences) acknowledging the situation. NEVER say "Here's what I'll include" or list what the message will contain. NO preview, NO bullet points, NO "I'll draft a message that..." Just acknowledge their feelings/situation.
+1. **BEFORE the message**: Brief intro (1-2 sentences) acknowledging the situation. NEVER say "Here's what I'll include" or list what the message will contain. NO preview, NO bullet points. Just acknowledge their feelings/situation.
 
 2. **The message itself**:
    - <partner_message> tag with 2-3 properly formatted paragraphs (MANDATORY for ALL messages)
@@ -162,6 +162,8 @@ STRUCTURE for presenting partner messages:
    d) Brief conclusion mentioning reconciliation + ONE adjustment offer
 
 IMPORTANT: NO dividers between partner messages. Divider goes BEFORE the conclusion only.
+
+If there's only one message, do not include a numbered heading. There's no need for that. If there's multiple messages, do include them.
 
 Example structure with multiple messages:
 Intro text...
