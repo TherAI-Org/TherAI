@@ -175,11 +175,17 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                         role = "user" if msg.get("role") == "user" else "assistant"
                         input_messages.append({"role": role, "content": msg.get("content", "")})
                 if partner_context:
-                    partner_text = "PARTNER CONTEXT (Partner's recent personal thoughts):\n"
+                    # Minimal role cue + partner messages
+                    partner_text = "Partner context — treat this as what THEY said; generate a response for the CURRENT USER to send.\n"
                     for msg in partner_context:
                         role = "Partner" if msg.get("role") == "user" else "AI Assistant to Partner"
                         partner_text += f"{role}: {msg.get('content', '')}\n"
                     input_messages.append({"role": "system", "content": partner_text.strip()})
+                # Final mandatory reminder so the UI can render a sendable block
+                input_messages.append({
+                    "role": "system",
+                    "content": "MANDATORY: If you include any message intended for the partner, output it ONLY inside <partner_message>…</partner_message> with 2–3 paragraphs and no duplication outside the tags."
+                })
                 input_messages.append({"role": "user", "content": request.message})
 
                 # Stream model output WITHOUT OpenAI function calling

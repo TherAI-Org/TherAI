@@ -32,11 +32,17 @@ class PersonalAgent:
                     input_messages.append({"role": role, "content": msg.get("content", "")})
 
             if partner_context:  # Build context from partner's personal chat
-                partner_text = "Other partner's chat:\n"
+                partner_text = "Partner context (treat as what THEY said; reply on behalf of the CURRENT USER):\n"
                 for msg in partner_context:
                     role = "User" if msg.get("role") == "user" else "Assistant"
                     partner_text += f"{role}: {msg.get('content', '')}\n"
                 input_messages.append({"role": "system", "content": partner_text.strip()})
+
+            # Final reminder so the model uses the UI block tag when suggesting a partner message
+            input_messages.append({
+                "role": "system",
+                "content": "MANDATORY: Wrap any partner-intended text strictly inside <partner_message>…</partner_message>. No duplicates outside the tags."
+            })
 
             input_messages.append({"role": "user", "content": user_message})  # Add last user message
 
