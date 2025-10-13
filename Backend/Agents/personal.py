@@ -17,11 +17,6 @@ class PersonalAgent:
         with open(prompt_path, "r", encoding = "utf-8") as f:
             self.system_prompt = f.read().strip()
 
-        partner_message_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "partner_message_prompt.txt"
-        with open(partner_message_prompt_path, "r", encoding = "utf-8") as f:
-            self.partner_message_prompt = f.read().strip()
-
-
         title_generation_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "chat_title_generation_prompt.txt"
         with open(title_generation_prompt_path, "r", encoding = "utf-8") as f:
             self.title_generation_prompt = f.read().strip()
@@ -62,46 +57,6 @@ class PersonalAgent:
 
         except Exception as e:
             print(f"OpenAI API error: {e}")
-            return ""
-
-    # Craft a concise and caring message the user can send to their partner.
-    def generate_partner_message(self, user_message: str, chat_history: list = None,
-                                 partner_context: list = None, user_a_id = None) -> str:
-        try:
-            current_context = "Current partner's chat:\n"  # Build current personal context
-            if chat_history:
-                for msg in chat_history:
-                    role = "User" if msg.get("role") == "user" else "Assistant"
-                    current_context += f"{role}: {msg.get('content', '')}\n"
-
-            other_context = ""  # Build partner's personal chat context
-            if partner_context:
-                other_context = "\nOther partner's chat:\n"
-                for msg in partner_context:
-                    role = "User" if msg.get("role") == "user" else "Assistant"
-                    other_context += f"{role}: {msg.get('content', '')}\n"
-
-            full_context = (
-                f"{current_context}{other_context}\n"
-                f"User's request: {user_message}"
-            )
-
-            input_messages = [
-                {"role": "system", "content": self.partner_message_prompt},
-                {"role": "user", "content": full_context},
-            ]
-
-            resp = self.client.responses.create(model=self.model, input=input_messages)
-            text = getattr(resp, "output_text", None)
-            if text:
-                return text.strip()
-            parts = []
-            for block in getattr(resp, "output", []) or []:
-                if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
-                    parts.append(block.text)
-            return ("".join(parts)).strip() if parts else ""
-        except Exception as e:
-            print(f"OpenAI API error in partner message generation: {e}")
             return ""
 
     # Generate a short, descriptive title for a chat session based on user message(s)

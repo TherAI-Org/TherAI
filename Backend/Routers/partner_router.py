@@ -237,13 +237,8 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
         parts = []
         final_text = ""
         try:
-            # Use the dedicated partner message prompt for clean, first-person output
-            final_text = agent.generate_partner_message(
-                user_message = body.message,
-                chat_history = current_history,
-                partner_context = None,
-                user_a_id = None,
-            )
+            # Pass through the already-formatted partner message
+            final_text = body.message.strip()
             print(f"[PartnerStream] GENERATED partner message len={len(final_text)}")
             # Stream the generated text to keep client UX consistent
             if final_text:
