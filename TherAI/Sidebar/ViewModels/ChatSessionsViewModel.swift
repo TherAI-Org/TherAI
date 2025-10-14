@@ -21,6 +21,8 @@ class ChatSessionsViewModel: ObservableObject {
     @Published var partnerAvatarURL: String? = nil
     @Published var partnerInfo: BackendService.PartnerInfo? = nil
     @Published var avatarsLoaded: Bool = false
+    @Published var isBootstrapping: Bool = false
+    @Published var isBootstrapComplete: Bool = false
     @Published private(set) var unreadPartnerSessionIds: Set<UUID> = []
     // Suppress false-positive unread when this device just sent a message
     private var suppressUnreadSessionIds: Set<UUID> = []
@@ -346,6 +348,55 @@ class ChatSessionsViewModel: ObservableObject {
             }
         }
         observers.append(partnerMessageTapped)
+    }
+
+    // MARK: - Initial App Bootstrap
+    func bootstrapInitialData() async {
+        if isBootstrapComplete { return }
+        await MainActor.run { self.isBootstrapping = true }
+
+        await withTaskGroup(of: Void.self) { group in
+            // Load sessions
+            group.addTask { await self.loadSessions() }
+            // Load pending partner requests
+            group.addTask { await self.loadPendingRequests() }
+            // Load partner info
+            group.addTask { await self.loadPartnerInfo() }
+            // Fetch profile info and cache full name for sidebar and settings
+            group.addTask { await self.fetchAndCacheProfileName() }
+        }
+
+        // Load avatars then preload images to cache
+        await loadPairedAvatars()
+        await preloadAvatars()
+
+        // Choose a default active session if none selected yet
+        await MainActor.run {
+            if self.activeSessionId == nil, let first = self.sessions.first?.id {
+                self.activeSessionId = first
+                self.chatViewKey = UUID()
+            }
+        }
+
+        await MainActor.run {
+            self.isBootstrapping = false
+            self.isBootstrapComplete = true
+        }
+    }
+
+    private func fetchAndCacheProfileName() async {
+        do {
+            let session = try await AuthService.shared.client.auth.session
+            let token = session.accessToken
+            let profile = try await BackendService.shared.fetchProfileInfo(accessToken: token)
+            await MainActor.run {
+                UserDefaults.standard.set(profile.full_name, forKey: "therai_profile_full_name")
+                NotificationCenter.default.post(name: .profileChanged, object: nil)
+            }
+        } catch {
+            // No-op: keep any previously cached value
+            print("Failed to fetch profile name during bootstrap: \(error)")
+        }
     }
 
     func loadPairedAvatars() async {
