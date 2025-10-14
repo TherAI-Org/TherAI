@@ -1,5 +1,6 @@
 
 import AVFoundation
+import AVFAudio
 import Speech
 import SwiftUI
 
@@ -15,7 +16,7 @@ class VoiceRecordingService: NSObject, ObservableObject {
     @Published var waveformSamples: [CGFloat] = Array(repeating: 0.05, count: 48)
     // Fast-reacting level for spawning bars (captures instantaneous loudness)
     @Published var spawnLevel: CGFloat = 0.0
-    
+
     private var audioRecorder: AVAudioRecorder?
     private var audioSession: AVAudioSession = AVAudioSession.sharedInstance()
     private var recordingTimer: Timer?
@@ -26,71 +27,84 @@ class VoiceRecordingService: NSObject, ObservableObject {
     private let waveformSampleCount: Int = 48
     private var smoothedLevel: CGFloat = 0
     private var waveformTick: Int = 0
-    
+
     override init() {
         super.init()
         speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         checkPermissions()
     }
-    
+
     private func checkPermissions() {
-        let micPermission = audioSession.recordPermission
         let speechPermission = SFSpeechRecognizer.authorizationStatus()
-        
-        hasPermission = (micPermission == .granted) && (speechPermission == .authorized)
+        if #available(iOS 17.0, *) {
+            let micPermission = AVAudioApplication.shared.recordPermission
+            hasPermission = (micPermission == .granted) && (speechPermission == .authorized)
+        } else {
+            let micPermission = audioSession.recordPermission
+            hasPermission = (micPermission == .granted) && (speechPermission == .authorized)
+        }
     }
-    
+
     func requestPermissions() async -> Bool {
         // Request microphone permission
-        let micPermission = await withCheckedContinuation { continuation in
-            audioSession.requestRecordPermission { granted in
-                continuation.resume(returning: granted)
+        let micPermission: Bool
+        if #available(iOS 17.0, *) {
+            micPermission = await withCheckedContinuation { continuation in
+                AVAudioApplication.requestRecordPermission { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
+        } else {
+            micPermission = await withCheckedContinuation { continuation in
+                audioSession.requestRecordPermission { granted in
+                    continuation.resume(returning: granted)
+                }
             }
         }
-        
+
         // Request speech recognition permission
         let speechPermission = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status)
             }
         }
-        
+
         let granted = micPermission && (speechPermission == .authorized)
         hasPermission = granted
-        
+
         return granted
     }
-    
+
     func startRecording() async {
-        guard await requestPermissions() else { 
+        guard await requestPermissions() else {
             print("Voice recording permissions not granted")
-            return 
+            return
         }
-        
+
         do {
             try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-            
+
             let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             let audioFilename = documentsPath.appendingPathComponent("recording_\(UUID().uuidString).m4a")
-            
+
             let settings = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
                 AVSampleRateKey: 44100,
                 AVNumberOfChannelsKey: 2,
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
             ]
-            
+
             audioRecorder = try AVAudioRecorder(url: audioFilename, settings: settings)
             audioRecorder?.delegate = self
             audioRecorder?.isMeteringEnabled = true
             audioRecorder?.record()
-            
+
             isRecording = true
             recordingDuration = 0
             transcribedText = ""
             isShowingRecordingPlaceholder = true
-            
+
             // Start timer for duration tracking and audio level monitoring
             recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
                 Task { @MainActor in
@@ -130,72 +144,72 @@ class VoiceRecordingService: NSObject, ObservableObject {
                     }
                 }
             }
-            
+
             // Start speech recognition
             startSpeechRecognition()
-            
+
         } catch {
             print("Recording failed: \(error)")
             isRecording = false
         }
     }
-    
+
     func stopRecording() {
         audioRecorder?.stop()
         audioRecorder = nil
         isRecording = false
         recordingTimer?.invalidate()
         recordingTimer = nil
-        
+
         // Stop speech recognition
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         recognitionRequest = nil
         recognitionTask = nil
-        
+
         // Stop audio engine
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine = nil
-        
+
         isTranscribing = false
         isShowingRecordingPlaceholder = false
         audioLevel = 0.0
         smoothedLevel = 0
         waveformSamples = Array(repeating: 0.05, count: waveformSampleCount)
     }
-    
+
     private func startSpeechRecognition() {
-        guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else { 
+        guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {
             print("Speech recognizer not available")
-            return 
+            return
         }
-        
+
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest = recognitionRequest else { return }
-        
+
         recognitionRequest.shouldReportPartialResults = true
-        
+
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             DispatchQueue.main.async {
                 if let result = result {
                     self?.transcribedText = result.bestTranscription.formattedString
                 }
-                
+
                 if error != nil {
                     print("Speech recognition error: \(error?.localizedDescription ?? "Unknown error")")
                     self?.stopRecording()
                 }
             }
         }
-        
+
         // Configure audio engine for real-time recognition
         audioEngine = AVAudioEngine()
         guard let audioEngine = audioEngine else { return }
-        
+
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
-        
+
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
             guard let strongSelf = self else { return }
@@ -231,7 +245,7 @@ class VoiceRecordingService: NSObject, ObservableObject {
                 }
             }
         }
-        
+
         audioEngine.prepare()
         do {
             try audioEngine.start()
@@ -240,7 +254,7 @@ class VoiceRecordingService: NSObject, ObservableObject {
             print("Audio engine start failed: \(error)")
         }
     }
-    
+
     func reset() {
         transcribedText = ""
         recordingDuration = 0
@@ -262,7 +276,7 @@ extension VoiceRecordingService: AVAudioRecorderDelegate {
             }
         }
     }
-    
+
     nonisolated func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
         Task { @MainActor in
             print("Audio recorder error: \(error?.localizedDescription ?? "Unknown error")")

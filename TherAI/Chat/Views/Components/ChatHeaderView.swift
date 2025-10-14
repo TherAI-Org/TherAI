@@ -43,6 +43,7 @@ struct ChatHeaderView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                     .frame(width: 44, height: 44)
+                    .offset(y: -1.5)
             }
             .background(
                 Group {
