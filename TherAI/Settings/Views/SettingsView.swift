@@ -140,6 +140,7 @@ struct SettingsView: View {
                         }) {
                             Text("Edit")
                                 .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 8)
                                 .frame(minWidth: 54, alignment: .leading)
@@ -153,6 +154,7 @@ struct SettingsView: View {
                         }) {
                             Image(systemName: "xmark")
                                 .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                         }
                         .buttonStyle(.plain)
                     }
