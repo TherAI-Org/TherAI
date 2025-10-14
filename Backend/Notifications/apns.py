@@ -71,35 +71,69 @@ def _get_apns_jwt_token() -> str:
 
 
 async def _post_apns(device_token: str, payload: Dict[str, Any]) -> tuple[int, str]:
-    use_sandbox = (os.getenv("APNS_USE_SANDBOX", "true").lower() == "true")
-    host = "api.sandbox.push.apple.com" if use_sandbox else "api.push.apple.com"
+    """Send to APNs with automatic environment fallback.
+
+    Primary host is chosen via APNS_USE_SANDBOX; on 400 BadDeviceToken we retry the other host.
+    This allows a single backend to serve both developer (sandbox) and TestFlight (production) devices.
+    """
+    prefer_sandbox = (os.getenv("APNS_USE_SANDBOX", "true").lower() == "true")
+    hosts_order = [
+        "api.sandbox.push.apple.com",
+        "api.push.apple.com",
+    ] if prefer_sandbox else [
+        "api.push.apple.com",
+        "api.sandbox.push.apple.com",
+    ]
+
     bundle_id = os.getenv("APNS_BUNDLE_ID") or os.getenv("AASA_BUNDLE_ID")
     if not bundle_id:
         raise RuntimeError("Missing APNS_BUNDLE_ID (and AASA_BUNDLE_ID fallback)")
 
-    url = f"https://{host}/3/device/{device_token}"
     auth_token = _get_apns_jwt_token()
 
-    headers = {
-        "authorization": f"bearer {auth_token}",
-        "apns-topic": bundle_id,
-        "apns-push-type": "alert",
-        "apns-priority": "10",
-        "content-type": "application/json",
-    }
+    def _headers() -> Dict[str, str]:
+        return {
+            "authorization": f"bearer {auth_token}",
+            "apns-topic": bundle_id,
+            "apns-push-type": "alert",
+            "apns-priority": "10",
+            "content-type": "application/json",
+        }
 
-    async with httpx.AsyncClient(http2=True, timeout=10.0) as client:
-        # Debug: log where we are sending
-        try:
-            print(f"[APNs] POST host={'sandbox' if use_sandbox else 'prod'} topic={bundle_id} token={device_token[:10]}… payload_keys={list(payload.keys())}")
-            # Also log auth header length to verify JWT exists
-            auth_header = headers.get("authorization", "")
-            print(f"[APNs] Auth header length: {len(auth_header)} chars")
-        except Exception:
-            pass
-        resp = await client.post(url, headers=headers, content=json.dumps(payload))
-        text = resp.text
-        return resp.status_code, text
+    last_status = 0
+    last_text = ""
+
+    # Try primary, then conditionally fall back on BadDeviceToken
+    for idx, host in enumerate(hosts_order):
+        url = f"https://{host}/3/device/{device_token}"
+        async with httpx.AsyncClient(http2=True, timeout=10.0) as client:
+            try:
+                host_label = "sandbox" if host.startswith("api.sandbox") else "prod"
+                print(f"[APNs] POST host={host_label} topic={bundle_id} token={device_token[:10]}… payload_keys={list(payload.keys())}")
+                auth_header = _headers().get("authorization", "")
+                print(f"[APNs] Auth header length: {len(auth_header)} chars")
+            except Exception:
+                pass
+            resp = await client.post(url, headers=_headers(), content=json.dumps(payload))
+            last_status = resp.status_code
+            last_text = resp.text
+
+        # Success: stop here
+        if last_status == 200:
+            return last_status, last_text
+
+        # If first attempt returned BadDeviceToken, try the other environment
+        if idx == 0 and last_status in (400, 410) and ("BadDeviceToken" in (last_text or "")):
+            try:
+                print("[APNs] BadDeviceToken on primary host; attempting fallback host…")
+            except Exception:
+                pass
+            continue
+
+        # Otherwise, don't fall back (either already tried fallback, or error type not suitable)
+        break
+
+    return last_status, last_text
 
 
 async def send_partner_request_notification_to_user(

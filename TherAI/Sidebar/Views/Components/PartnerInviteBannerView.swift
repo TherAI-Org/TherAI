@@ -167,15 +167,4 @@ struct PartnerInviteBannerView: View {
     }
 }
 
-#Preview {
-    VStack(spacing: 16) {
-        PartnerInviteBannerView()
-            .environmentObject(LinkViewModel.preview(state: .shareReady(url: URL(string: "https://example.com/link?code=abc")!)))
-            .padding()
-        PartnerInviteBannerView()
-            .environmentObject(LinkViewModel.preview(state: .creating))
-            .padding()
-    }
-}
-
 
