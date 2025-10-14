@@ -18,6 +18,7 @@ struct CompactAvatarPickerView: View {
     @Binding var uploadedImageData: Data?
     @Binding var showSaveButton: Bool
     @Binding var avatarSaved: Bool
+    @Binding var isSavingAvatar: Bool
     let onSaveAvatar: () -> Void
 
     let emojiAvatars = ["🐻", "🦊", "🐨", "🦁", "🐼", "🦄"]
@@ -160,17 +161,23 @@ struct CompactAvatarPickerView: View {
             }
             
             // Save button for avatar changes
-            if showSaveButton || avatarSaved {
+            if showSaveButton || avatarSaved || isSavingAvatar {
                 Button(action: {
-                    if !avatarSaved {
+                    if !avatarSaved && !isSavingAvatar {
                         Haptics.impact(.light)
                         onSaveAvatar()
                     }
                 }) {
                     HStack {
-                        Image(systemName: avatarSaved ? "checkmark.circle.fill" : "checkmark.circle.fill")
-                            .foregroundColor(.white)
-                        Text(avatarSaved ? "Saved" : "Save Avatar")
+                        if isSavingAvatar {
+                            ProgressView()
+                                .scaleEffect(0.9)
+                                .tint(.white)
+                        } else {
+                            Image(systemName: avatarSaved ? "checkmark.circle.fill" : "checkmark.circle.fill")
+                                .foregroundColor(.white)
+                        }
+                        Text(isSavingAvatar ? "Saving..." : (avatarSaved ? "Saved" : "Save Avatar"))
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.white)
                     }
@@ -178,7 +185,7 @@ struct CompactAvatarPickerView: View {
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(avatarSaved ? Color.green : Color.blue)
+                            .fill(avatarSaved ? Color.green : (isSavingAvatar ? Color.blue.opacity(0.7) : Color.blue))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
@@ -190,7 +197,7 @@ struct CompactAvatarPickerView: View {
                 .padding(.horizontal, 4)
                 .padding(.top, 8)
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                .disabled(avatarSaved)
+                .disabled(avatarSaved || isSavingAvatar)
             }
         }
         .padding(.vertical, 16)
