@@ -327,10 +327,10 @@ struct SlidebarView: View {
                                                     .foregroundColor(.secondary)
                                             }
                                             HStack(spacing: 6) {
-                                                let previewTargetWidth = geometry.size.width * 0.86
+                                                let previewTargetWidth = geometry.size.width * 0.88
                                                 let rawPreview = shouldShowLastMessage(session.lastMessageContent) ? session.lastMessageContent! : "No messages yet"
                                                 let clippedPreview = wordBoundaryTruncated(rawPreview, previewTargetWidth)
-                                                Text(clippedPreview + (clippedPreview.count < rawPreview.count ? " …" : ""))
+                                                Text(clippedPreview + (clippedPreview.count < rawPreview.count ? "…" : ""))
                                                     .font(.system(size: 14))
                                                     .foregroundColor(.secondary)
                                                     .lineLimit(1)
