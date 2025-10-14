@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import AVFoundation
+import Speech
 
 struct InputAreaView: View {
 
@@ -11,12 +13,15 @@ struct InputAreaView: View {
     let send: () -> Void
     let stop: () -> Void
     let onSendToPartner: () -> Void
+    let onVoiceRecordingStart: () -> Void
+    let onVoiceRecordingStop: (String) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @StateObject private var voiceService = VoiceRecordingService()
+    @Namespace private var actionButtonNamespace
 
     var body: some View {
 
-        let isSendDisabled = !isLoading && inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let sendSize: CGFloat = 34
 
         VStack(alignment: .leading, spacing: 8) {
@@ -52,65 +57,87 @@ struct InputAreaView: View {
 
             HStack(alignment: .bottom, spacing: 4) {
                 VStack {
-                    TextField("Share what's on your mind", text: $inputText, axis: .vertical)
-                        .lineLimit(1...5)
-                        .lineSpacing(2)
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundColor(.primary)
-                        .textFieldStyle(.plain)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if voiceService.isShowingRecordingPlaceholder {
+                        // Waveform with frozen bars that spawn from the right and travel left
+                        WaveformPlaceholderView(
+                            currentLevel: voiceService.spawnLevel,
+                            barWidth: 3,
+                            barSpacing: 2,
+                            minHeight: 3,
+                            maxHeight: 16,
+                            color: Color(red: 0.54, green: 0.32, blue: 0.78)
+                        )
                         .padding(.horizontal, 4)
-                        .padding(.vertical, 6)
-                        .focused(isInputFocused)
+                        .padding(.vertical, 10)
+                    } else {
+                        // Actual text field
+                        TextField("Share what's on your mind", text: $inputText, axis: .vertical)
+                            .lineLimit(1...5)
+                            .lineSpacing(2)
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundColor(.primary)
+                            .textFieldStyle(.plain)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 6)
+                            .focused(isInputFocused)
+                    }
                 }
                 .frame(minHeight: 36)
 
+                // Trailing action: single persistent button with stable background; icons swap with mirrored transitions
                 Button(action: {
                     Haptics.impact(.light)
-
-                    if isLoading {
-                        stop()
+                    if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if voiceService.isRecording {
+                            voiceService.stopRecording()
+                            inputText = voiceService.transcribedText
+                        } else {
+                            onVoiceRecordingStart()
+                            Task { await voiceService.startRecording() }
+                        }
                     } else {
-                        isInputFocused.wrappedValue = false
-                        send()
+                        if isLoading { stop() } else { isInputFocused.wrappedValue = false; send() }
                     }
                 }) {
                     ZStack {
+                        // Stable background circle (no matchedGeometryEffect to avoid jumpiness)
                         Circle()
                             .fill(
-                                isSendDisabled ?
-                                    LinearGradient(
-                                        colors: [Color(white: colorScheme == .dark ? 0.25 : 0.90)],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ) :
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.5, green: 0.3, blue: 0.7),
-                                            Color(red: 0.4, green: 0.2, blue: 0.6)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+                                LinearGradient(
+                                    colors: [Color(red: 0.5, green: 0.3, blue: 0.7), Color(red: 0.4, green: 0.2, blue: 0.6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
                             .frame(width: sendSize, height: sendSize)
-                            .shadow(color: isSendDisabled ? .clear : Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.3), radius: 4, x: 0, y: 2)
+                            .shadow(color: Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.3), radius: 4, x: 0, y: 2)
 
-                        Image(systemName: isLoading ? "stop.fill" : "arrow.up")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(isSendDisabled ? Color(.systemGray2) : .white)
+                        // Icon layers
+                        ZStack {
+                            if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Image(systemName: voiceService.isRecording ? "stop.fill" : "mic.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .leading).combined(with: .opacity),
+                                        removal: .move(edge: .leading).combined(with: .opacity)
+                                    ))
+                            } else {
+                                Image(systemName: isLoading ? "stop.fill" : "arrow.up")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .transition(.asymmetric(
+                                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                                        removal: .move(edge: .trailing).combined(with: .opacity)
+                                    ))
+                            }
+                        }
                     }
                 }
-                .disabled(isSendDisabled)
-                .scaleEffect(isSendDisabled ? 0.95 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSendDisabled)
-                .contextMenu {
-                    Button(action: {
-                        send()
-                    }) {
-                        Label("Send to Personal", systemImage: "person.circle")
-                    }
-                }
+                .scaleEffect(voiceService.isRecording && inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 1.1 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: voiceService.isRecording)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85, blendDuration: 0.2), value: inputText)
             }
         }
         .padding(.leading, 16)
@@ -159,7 +186,9 @@ struct InputAreaView: View {
         isInputFocused: $isFocused,
         send: {},
         stop: {},
-        onSendToPartner: {}
+        onSendToPartner: {},
+        onVoiceRecordingStart: {},
+        onVoiceRecordingStop: { _ in }
     )
 }
 
