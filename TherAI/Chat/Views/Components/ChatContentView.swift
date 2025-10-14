@@ -10,6 +10,9 @@ struct ChatContentView: View {
     let personalPreScrollToken: Int
     let keyboardScrollToken: Int
     var isAssistantTyping: Bool = false
+    let focusTopId: UUID?
+    let streamingScrollToken: Int
+    let streamingTargetId: UUID?
 
     @State private var showPersonalPreScrollOverlay: Bool = false
     @State private var preScrollToken: Int = 0
@@ -33,7 +36,10 @@ struct ChatContentView: View {
                             onPreScrollComplete: {
                                 withAnimation(.easeInOut(duration: 0.2)) { showPersonalPreScrollOverlay = false }
                             },
-                            isAssistantTyping: isAssistantTyping
+                            isAssistantTyping: isAssistantTyping,
+                            focusTopId: focusTopId,
+                            streamingScrollToken: streamingScrollToken,
+                            streamingTargetId: streamingTargetId
                         )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
