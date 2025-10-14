@@ -76,15 +76,7 @@ struct MessagesListView: View {
                     onPreScrollComplete?()
                 }
             }
-            // One-time push: align the just-sent user message to the top
-            .onChange(of: focusTopId) { _, newId in
-                guard let newId = newId else { return }
-                DispatchQueue.main.async {
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        proxy.scrollTo(newId, anchor: .top)
-                    }
-                }
-            }
+            // Removed one-time push after send
             .onChange(of: isInputFocused) { oldValue, newValue in
                 if newValue && !oldValue {
                     guard let lastId = messages.last?.id else { return }
@@ -109,14 +101,9 @@ struct MessagesListView: View {
                     }
                 }
             }
-            // During streaming: gently auto-scroll to keep assistant reply visible
+            // Disabled streaming auto-scroll to prevent list jumps after sending
             .onChange(of: streamingScrollToken) { _, _ in
-                guard let targetId = streamingTargetId else { return }
-                DispatchQueue.main.async {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
-                        proxy.scrollTo(targetId, anchor: .bottom)
-                    }
-                }
+                // no-op: keep current scroll position stable
             }
         }
     }
