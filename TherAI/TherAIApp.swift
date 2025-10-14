@@ -6,11 +6,14 @@
 //
 
 import SwiftUI
+import UIKit
 import Supabase
 import BackgroundTasks
 
 @main
 struct TherAIApp: App {
+
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     @StateObject private var auth = AuthService.shared
     @StateObject private var linkVM = LinkViewModel(accessTokenProvider: {
@@ -21,6 +24,7 @@ struct TherAIApp: App {
     @StateObject private var sessionsViewModel = ChatSessionsViewModel()
 
     @AppStorage(PreferenceKeys.appearancePreference) private var appearance: String = "System"
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // Register BGTask handlers before app finishes launching
@@ -58,17 +62,27 @@ struct TherAIApp: App {
                             linkVM.pendingInviteToken = nil
                         }
                     }
-                    if isAuthed {  // When the user becomes authenticated, ensure link is ready right away
+                    if isAuthed {
                         Task {
                             await linkVM.ensureInviteReady()
                             sessionsViewModel.startObserving()
+                            PushNotificationManager.shared.tryUploadIfAuthenticated()
+                            PushNotificationManager.shared.consumePendingIfReady()
                         }
                     }
                 }
                 .task {
-                    if auth.isAuthenticated {  // On cold start, if already authenticated, ensure link is ready immediately
+                    if auth.isAuthenticated {
                         await linkVM.ensureInviteReady()
                         sessionsViewModel.startObserving()
+                    }
+                    PushNotificationManager.shared.requestAuthorizationAndRegister()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active {
+                        DispatchQueue.main.async {
+                            PushNotificationManager.shared.consumePendingIfReady()
+                        }
                     }
                 }
         }

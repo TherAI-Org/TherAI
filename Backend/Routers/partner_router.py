@@ -1,13 +1,14 @@
 import uuid
 import json
 import asyncio
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 
 from ..auth import get_current_user
 from ..Database.link_repo import get_link_status_for_user, get_partner_user_id
-from ..Database.session_repo import create_session, assert_session_owned_by_user, touch_session
+from ..Database.session_repo import create_session, assert_session_owned_by_user, touch_session, delete_session
 from ..Database.chat_repo import save_message, list_messages_for_session, update_session_last_message
 from ..Database.linked_sessions_repo import (
     create_linked_session,
@@ -22,7 +23,9 @@ from ..Database.partner_requests_repo import (
     get_request_by_id,
     update_content,
 )
+from ..Database.supabase_client import supabase as _sp
 from ..Agents.personal import PersonalAgent
+from ..Notifications.apns import send_partner_request_notification_to_user
 
 from ..Models.requests import (
     PartnerRequestBody,
@@ -74,6 +77,19 @@ async def create_partner_request_endpoint(body: PartnerRequestBody, current_user
         sender_session_id=body.session_id,
         content=body.message.strip(),
     )
+    # Fire APNs notification to recipient (best-effort)
+    try:
+        meta = current_user.get("user_metadata") or {}
+        sender_name = meta.get("full_name") or meta.get("name") or meta.get("display_name")
+        await send_partner_request_notification_to_user(
+            recipient_user_id=partner_user_id,
+            request_id=uuid.UUID(row["id"]),
+            relationship_id=relationship_id,
+            preview=body.message.strip(),
+            sender_name=sender_name,
+        )
+    except Exception:
+        pass
     return PartnerRequestResponse(success=True, request_id=uuid.UUID(row["id"]))
 
 
@@ -126,6 +142,15 @@ async def accept_request_endpoint(request_id: uuid.UUID, current_user: dict = De
     if not req or req.get("recipient_user_id") != str(user_uuid):
         raise HTTPException(status_code=404, detail="Request not found")
 
+    # Idempotency: if already accepted, return existing session id
+    if (req.get("status") == "accepted") and req.get("recipient_session_id"):
+        try:
+            existing_session_id = uuid.UUID(req["recipient_session_id"])  # type: ignore[index]
+        except Exception:
+            existing_session_id = None  # type: ignore[assignment]
+        if existing_session_id:
+            return {"success": True, "recipient_session_id": str(existing_session_id)}
+
     relationship_id = uuid.UUID(req["relationship_id"])  # type: ignore[arg-type]
     sender_session_id = uuid.UUID(req["sender_session_id"])  # type: ignore[arg-type]
 
@@ -138,12 +163,51 @@ async def accept_request_endpoint(request_id: uuid.UUID, current_user: dict = De
         recipient_session_id = uuid.UUID(linked_row["user_b_personal_session_id"])  # type: ignore[index]
     else:
         new_session = await create_session(user_id=user_uuid, title="New Chat")
-        recipient_session_id = uuid.UUID(new_session["id"])  # type: ignore[index]
+        candidate_session_id = uuid.UUID(new_session["id"])  # type: ignore[index]
         await update_linked_session_partner_session_for_source(
-            relationship_id=relationship_id, source_session_id=sender_session_id, partner_session_id=recipient_session_id
+            relationship_id=relationship_id, source_session_id=sender_session_id, partner_session_id=candidate_session_id
+        )
+        # Re-read mapping to confirm final session id
+        refreshed = await get_linked_session_by_relationship_and_source_session(
+            relationship_id=relationship_id, source_session_id=sender_session_id
+        )
+        final_id_str = (refreshed or {}).get("user_b_personal_session_id")
+        if final_id_str and final_id_str != str(candidate_session_id):
+            # Lost the race; delete duplicate session and use the winner
+            try:
+                await delete_session(user_id=user_uuid, session_id=candidate_session_id)
+            except Exception:
+                pass
+            recipient_session_id = uuid.UUID(final_id_str)
+        else:
+            recipient_session_id = candidate_session_id
+
+    # Atomically claim acceptance. If another worker already accepted, skip inserting another message.
+    def _claim_accept():
+        return (
+            _sp
+            .table("partner_requests")
+            .update({
+                "status": "accepted",
+                "accepted_at": datetime.now(timezone.utc).isoformat(),
+                "recipient_session_id": str(recipient_session_id),
+            })
+            .eq("id", str(request_id))
+            .in_("status", ["pending", "delivered"])  # only transition once
+            .execute()
         )
 
-    # Insert delivered message into recipient chat as assistant
+    res = await asyncio.get_event_loop().run_in_executor(None, _claim_accept)
+    try:
+        updated_rows = len(getattr(res, "data", []) or [])
+    except Exception:
+        updated_rows = 0
+
+    if updated_rows == 0:
+        # Already accepted elsewhere → return the mapped session id without adding another message
+        return {"success": True, "recipient_session_id": str(recipient_session_id)}
+
+    # Winner: insert the delivered message exactly once
     created = await save_message(
         user_id=user_uuid, session_id=recipient_session_id, role="assistant", content=req.get("content", "")
     )
@@ -226,6 +290,19 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
             )
             created_request_id = uuid.UUID(created_req["id"])  # type: ignore[index]
             print(f"[PartnerStream] REQUEST PRE-CREATED id={created_request_id}")
+            # Best-effort APNs notify
+            try:
+                meta = current_user.get("user_metadata") or {}
+                sender_name = meta.get("full_name") or meta.get("name") or meta.get("display_name")
+                await send_partner_request_notification_to_user(
+                    recipient_user_id=partner_user_id,
+                    request_id=created_request_id,
+                    relationship_id=relationship_id,
+                    preview=body.message.strip(),
+                    sender_name=sender_name,
+                )
+            except Exception:
+                pass
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create partner request: {e}")
     else:

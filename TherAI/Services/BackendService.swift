@@ -62,6 +62,39 @@ struct BackendService {
         let created_at: String
         let status: String
     }
+
+    // MARK: - Push token registration
+    func registerPushToken(token: String, platform: String, bundleId: String, accessToken: String) async throws {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("notifications")
+            .appendingPathComponent("register"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        struct Body: Codable { let token: String; let platform: String; let bundle_id: String }
+        request.httpBody = try jsonEncoder.encode(Body(token: token, platform: platform, bundle_id: bundleId))
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+    }
+
+    func unregisterPushToken(token: String, accessToken: String) async throws {
+        var request = URLRequest(url: baseURL
+            .appendingPathComponent("notifications")
+            .appendingPathComponent("unregister"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        struct Body: Codable { let token: String }
+        request.httpBody = try jsonEncoder.encode(Body(token: token))
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+    }
     struct PartnerPendingRequestsResponse: Codable { let requests: [PartnerPendingRequest] }
 
     func streamPartnerRequest(_ body: PartnerRequestBody, accessToken: String) -> AsyncStream<StreamEvent> {
@@ -409,19 +442,19 @@ extension BackendService {
         }
         return try jsonDecoder.decode(PairedAvatars.self, from: data)
     }
-    
+
     // Profile information structures
     struct ProfileInfo: Codable {
         let first_name: String
         let last_name: String
         let bio: String
     }
-    
+
     struct ProfileUpdateResponse: Codable {
         let success: Bool
         let message: String
     }
-    
+
     // Get user profile information
     func fetchProfileInfo(accessToken: String) async throws -> ProfileInfo {
         func makeRequest(at base: URL) -> URLRequest {
@@ -451,7 +484,7 @@ extension BackendService {
         }
         return try jsonDecoder.decode(ProfileInfo.self, from: data)
     }
-    
+
     // Update user profile information
     func updateProfile(accessToken: String, firstName: String?, lastName: String?, bio: String?) async throws -> ProfileUpdateResponse {
         func makeRequest(at base: URL) -> URLRequest {

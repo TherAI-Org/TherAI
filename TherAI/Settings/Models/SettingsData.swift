@@ -2,22 +2,15 @@ import Foundation
 import SwiftUI
 
 struct SettingsData: Codable {
-    // App Settings - Notifications, Dark Mode, Haptic Feedback
+
     var emailNotifications: Bool = true
     var pushNotifications: Bool = true
     var darkModeEnabled: Bool = false
     var hapticFeedbackEnabled: Bool = true
-
-    // Chat Settings - Save Chats, Typing Indicator
     var saveChatsEnabled: Bool = true
-
-    // Privacy & Data - Crash Reports only
     var crashReportingEnabled: Bool = true
 
-    // Relationship Insights - Removed weekly reports
-
     init() {
-        // Default settings
     }
 }
 

@@ -5,7 +5,7 @@ struct SettingsCardView: View {
     let onToggle: (Int) -> Void
     let onAction: (Int) -> Void
     let onPickerSelect: ((Int, String) -> Void)?
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Section Header - iOS Settings style
@@ -14,12 +14,12 @@ struct SettingsCardView: View {
                     .font(.system(size: 13, weight: .regular))
                     .foregroundColor(.secondary)
                     .textCase(.uppercase)
-                
+
                 Spacer()
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
-            
+
             // Settings Items in grouped card
             VStack(spacing: 0) {
                 ForEach(Array(section.settings.enumerated()), id: \.offset) { index, setting in
@@ -34,7 +34,7 @@ struct SettingsCardView: View {
             }
             .background(Color(.systemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12))
-            
+
             // Section Footer (if needed)
             if shouldShowFooter() {
                 HStack {
@@ -42,7 +42,7 @@ struct SettingsCardView: View {
                         .font(.system(size: 13, weight: .regular))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.leading)
-                    
+
                     Spacer()
                 }
                 .padding(.horizontal, 20)
@@ -50,7 +50,7 @@ struct SettingsCardView: View {
             }
         }
     }
-    
+
     private func shouldShowFooter() -> Bool {
         switch section.title {
         case "Privacy & Data":
@@ -61,13 +61,13 @@ struct SettingsCardView: View {
             return false
         }
     }
-    
+
     private func getFooterText() -> String {
         switch section.title {
         case "Privacy & Data":
-            return "Clearing chat history will also reset relationship insights after the app refreshes."
+            return "Clearing chat history removes your local conversation history."
         case "About":
-            return "TherAI helps couples strengthen their relationships through AI-powered insights and communication tools."
+            return "TherAI helps you reflect and communicate more clearly using AI."
         default:
             return ""
         }

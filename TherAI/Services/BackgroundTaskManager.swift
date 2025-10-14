@@ -1,6 +1,4 @@
 import Foundation
-
-#if canImport(UIKit)
 import UIKit
 
 final class BackgroundTaskManager {
@@ -32,17 +30,3 @@ final class BackgroundTaskManager {
         }
     }
 }
-
-#else
-
-// Non-UIKit platforms: provide no-op stubs
-final class BackgroundTaskManager {
-    static let shared = BackgroundTaskManager()
-    private init() {}
-    func begin(name: String) -> Int { return 0 }
-    func end(_ identifier: Int?) {}
-}
-
-#endif
-
-

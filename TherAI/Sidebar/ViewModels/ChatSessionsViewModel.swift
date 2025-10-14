@@ -17,6 +17,19 @@ class ChatSessionsViewModel: ObservableObject {
 
     private var observers: [NSObjectProtocol] = []
     private let avatarCacheManager = AvatarCacheManager.shared
+    private var handlingPartnerRequestIds: Set<UUID> = []
+    private var hasStartedObserving: Bool = false
+    private weak var navigationViewModel: SidebarNavigationViewModel?
+
+    @MainActor
+    private func findNavigationViewModel() -> SidebarNavigationViewModel? {
+        // Return the cached reference if available
+        return navigationViewModel
+    }
+
+    func setNavigationViewModel(_ navVM: SidebarNavigationViewModel) {
+        self.navigationViewModel = navVM
+    }
 
     init() {
         loadCachedSessions()
@@ -148,6 +161,8 @@ class ChatSessionsViewModel: ObservableObject {
     }
 
     func startObserving() {
+        if hasStartedObserving { return }
+        hasStartedObserving = true
         activeSessionId = nil
         chatViewKey = UUID()
 
@@ -190,23 +205,70 @@ class ChatSessionsViewModel: ObservableObject {
             }
         }
         observers.append(sent)
-        
+
         // Sessions need refresh (e.g., after title generation)
         let needRefresh = NotificationCenter.default.addObserver(forName: .chatSessionsNeedRefresh, object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
             Task { await self.refreshSessions() }
         }
         observers.append(needRefresh)
-        
+
         // Avatar changed - reload avatar URLs and preload new avatars
         let avatarChanged = NotificationCenter.default.addObserver(forName: .avatarChanged, object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
-            Task { 
+            Task {
                 await self.loadPairedAvatars()
                 await self.preloadAvatars()
             }
         }
         observers.append(avatarChanged)
+
+        // Push tapped: open partner request by accepting it and navigating to chat
+        let pushTapped = NotificationCenter.default.addObserver(forName: .partnerRequestOpen, object: nil, queue: .main) { [weak self] note in
+            guard let self = self else { return }
+            guard let requestId = note.userInfo?["requestId"] as? UUID else { return }
+            // Ensure we're authenticated before processing
+            guard AuthService.shared.isAuthenticated else { return }
+            // Prevent duplicate processing
+            if self.handlingPartnerRequestIds.contains(requestId) { return }
+            self.handlingPartnerRequestIds.insert(requestId)
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                do {
+                    let session = try await AuthService.shared.client.auth.session
+                    let accessToken = session.accessToken
+                    // Accept the partner request (backend is idempotent)
+                    let partnerSessionId = try await BackendService.shared.acceptPartnerRequest(requestId: requestId, accessToken: accessToken)
+                    // Reload sessions before navigating to ensure the session exists in the list
+                    await self.loadSessions()
+                    // Navigate to the chat and close sidebar
+                    self.activeSessionId = partnerSessionId
+                    self.chatViewKey = UUID()
+                    // Close the sidebar to show the chat
+                    if let navVM = self.findNavigationViewModel() {
+                        navVM.closeSidebar()
+                    }
+                    await self.loadPendingRequests()
+                } catch {
+                    print("Failed to accept partner request: \(error)")
+                    // If the request was already accepted, try to find and open the session
+                    await self.loadSessions()
+                    if let existingSession = self.sessions.first {
+                        self.activeSessionId = existingSession.id
+                        self.chatViewKey = UUID()
+                        // Close the sidebar to show the chat
+                        if let navVM = self.findNavigationViewModel() {
+                            navVM.closeSidebar()
+                        }
+                    }
+                }
+                // Allow future taps after brief window to avoid rapid duplicates
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+                    self?.handlingPartnerRequestIds.remove(requestId)
+                }
+            }
+        }
+        observers.append(pushTapped)
     }
 
     func loadPairedAvatars() async {
@@ -222,11 +284,11 @@ class ChatSessionsViewModel: ObservableObject {
             print("Failed to load avatars: \(error)")
         }
     }
-    
+
     /// Preload avatar images into cache for immediate access
     func preloadAvatars() async {
         var avatarURLs: [String] = []
-        
+
         // Collect all avatar URLs
         if let myAvatar = myAvatarURL, !myAvatar.isEmpty {
             avatarURLs.append(myAvatar)
@@ -234,17 +296,17 @@ class ChatSessionsViewModel: ObservableObject {
         if let partnerAvatar = partnerAvatarURL, !partnerAvatar.isEmpty {
             avatarURLs.append(partnerAvatar)
         }
-        
+
         // Preload all avatars
         if !avatarURLs.isEmpty {
             await avatarCacheManager.preloadAvatars(urls: avatarURLs)
         }
-        
+
         await MainActor.run {
             self.avatarsLoaded = true
         }
     }
-    
+
     /// Get cached avatar image
     func getCachedAvatar(urlString: String?) async -> UIImage? {
         guard let urlString = urlString, !urlString.isEmpty else { return nil }

@@ -100,6 +100,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         .environmentObject(navigationViewModel)
         .environmentObject(sessionsViewModel)
         .onAppear {
+            sessionsViewModel.setNavigationViewModel(navigationViewModel)
             sessionsViewModel.startObserving()
             navigationViewModel.dragOffset = 0
         }

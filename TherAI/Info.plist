@@ -15,9 +15,9 @@
 			</array>
 		</dict>
 	</array>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<key>UIBackgroundModes</key>
 	<array>
-		<string>ai.therai.relationshipHealth.refresh</string>
+		<string>remote-notification</string>
 	</array>
 </dict>
 </plist>

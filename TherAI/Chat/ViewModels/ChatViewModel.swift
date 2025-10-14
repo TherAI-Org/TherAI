@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import Supabase
+import UIKit
 
 @MainActor
 class ChatViewModel: ObservableObject {
@@ -203,7 +204,6 @@ class ChatViewModel: ObservableObject {
             await MainActor.run { self.isStreaming = true }
             await MainActor.run { if let sid = self.sessionId { self.currentStreamingSessionId = sid } }
             // Start a background task to keep the stream alive briefly when app backgrounds
-            #if canImport(UIKit)
             let bgTask: UIBackgroundTaskIdentifier? = BackgroundTaskManager.shared.begin(name: "chat_stream_\(self.sessionId?.uuidString ?? "unknown")") { [weak self] in
                 guard let self = self else { return }
                 // Expired: cancel stream gracefully; UI will persist partials
@@ -216,7 +216,6 @@ class ChatViewModel: ObservableObject {
                     self.updateCacheForCurrentSession()
                 }
             }
-            #endif
             print("[ChatVM] stream starting (manager); sessionId=\(String(describing: self.sessionId)) messagesCount=\(self.messages.count)")
             // Ensure we have a stable session id before sending to avoid backend auto-creating new sessions
             if self.sessionId == nil {
@@ -564,9 +563,7 @@ class ChatViewModel: ObservableObject {
                                 ])
                                 NotificationCenter.default.post(name: .chatSessionsNeedRefresh, object: nil)
                             }
-                            #if canImport(UIKit)
                             BackgroundTaskManager.shared.end(bgTask)
-                            #endif
                         }
                     case .error(let message):
                         Task { @MainActor in
@@ -590,9 +587,7 @@ class ChatViewModel: ObservableObject {
                                 self.currentStreamingSessionId = nil
                                 self.updateCacheForCurrentSession()
                             }
-                            #if canImport(UIKit)
                             BackgroundTaskManager.shared.end(bgTask)
-                            #endif
                         }
                     }
                 },
