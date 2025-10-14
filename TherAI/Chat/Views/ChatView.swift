@@ -32,9 +32,14 @@ struct ChatView: View {
         .contentShape(Rectangle())
         .onTapGesture { isInputFocused = false }
         .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                if sessionsViewModel.activeSessionId == nil {
-                    isInputFocused = true
+            // Do not focus input when sidebar is open
+            if navigationViewModel.isOpen {
+                isInputFocused = false
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    if sessionsViewModel.activeSessionId == nil && !navigationViewModel.isOpen {
+                        isInputFocused = true
+                    }
                 }
             }
         }
