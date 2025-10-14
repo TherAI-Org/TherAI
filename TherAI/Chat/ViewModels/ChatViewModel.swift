@@ -9,6 +9,10 @@ class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var focusSnippet: String? = nil
+    // UI scroll coordination
+    @Published var focusTopMessageId: UUID? = nil
+    @Published var assistantScrollTargetId: UUID? = nil
+    @Published var streamingScrollToken: Int = 0
     @Published var sessionId: UUID? {
         didSet {
             if sessionId == nil {
@@ -164,6 +168,8 @@ class ChatViewModel: ObservableObject {
         let trimmedMessage = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let userMessage = ChatMessage(content: trimmedMessage, isFromUser: true)
         messages.append(userMessage)
+        // One-time: push this just-sent user message to the top of the viewport
+        focusTopMessageId = userMessage.id
 
         let messageToSend = trimmedMessage
         inputText = ""  // Clear input text
@@ -189,6 +195,8 @@ class ChatViewModel: ObservableObject {
         let placeholderMessage = ChatMessage(content: "", isFromUser: false)
         messages.append(placeholderMessage)
         currentAssistantMessageId = placeholderMessage.id
+        assistantScrollTargetId = placeholderMessage.id
+        streamingScrollToken = 0
         if let sid = self.sessionId {
             assistantMessageIdBySession[sid] = placeholderMessage.id
         }
@@ -299,6 +307,8 @@ class ChatViewModel: ObservableObject {
                                 )
                                 newMessages[idx] = updated
                                 self.messages = newMessages
+                                if let id = self.currentAssistantMessageId { self.assistantScrollTargetId = id }
+                                self.streamingScrollToken &+= 1
                             } else {
                                 var newMessages = self.messagesCache[sid]?.messages ?? []
                                 let idx: Int = {
@@ -359,6 +369,8 @@ class ChatViewModel: ObservableObject {
                                 )
                                 newMessages[idx] = updated
                                 self.messages = newMessages
+                                if let id = self.currentAssistantMessageId { self.assistantScrollTargetId = id }
+                                self.streamingScrollToken &+= 1
                             } else {
                                 var newMessages = self.messagesCache[sid]?.messages ?? []
                                 let idx: Int = {
@@ -443,6 +455,8 @@ class ChatViewModel: ObservableObject {
                                 )
                                 newMessages[idx] = updated
                                 self.messages = newMessages
+                                if let id = self.currentAssistantMessageId { self.assistantScrollTargetId = id }
+                                self.streamingScrollToken &+= 1
                                 print("[ChatVM] token update length=\(accumulated.count)")
                             } else {
                                 var newMessages = self.messagesCache[sid]?.messages ?? []
@@ -509,6 +523,8 @@ class ChatViewModel: ObservableObject {
                                 )
                                 newMessages[idx] = updated
                                 self.messages = newMessages
+                                if let id = self.currentAssistantMessageId { self.assistantScrollTargetId = id }
+                                self.streamingScrollToken &+= 1
                                 print("[ChatVM] appended draft as segment; total segments=\(currentSegments.count)")
                             } else {
                                 var newMessages = self.messagesCache[sid]?.messages ?? []
@@ -554,6 +570,7 @@ class ChatViewModel: ObservableObject {
                             Task { @MainActor in self.isLoading = false; self.isAssistantTyping = false; self.isStreaming = false }
                             Task { @MainActor in self.currentAssistantMessageId = nil }
                             Task { @MainActor in self.currentStreamingSessionId = nil }
+                            Task { @MainActor in self.focusTopMessageId = nil }
                             if let sid = self.sessionId {
                                 Task { @MainActor in
                                     self.messagesCache[sid] = MessagesCacheEntry(messages: self.messages, lastLoaded: Date())
