@@ -113,6 +113,13 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 withAnimation(nil) { navigationViewModel.dragOffset = 0 }
             }
         }
+        // If the sidebar is open, ensure the chat input isn't focused to prevent the keyboard from appearing underneath
+        .onChange(of: navigationViewModel.isOpen) { _, open in
+            if open {
+                // Broadcast a notification to clear any chat input focus if needed
+                NotificationCenter.default.post(name: .init("TherAI_ClearChatInputFocus"), object: nil)
+            }
+        }
     }
 }
 
