@@ -13,6 +13,7 @@ struct MainAppView: View {
 
     var body: some View {
         ChatView(sessionId: sessionsViewModel.activeSessionId)
+        .id(sessionsViewModel.chatViewKey)
     }
 }
 

@@ -3,17 +3,20 @@ import UIKit
 
 struct PartnerDraftBlockView: View {
 
-    enum Action { case send(String), skip}
+    enum Action { case send(String) }
 
     @State private var text: String
     @State private var measuredTextHeight: CGFloat = 0
     @State private var showCheck: Bool = false
     let initialText: String
+    @State private var isSending: Bool = false
+    let isSent: Bool  // Now passed in from parent instead of local state
 
     let onAction: (Action) -> Void
 
-    init(initialText: String, onAction: @escaping (Action) -> Void) {
+    init(initialText: String, isSent: Bool = false, onAction: @escaping (Action) -> Void) {
         self.initialText = initialText
+        self.isSent = isSent
         self._text = State(initialValue: initialText)
         self.onAction = onAction
     }
@@ -69,22 +72,42 @@ struct PartnerDraftBlockView: View {
             }
 
             HStack {
-                Button(action: { onAction(.skip) }) {
-                    Text("Skip")
-                        .font(.subheadline)
-                        .foregroundColor(Color.secondary)
-                }
-
                 Spacer()
 
-                Button(action: { onAction(.send(text.trimmingCharacters(in: .whitespacesAndNewlines))) }) {
-                    HStack(spacing: 4) {
-                        Text("Send")
+                Button(action: {
+                    // Prevent multiple sends
+                    guard !isSent && !isSending else { return }
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { return }
+
+                    Haptics.impact(.light)
+
+                    // Set sending state immediately to prevent double-clicks
+                    isSending = true
+
+                    // Call the action (parent will update the sent state)
+                    onAction(.send(trimmed))
+                }) {
+                    HStack(spacing: 6) {
+                        Text(isSent ? "Sent" : "Send")
                             .font(.subheadline)
-                        Image(systemName: "arrow.turn.up.right")
-                            .font(.subheadline)
+                            .foregroundColor(isSent ? Color.secondary : Color.accentColor)
+                            .animation(nil, value: isSent)
+
+                        Group {
+                            if isSent {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(Color.green)
+                                    .transition(.opacity.combined(with: .scale))
+                            } else {
+                                Image(systemName: "arrow.turn.up.right")
+                                    .foregroundColor(Color.accentColor)
+                                    .transition(.opacity.combined(with: .scale))
+                            }
+                        }
                     }
                 }
+                .disabled(isSent || isSending)
             }
         }
         .padding(12)
@@ -132,7 +155,7 @@ private struct HeightReader: View {
 }
 
 #Preview {
-    PartnerDraftBlockView(initialText: "Hey love — I’ve been feeling a bit overwhelmed lately and could use a little extra help this week.") { _ in }
+    PartnerDraftBlockView(initialText: "Hey love — I've been feeling a bit overwhelmed lately and could use a little extra help this week.", isSent: false) { _ in }
         .padding()
 }
 

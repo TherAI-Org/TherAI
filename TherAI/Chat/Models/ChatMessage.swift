@@ -58,6 +58,21 @@ struct ChatMessage: Identifiable {
         self.isToolLoading = isToolLoading
     }
 
+    // Convenience for an already-delivered partner message (no draft/Send button)
+    static func partnerReceived(_ text: String) -> ChatMessage {
+        return ChatMessage(
+            content: "",
+            segments: [.partnerReceived(text)],
+            isFromUser: false,
+            isFromPartnerUser: false,
+            timestamp: Date(),
+            isPartnerMessage: true,
+            partnerMessageContent: text,
+            partnerDrafts: [text],
+            isToolLoading: false
+        )
+    }
+
     // Initializes a chat message from a backend DTO
     init(dto: ChatMessageDTO, currentUserId: UUID) {
         self.id = dto.id
@@ -65,6 +80,11 @@ struct ChatMessage: Identifiable {
         self.isFromUser = isOwnUserRole
         self.isFromPartnerUser = (dto.user_id != currentUserId) && dto.role == "user"
         self.timestamp = Date()
+
+        // Debug logging
+        if dto.content.contains("partner_received") {
+            print("[ChatMessage] Found partner_received in content: \(dto.content.prefix(200))")
+        }
 
         // Try to parse structured annotations. Handle both direct JSON and double-encoded JSON strings.
         if let obj = ChatMessage.tryDecodeJSONDictionary(from: dto.content) {
@@ -85,6 +105,11 @@ struct ChatMessage: Identifiable {
                             if !txt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 segs.append(.partnerMessage(txt))
                                 partnerTexts.append(txt)
+                            }
+                        } else if t == "partner_received" {
+                            let txt = (dict["text"] as? String) ?? ""
+                            if !txt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                segs.append(.partnerReceived(txt))
                             }
                         }
                     }
@@ -112,6 +137,27 @@ struct ChatMessage: Identifiable {
                     self.partnerDrafts = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [text]
                     self.isPartnerMessage = !self.partnerDrafts.isEmpty
                     self.partnerMessageContent = self.partnerDrafts.first
+                    self.isToolLoading = false
+                    return
+                }
+            } else if type == "partner_received" {
+                // Received partner message annotation; render as dedicated block
+                print("[ChatMessage] Parsing partner_received type")
+                if let text = therai["text"] as? String {
+                    print("[ChatMessage] Creating partnerReceived segment with text: \(text.prefix(100))")
+                    let body = obj["body"] as? String ?? ""
+                    self.content = body
+                    var segs: [MessageSegment] = []
+                    if !body.isEmpty {
+                        segs.append(.text(body))
+                    }
+                    if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        segs.append(.partnerReceived(text))
+                    }
+                    self.segments = segs.isEmpty ? [.text("")] : segs
+                    self.partnerDrafts = []
+                    self.isPartnerMessage = false
+                    self.partnerMessageContent = nil
                     self.isToolLoading = false
                     return
                 }

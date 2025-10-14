@@ -22,6 +22,7 @@ struct TherAIApp: App {
     })
     @StateObject private var navigationViewModel = SidebarNavigationViewModel()
     @StateObject private var sessionsViewModel = ChatSessionsViewModel()
+    @StateObject private var settingsViewModel = SettingsViewModel()
 
     @AppStorage(PreferenceKeys.appearancePreference) private var appearance: String = "System"
     @Environment(\.scenePhase) private var scenePhase
@@ -36,6 +37,7 @@ struct TherAIApp: App {
                 .environmentObject(linkVM)
                 .environmentObject(navigationViewModel)
                 .environmentObject(sessionsViewModel)
+                .environmentObject(settingsViewModel)
                 .preferredColorScheme(
                     appearance == "Light" ? .light : appearance == "Dark" ? .dark : nil
                 )
@@ -68,10 +70,29 @@ struct TherAIApp: App {
                     }
                     if isAuthed {
                         Task {
-                            await linkVM.ensureInviteReady()
-                            sessionsViewModel.startObserving()
-                            // Trigger bootstrap early when auth flips to true
-                            await sessionsViewModel.bootstrapInitialData()
+                            // Load all initial data in parallel
+                            await withTaskGroup(of: Void.self) { group in
+                                group.addTask {
+                                    await linkVM.ensureInviteReady()
+                                }
+                                group.addTask {
+                                    await MainActor.run {
+                                        sessionsViewModel.startObserving()
+                                    }
+                                    await sessionsViewModel.bootstrapInitialData()
+                                }
+                                group.addTask {
+                                    await MainActor.run {
+                                        settingsViewModel.loadProfileInfo()
+                                        settingsViewModel.preloadAvatar()
+                                    }
+                                }
+                            }
+
+                            // All initial data loaded, hide loading screen
+                            auth.setInitialDataLoaded()
+
+                            // Handle push notifications
                             PushNotificationManager.shared.tryUploadIfAuthenticated()
                             PushNotificationManager.shared.consumePendingIfReady()
                         }

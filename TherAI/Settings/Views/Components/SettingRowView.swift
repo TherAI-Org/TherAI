@@ -142,16 +142,22 @@ struct SettingRowView: View {
 
                         // Content
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(setting.title)
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.primary)
-                                .multilineTextAlignment(.leading)
-
-                            if let subtitle = setting.subtitle {
-                                Text(subtitle)
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundColor(.secondary)
+                            if setting.title == "Sign Out" {
+                                Text(setting.title)
+                                    .font(.system(size: 16, weight: .regular))
+                                    .foregroundColor(.red)
                                     .multilineTextAlignment(.leading)
+                            } else {
+                                Text(setting.title)
+                                    .font(.system(size: 16, weight: .regular))
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.leading)
+                                if let subtitle = setting.subtitle {
+                                    Text(subtitle)
+                                        .font(.system(size: 13, weight: .regular))
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.leading)
+                                }
                             }
                         }
 
@@ -171,15 +177,7 @@ struct SettingRowView: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.secondary)
                         case .action:
-                            if setting.title == "Sign Out" {
-                                Text("Sign Out")
-                                    .font(.system(size: 16, weight: .regular))
-                                    .foregroundColor(.red)
-                            } else {
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                            }
+                            EmptyView() // For actions, no trailing accessory; especially Sign Out
                         case .picker:
                             EmptyView()
                         case .linkPartner:
@@ -293,37 +291,28 @@ struct LinkPartnerSettingRow: View {
                 .padding(.bottom, 16)
 
             case .linked:
-                VStack(spacing: 12) {
-                    Label("Linked successfully", systemImage: "checkmark.circle.fill")
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .font(.system(size: 16, weight: .semibold))
+
+                    Text("Linked")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.primary)
+
+                    Spacer()
 
                     Button(action: {
                         Task { await linkViewModel.unlink() }
                     }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "link.badge.minus")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("Unlink")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .foregroundColor(.red)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(Color.red.opacity(0.1))
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                                )
-                        )
+                        Text("Unlink")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.red)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .padding(.vertical, 12)
 
             case .error(let message):
                 VStack(spacing: 10) {

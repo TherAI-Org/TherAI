@@ -11,6 +11,7 @@ class AuthService: ObservableObject {
 
     @Published var isAuthenticated = false
     @Published var currentUser: User?
+    @Published var isLoadingInitialData = false
 
     private let redirectURL: URL
 
@@ -61,11 +62,14 @@ class AuthService: ObservableObject {
                 await MainActor.run {
                     self.isAuthenticated = true
                     self.currentUser = session.user
+                    // Don't set loading state for existing sessions
+                    self.isLoadingInitialData = false
                 }
             } catch {
                 await MainActor.run {
                     self.isAuthenticated = false
                     self.currentUser = nil
+                    self.isLoadingInitialData = false
                 }
             }
         }
@@ -75,6 +79,7 @@ class AuthService: ObservableObject {
         do {
             let session = try await googleService.signIn(redirectURL: redirectURL, client: client)
             await MainActor.run {
+                self.isLoadingInitialData = true
                 self.isAuthenticated = true
                 self.currentUser = session.user
             }
@@ -87,6 +92,7 @@ class AuthService: ObservableObject {
         do {
             let session = try await appleService.signIn(presentationAnchor: anchor, client: client)
             await MainActor.run {
+                self.isLoadingInitialData = true
                 self.isAuthenticated = true
                 self.currentUser = session.user
             }
@@ -96,14 +102,19 @@ class AuthService: ObservableObject {
     }
 
     func signOut() async {
+        // Immediately update UI state
+        await MainActor.run {
+            self.isAuthenticated = false
+            self.currentUser = nil
+        }
+
+        // Then perform the actual sign out
         do {
             try await client.auth.signOut()
-            await MainActor.run {
-                self.isAuthenticated = false
-                self.currentUser = nil
-            }
         } catch {
             print("Sign out error: \(error)")
+            // If sign out fails, restore the auth state
+            checkAuthStatus()
         }
     }
 
@@ -115,6 +126,12 @@ class AuthService: ObservableObject {
             return token
         } catch {
             return nil
+        }
+    }
+
+    func setInitialDataLoaded() {
+        Task { @MainActor in
+            self.isLoadingInitialData = false
         }
     }
 }

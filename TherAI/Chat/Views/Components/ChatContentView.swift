@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatContentView: View {
 
     let personalMessages: [ChatMessage]
+    @ObservedObject var chatViewModel: ChatViewModel
     let emptyPrompt: String
     let onDoubleTapPartnerMessage: (_: Any) -> Void
     let isInputFocused: Bool
@@ -29,6 +30,7 @@ struct ChatContentView: View {
                     ZStack {
                         MessagesListView(
                             messages: personalMessages,
+                            chatViewModel: chatViewModel,
                             isInputFocused: isInputFocused,
                             onBackgroundTap: onBackgroundTap,
                             preScrollTrigger: personalPreScrollToken,

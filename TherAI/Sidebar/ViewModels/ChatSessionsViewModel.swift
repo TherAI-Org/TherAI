@@ -35,7 +35,10 @@ class ChatSessionsViewModel: ObservableObject {
     private var hasStartedObserving: Bool = false
     private weak var navigationViewModel: SidebarNavigationViewModel?
     private weak var linkViewModel: LinkViewModel?
+    weak var chatViewModel: ChatViewModel?
     private var currentUserId: String?
+    // Holds a one-shot preview of an accepted partner request keyed by the target session
+    private var pendingAcceptancePreviewBySession: [UUID: String] = [:]
 
     @MainActor
     private func findNavigationViewModel() -> SidebarNavigationViewModel? {
@@ -55,6 +58,27 @@ class ChatSessionsViewModel: ObservableObject {
 
     func setLinkViewModel(_ linkVM: LinkViewModel) {
         self.linkViewModel = linkVM
+    }
+
+    // Store a one-time partner acceptance preview for a session (consumed on navigation)
+    @MainActor
+    func storePendingAcceptance(sessionId: UUID, text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        pendingAcceptancePreviewBySession[sessionId] = trimmed
+    }
+
+    // Get pending acceptance preview without consuming it (for passing through init)
+    @MainActor
+    func getPendingAcceptancePreview(for sessionId: UUID) -> String? {
+        return pendingAcceptancePreviewBySession[sessionId]
+    }
+
+    // Retrieve and clear any pending acceptance preview for a session
+    @MainActor
+    func consumePendingAcceptancePreview(for sessionId: UUID) -> String? {
+        let val = pendingAcceptancePreviewBySession.removeValue(forKey: sessionId)
+        return val
     }
 
     init() {
@@ -398,12 +422,24 @@ class ChatSessionsViewModel: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 do {
+                    // Get the message content first
+                    if self.pendingRequests.isEmpty {
+                        await self.loadPendingRequests()
+                    }
+                    let messageContent = self.pendingRequests.first(where: { $0.id == requestId })?.content ?? ""
+
                     let session = try await AuthService.shared.client.auth.session
                     let accessToken = session.accessToken
                     // Accept the partner request (backend is idempotent)
                     let partnerSessionId = try await BackendService.shared.acceptPartnerRequest(requestId: requestId, accessToken: accessToken)
                     // Reload sessions before navigating to ensure the session exists in the list
                     await self.loadSessions()
+
+                    // Pre-cache the partner message BEFORE navigating
+                    if !messageContent.isEmpty {
+                        ChatViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: messageContent)
+                    }
+
                     // Navigate to the chat and close sidebar
                     self.activeSessionId = partnerSessionId
                     self.chatViewKey = UUID()
@@ -589,18 +625,29 @@ class ChatSessionsViewModel: ObservableObject {
 
             if let currentUserId = AuthService.shared.currentUser?.id,
                request.sender_user_id != currentUserId {
+                // Accept and navigate immediately using returned session id
                 let partnerSessionId = try await BackendService.shared.acceptPartnerRequest(requestId: request.id, accessToken: accessToken)
 
                 await MainActor.run {
                     self.pendingRequests.removeAll { $0.id == request.id }
+
+                    // Pre-cache the partner message BEFORE navigating
+                    ChatViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: request.content)
+
+                    // Navigate to the session
                     self.activeSessionId = partnerSessionId
+                    self.chatViewKey = UUID()
+
                     // Notify profile to recompute relationship totals immediately
                     NotificationCenter.default.post(name: .relationshipTotalsChanged, object: nil)
                 }
 
-                // Refresh sessions to get the latest data including timestamps
-                await loadSessions()
-                await loadPendingRequests()
+                // Kick off a quick async refresh shortly after to pull in message metadata
+                Task.detached { [weak self] in
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    await self?.loadSessions()
+                    await self?.loadPendingRequests()
+                }
             }
         } catch {
             print("Failed to accept pending request: \(error)")

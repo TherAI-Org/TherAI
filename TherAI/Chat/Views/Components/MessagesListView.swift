@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MessagesListView: View {
     let messages: [ChatMessage]
+    @ObservedObject var chatViewModel: ChatViewModel
     let isInputFocused: Bool
     let onBackgroundTap: () -> Void
     let preScrollTrigger: Int
@@ -16,6 +17,7 @@ struct MessagesListView: View {
 
     init(
         messages: [ChatMessage],
+        chatViewModel: ChatViewModel,
         isInputFocused: Bool,
         onBackgroundTap: @escaping () -> Void,
         preScrollTrigger: Int = 0,
@@ -27,6 +29,7 @@ struct MessagesListView: View {
         streamingTargetId: UUID? = nil
     ) {
         self.messages = messages
+        self.chatViewModel = chatViewModel
         self.isInputFocused = isInputFocused
         self.onBackgroundTap = onBackgroundTap
         self.preScrollTrigger = preScrollTrigger
@@ -43,7 +46,7 @@ struct MessagesListView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                        MessageBubbleView(message: message, onSendToPartner: { text in
+                        MessageBubbleView(message: message, chatViewModel: chatViewModel, onSendToPartner: { text in
                             NotificationCenter.default.post(name: .init("SendPartnerMessageFromBubble"), object: nil, userInfo: ["content": text])
                         })
                             .id(message.id)

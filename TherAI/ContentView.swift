@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var authService = AuthService.shared
+    @ObservedObject private var authService = AuthService.shared
     @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
     @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
 
@@ -16,14 +16,23 @@ struct ContentView: View {
         ZStack {
             Group {
                 if authService.isAuthenticated {
-                    SlideOutSidebarContainerView {
-                        MainAppView()
+                    if authService.isLoadingInitialData {
+                        LoadingView()
+                            .transition(.opacity)
+                    } else {
+                        SlideOutSidebarContainerView {
+                            MainAppView()
+                        }
+                        .transition(.opacity)
                     }
                 } else {
                     AuthView()
+                        .transition(.opacity)
                 }
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: authService.isAuthenticated)
+        .animation(.easeInOut(duration: 0.3), value: authService.isLoadingInitialData)
     }
 }
 

@@ -3,57 +3,82 @@ import AuthenticationServices
 import UIKit
 
 struct AuthView: View {
-    @StateObject private var authService = AuthService.shared
+    private let authService = AuthService.shared
 
     var body: some View {
-        if authService.isAuthenticated {
-            NavigationView {
-                ChatView()
-            }
-        } else {
-            VStack(spacing: 30) {
-                // App Logo/Title
-                VStack(spacing: 10) {
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 60))
-                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
 
-                    Text("TherAI")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+            // App icon - centered and moved up
+            Image("AppIconDisplay")
+                .resizable()
+                .renderingMode(.original)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 100, height: 100)
+                .cornerRadius(20)
+                .offset(y: -60)
 
-                    Text("Your AI Chat Assistant")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+            // Sign in content
+            VStack {
+                Spacer()
+
+                // Sign in buttons
+                VStack(spacing: 12) {
+                Button(action: {
+                    Haptics.selection()
+                    Task { await authService.signInWithGoogle() }
+                }) {
+                    HStack(spacing: 10) {
+                        Image("icons8-google-48 copy")
+                            .renderingMode(.original)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 20, height: 20)
+                        Text("Continue with Google")
+                            .font(.system(size: 16, weight: .medium))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(.systemBackground))
+                    .foregroundColor(.primary)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    )
+                    .cornerRadius(12)
                 }
 
-                // Sign In Buttons
-                VStack(spacing: 16) {
-                    Button(action: { Task { await authService.signInWithGoogle() } }) {
-                        HStack { Image(systemName: "globe").font(.title2); Text("Sign in with Google").font(.headline) }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
+                Button(action: {
+                    if let anchor = getPresentationAnchor() {
+                        Haptics.selection()
+                        Task { await authService.signInWithApple(presentationAnchor: anchor) }
                     }
-
-                    Button(action: {
-                        if let anchor = getPresentationAnchor() {
-                            Task { await authService.signInWithApple(presentationAnchor: anchor) }
-                        }
-                    }) {
-                        HStack { Image(systemName: "applelogo").font(.title2); Text("Sign in with Apple").font(.headline) }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.black)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
+                }) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "applelogo")
+                            .font(.system(size: 18, weight: .medium))
+                        Text("Continue with Apple")
+                            .font(.system(size: 16, weight: .medium))
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.black)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
                 }
                 .padding(.horizontal, 40)
+
+                // Privacy policy and terms
+                Text("By continuing, you agree to our Privacy Policy and Terms of Service")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .padding(.top, 20)
+                    .padding(.bottom, 30)
             }
-            .padding()
         }
     }
 

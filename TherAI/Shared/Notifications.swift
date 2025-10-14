@@ -10,6 +10,19 @@ extension Notification.Name {
     static let partnerRequestOpen = Notification.Name("partner.request.open")
     static let partnerMessageOpen = Notification.Name("partner.message.open")
     static let partnerMessageReceived = Notification.Name("partner.message.received")
+    static let partnerRequestAccepted = Notification.Name("partner.request.accepted")
+}
+
+private var _hasPendingAcceptanceSeed: Bool = false
+
+extension NotificationCenter {
+    static var hasPendingAcceptanceSeed: Bool { _hasPendingAcceptanceSeed }
+    static func withPendingAcceptanceSeed<T>(_ body: () -> T) -> T {
+        _hasPendingAcceptanceSeed = true
+        let result = body()
+        _hasPendingAcceptanceSeed = false
+        return result
+    }
 }
 
 

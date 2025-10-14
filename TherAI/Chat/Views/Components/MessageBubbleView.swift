@@ -2,8 +2,8 @@ import SwiftUI
 
 struct MessageBubbleView: View {
     let message: ChatMessage
+    @ObservedObject var chatViewModel: ChatViewModel
     var onSendToPartner: ((String) -> Void)? = nil
-    @State private var didSend: Bool = false
 
     var body: some View {
         HStack {
@@ -49,7 +49,12 @@ struct MessageBubbleView: View {
                     }
                     // Render segments if available, otherwise fall back to old behavior
                     if !message.segments.isEmpty {
-                        ForEach(message.segments) { segment in
+                        let _ = message.segments.forEach { seg in
+                            if case .partnerReceived(let text) = seg {
+                                print("[MessageBubble] Found partnerReceived segment: \(text.prefix(50))")
+                            }
+                        }
+                        ForEach(message.segments, id: \.id) { segment in
                             switch segment {
                             case .text(let text):
                                 // Avoid rendering body text if this message represents only partner content
@@ -62,16 +67,23 @@ struct MessageBubbleView: View {
                                 }
                             case .partnerMessage(let text):
                                 if !text.isEmpty {
-                                    PartnerDraftBlockView(initialText: text) { action in
+                                    let isSent = chatViewModel.isPartnerDraftSent(messageContent: text)
+
+                                    PartnerDraftBlockView(initialText: text, isSent: isSent) { action in
                                         switch action {
                                         case .send(let edited):
+                                            chatViewModel.markPartnerDraftAsSent(messageContent: text)
                                             onSendToPartner?(edited)
-                                        case .skip:
-                                            NotificationCenter.default.post(name: .init("SkipPartnerDraftRequested"), object: nil, userInfo: ["messageId": message.id.uuidString])
                                         }
                                     }
                                     .id(text)
                                     .padding(.top, 6)
+                                }
+                            case .partnerReceived(let text):
+                                if !text.isEmpty {
+                                    PartnerMessageBlockView(text: text)
+                                        .id("partner_received_\(text.hashValue)")
+                                        .padding(.top, 6)
                                 }
                             }
                         }
@@ -82,6 +94,7 @@ struct MessageBubbleView: View {
                             }
                             .padding(.top, 2)
                         }
+
                     } else {
                         // Fallback to old rendering for backward compatibility
                         let body = assistantBodyExcludingDraft(message)
@@ -95,12 +108,13 @@ struct MessageBubbleView: View {
                         let drafts = message.partnerDrafts.isEmpty ? (message.partnerMessageContent.map { [$0] } ?? []) : message.partnerDrafts
                         ForEach(Array(drafts.enumerated()), id: \.offset) { idx, text in
                             if !text.isEmpty {
-                                PartnerDraftBlockView(initialText: text) { action in
+                                let isSent = chatViewModel.isPartnerDraftSent(messageContent: text)
+
+                                PartnerDraftBlockView(initialText: text, isSent: isSent) { action in
                                     switch action {
                                     case .send(let edited):
+                                        chatViewModel.markPartnerDraftAsSent(messageContent: text)
                                         onSendToPartner?(edited)
-                                    case .skip:
-                                        NotificationCenter.default.post(name: .init("SkipPartnerDraftRequested"), object: nil, userInfo: ["messageId": message.id.uuidString, "index": idx])
                                     }
                                 }
                                 .id(text + "_\(idx)")
@@ -114,6 +128,7 @@ struct MessageBubbleView: View {
                             }
                             .padding(.top, 2)
                         }
+
                     }
                 }
             }
@@ -161,15 +176,22 @@ struct MessageBubbleView: View {
 
 #Preview {
     VStack(spacing: 20) {
-        MessageBubbleView(message: ChatMessage(content: "Hello! How are you? I'm Stephan, and I'd like to chat with you.", isFromUser: true))
-        MessageBubbleView(message: ChatMessage(content: "I’m doing great, thanks for asking!", isFromUser: false))
+        MessageBubbleView(
+            message: ChatMessage(content: "Hello! How are you? I'm Stephan, and I'd like to chat with you.", isFromUser: true),
+            chatViewModel: ChatViewModel()
+        )
+        MessageBubbleView(
+            message: ChatMessage(content: "I'm doing great, thanks for asking!", isFromUser: false),
+            chatViewModel: ChatViewModel()
+        )
         MessageBubbleView(
             message: ChatMessage(
-                content: "Sure—here’s a message you could send:",
+                content: "Sure—here's a message you could send:",
                 isFromUser: false,
                 isPartnerMessage: true,
-                partnerMessageContent: "Hey love — I’ve been feeling a bit overwhelmed lately and could use a little extra help this week. Could we sit down tonight and figure out a plan that feels fair for both of us?"
+                partnerMessageContent: "Hey love — I've been feeling a bit overwhelmed lately and could use a little extra help this week. Could we sit down tonight and figure out a plan that feels fair for both of us?"
             ),
+            chatViewModel: ChatViewModel(),
             onSendToPartner: { _ in }
         )
     }

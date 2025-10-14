@@ -47,6 +47,8 @@ struct ChatView: View {
         .onChange(of: navigationViewModel.isOpen) { _, newValue in if newValue { isInputFocused = false } }
         .onAppear {
             Task { await sessionsViewModel.loadPendingRequests() }
+            // Register this ChatViewModel with SessionsViewModel so it can preload cache
+            sessionsViewModel.chatViewModel = viewModel
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("AskTherAISelectedSnippet"))) { note in
             if let snippet = note.userInfo?["snippet"] as? String {
@@ -69,7 +71,13 @@ struct ChatView: View {
             viewModel.requestNewPartnerDraft()
         }
         .onChange(of: sessionsViewModel.activeSessionId) { _, newSessionId in
-            if let sid = newSessionId { Task { await viewModel.presentSession(sid) } }
+            if let sid = newSessionId {
+                // Only handle session changes when the view's session is different
+                // This happens when navigating without recreating the ChatView
+                if viewModel.sessionId != sid {
+                    Task { await viewModel.presentSession(sid) }
+                }
+            }
         }
         .onChange(of: sessionsViewModel.chatViewKey) { _, _ in
             if sessionsViewModel.activeSessionId == nil {

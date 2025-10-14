@@ -16,7 +16,11 @@ struct ChatCoordinator {
 
     func handleActiveSessionChanged(_ newSessionId: UUID?, viewModel: ChatViewModel) {
         if let sessionId = newSessionId {
-            Task { await viewModel.presentSession(sessionId) }
+            Task {
+                // Present immediately
+                await viewModel.presentSession(sessionId)
+                // No forced refresh; ChatView handles pending acceptance injection at onAppear
+            }
         }
     }
 

@@ -99,7 +99,7 @@ class SettingsViewModel: ObservableObject {
                 icon: "person.circle",
                 gradient: [Color.red, Color.orange],
                 settings: [
-                    SettingItem(title: "Sign Out", subtitle: "Sign out of your account", type: .action, icon: "rectangle.portrait.and.arrow.right")
+                    SettingItem(title: "Sign Out", subtitle: nil, type: .action, icon: "rectangle.portrait.and.arrow.right")
                 ]
             )
         ]
@@ -150,8 +150,8 @@ class SettingsViewModel: ObservableObject {
         case "Privacy Policy":
             destination = .privacyPolicy
         case "Sign Out":
-            // Sign out user
             Task {
+                // Sign out immediately - this will trigger auth state change
                 await AuthService.shared.signOut()
                 await MainActor.run {
                     self.isConnectedToPartner = false

@@ -2,7 +2,7 @@ import uuid
 import json
 import asyncio
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from starlette.concurrency import iterate_in_threadpool
 
@@ -132,7 +132,7 @@ async def mark_delivered_endpoint(request_id: uuid.UUID, current_user: dict = De
 
 
 @router.post("/requests/{request_id}/accept")
-async def accept_request_endpoint(request_id: uuid.UUID, current_user: dict = Depends(get_current_user)):
+async def accept_request_endpoint(request_id: uuid.UUID, background_tasks: BackgroundTasks, current_user: dict = Depends(get_current_user)):
     try:
         user_uuid = uuid.UUID(current_user.get("sub"))
     except Exception:
@@ -221,19 +221,34 @@ async def accept_request_endpoint(request_id: uuid.UUID, current_user: dict = De
         # Already accepted elsewhere → return the mapped session id without adding another message
         return {"success": True, "recipient_session_id": str(recipient_session_id)}
 
-    # Winner: insert the delivered message exactly once
-    created = await save_message(
-        user_id=user_uuid, session_id=recipient_session_id, role="assistant", content=req.get("content", "")
-    )
-    await update_session_last_message(session_id=recipient_session_id, content=req.get("content", ""))
-    await touch_session(session_id=recipient_session_id)
+    # Winner: finalize acceptance in the background to return immediately
+    async def _finalize_acceptance():
+        # Insert the delivered message exactly once and update metadata
+        try:
+            # Persist as structured annotation so iOS can render a dedicated received-partner block
+            partner_text = req.get("content", "")
+            annotated = json.dumps({
+                "_therai": {"type": "partner_received", "text": partner_text},
+                "body": ""
+            })
+            print(f"[PartnerAccept] Saving partner message with annotation: {annotated[:100]}...")
+            created = await save_message(
+                user_id=user_uuid, session_id=recipient_session_id, role="assistant", content=annotated
+            )
+            await update_session_last_message(session_id=recipient_session_id, content=req.get("content", ""))
+            await touch_session(session_id=recipient_session_id)
+            await mark_accepted_and_attach(
+                request_id=request_id,
+                recipient_session_id=recipient_session_id,
+                created_message_id=uuid.UUID(created["id"])  # type: ignore[index]
+            )
+        except Exception:
+            # Best-effort: avoid surfacing background failures to client
+            pass
 
-    await mark_accepted_and_attach(
-        request_id=request_id,
-        recipient_session_id=recipient_session_id,
-        created_message_id=uuid.UUID(created["id"])  # type: ignore[index]
-    )
+    background_tasks.add_task(_finalize_acceptance)
 
+    # Return immediately with the session id so the client can navigate without delay
     return {"success": True, "recipient_session_id": str(recipient_session_id)}
 
 
@@ -354,11 +369,16 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
             else:
                 # Direct insert into recipient's personal session
                 try:
+                    annotated = json.dumps({
+                        "_therai": {"type": "partner_received", "text": final_content},
+                        "body": ""
+                    })
+                    print(f"[PartnerStream] DIRECT MODE: Saving with annotation: {annotated[:100]}...")
                     created = asyncio.run(save_message(
                         user_id=partner_user_id,
                         session_id=recipient_session_id,  # type: ignore[arg-type]
                         role="assistant",
-                        content=final_content,
+                        content=annotated,
                     ))
                     asyncio.run(update_session_last_message(session_id=recipient_session_id, content=final_content))  # type: ignore[arg-type]
                     asyncio.run(touch_session(session_id=recipient_session_id))  # type: ignore[arg-type]

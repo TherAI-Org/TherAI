@@ -43,6 +43,7 @@ struct ChatScreenView: View {
 
             ChatContentView(
                 personalMessages: chatViewModel.messages,
+                chatViewModel: chatViewModel,
                 emptyPrompt: chatViewModel.emptyPrompt,
                 onDoubleTapPartnerMessage: { _ in },
                 isInputFocused: isInputFocused.wrappedValue,
