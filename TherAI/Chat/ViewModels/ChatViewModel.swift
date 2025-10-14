@@ -242,8 +242,7 @@ class ChatViewModel: ObservableObject {
         let trimmedMessage = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         let userMessage = ChatMessage(content: trimmedMessage, isFromUser: true)
         messages.append(userMessage)
-        // One-time: push this just-sent user message to the top of the viewport
-        focusTopMessageId = userMessage.id
+        // Removed one-time push after send
 
         let messageToSend = trimmedMessage
         inputText = ""  // Clear input text
