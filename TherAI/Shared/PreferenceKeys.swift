@@ -3,4 +3,8 @@ import Foundation
 enum PreferenceKeys {
     static let appearancePreference = "appearance_preference"
     static let hapticsEnabled = "haptics_enabled"
+    // Cached partner connection
+    static let partnerConnected = "partner_connected"
+    static let partnerName = "partner_name"
+    static let partnerAvatarURL = "partner_avatar_url"
 }
