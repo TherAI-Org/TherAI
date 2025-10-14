@@ -181,6 +181,72 @@ async def send_partner_request_notification_to_user(
             continue
 
 
+async def send_partner_message_notification_to_user(
+    *,
+    recipient_user_id: uuid.UUID,
+    session_id: uuid.UUID,
+    preview: str,
+    sender_name: Optional[str] = None,
+) -> None:
+    """Send an APNs alert when a new partner message is delivered directly to a linked personal session.
+
+    Payload carries only the session_id to route the user directly into that chat.
+    """
+    tokens = await list_tokens_for_user(user_id=recipient_user_id)
+    if not tokens:
+        return
+
+    title = "Partner Message"
+    body = "Your partner has sent a new message. Tap to open."
+
+    aps = {
+        "alert": {"title": title, "body": body},
+        "sound": "default",
+        "category": "PARTNER_MESSAGE",
+    }
+    payload = {
+        "aps": aps,
+        "session_id": str(session_id),
+    }
+
+    try:
+        print(f"[Push] PartnerMessage notify recipient={recipient_user_id} tokens={len(tokens)} session_id={session_id}")
+    except Exception:
+        pass
+
+    for t in tokens:
+        token_val = t.get("token") if isinstance(t, dict) else None
+        enabled = (t.get("enabled", True) if isinstance(t, dict) else True)
+        if not token_val or not enabled:
+            try:
+                print(f"[APNs] skip token entry enabled={enabled} keys={list(t.keys()) if isinstance(t, dict) else 'n/a'}")
+            except Exception:
+                pass
+            continue
+        try:
+            status, resp_text = await _post_apns(device_token=token_val, payload=payload)
+            if status != 200:
+                try:
+                    print(f"[APNs] send token={token_val[:10]}… status={status} body={resp_text}")
+                except Exception:
+                    pass
+                if status in (400, 410) and ("BadDeviceToken" in (resp_text or "") or "Unregistered" in (resp_text or "")):
+                    try:
+                        await disable_token_by_value(token=token_val)
+                    except Exception:
+                        pass
+            else:
+                try:
+                    print(f"[APNs] send OK token={token_val[:10]}… status=200")
+                except Exception:
+                    pass
+        except Exception as e:
+            try:
+                print(f"[APNs] send exception token={token_val[:10]}… err={e}")
+            except Exception:
+                pass
+            continue
+
 
 
 

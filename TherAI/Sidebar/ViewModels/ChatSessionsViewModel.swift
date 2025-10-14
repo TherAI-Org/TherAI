@@ -269,6 +269,25 @@ class ChatSessionsViewModel: ObservableObject {
             }
         }
         observers.append(pushTapped)
+
+        // Push tapped: open partner session directly on partner message notification
+        let partnerMessageTapped = NotificationCenter.default.addObserver(forName: .partnerMessageOpen, object: nil, queue: .main) { [weak self] note in
+            guard let self = self else { return }
+            guard let sessionId = note.userInfo?["sessionId"] as? UUID else { return }
+            // Ensure authenticated
+            guard AuthService.shared.isAuthenticated else { return }
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                // Make sure sessions list includes this session, then navigate
+                await self.loadSessions()
+                self.activeSessionId = sessionId
+                self.chatViewKey = UUID()
+                if let navVM = self.findNavigationViewModel() {
+                    navVM.closeSidebar()
+                }
+            }
+        }
+        observers.append(partnerMessageTapped)
     }
 
     func loadPairedAvatars() async {

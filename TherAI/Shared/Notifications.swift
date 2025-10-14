@@ -7,6 +7,7 @@ extension Notification.Name {
     static let relationshipTotalsChanged = Notification.Name("relationship.totals.changed")
     static let avatarChanged = Notification.Name("avatar.changed")
     static let partnerRequestOpen = Notification.Name("partner.request.open")
+    static let partnerMessageOpen = Notification.Name("partner.message.open")
 }
 
 

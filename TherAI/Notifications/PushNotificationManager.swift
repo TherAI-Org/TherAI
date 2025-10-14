@@ -76,6 +76,7 @@ extension PushNotificationManager: UNUserNotificationCenterDelegate {
     @MainActor
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let userInfo = response.notification.request.content.userInfo
+        // Partner request push
         if let requestIdString = userInfo["request_id"] as? String,
            let requestId = UUID(uuidString: requestIdString) {
             // If authenticated, route immediately; otherwise store to handle after login
@@ -92,6 +93,23 @@ extension PushNotificationManager: UNUserNotificationCenterDelegate {
                 // Not authenticated: stash to be handled once login/activation occurs
                 pendingRequestId = requestId
             }
+            return
+        }
+
+        // Partner message push: open the session directly
+        if let sessionIdString = userInfo["session_id"] as? String,
+           let sessionId = UUID(uuidString: sessionIdString) {
+            if AuthService.shared.isAuthenticated {
+                NotificationCenter.default.post(name: .partnerMessageOpen, object: nil, userInfo: ["sessionId": sessionId])
+            } else {
+                // If not authenticated yet, delay handling slightly until app attaches auth state
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if AuthService.shared.isAuthenticated {
+                        NotificationCenter.default.post(name: .partnerMessageOpen, object: nil, userInfo: ["sessionId": sessionId])
+                    }
+                }
+            }
+            return
         }
     }
 

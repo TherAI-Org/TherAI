@@ -25,7 +25,7 @@ from ..Database.partner_requests_repo import (
 )
 from ..Database.supabase_client import supabase as _sp
 from ..Agents.personal import PersonalAgent
-from ..Notifications.apns import send_partner_request_notification_to_user
+from ..Notifications.apns import send_partner_request_notification_to_user, send_partner_message_notification_to_user
 
 from ..Models.requests import (
     PartnerRequestBody,
@@ -349,6 +349,18 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
                     asyncio.run(update_session_last_message(session_id=recipient_session_id, content=final_content))  # type: ignore[arg-type]
                     asyncio.run(touch_session(session_id=recipient_session_id))  # type: ignore[arg-type]
                     print(f"[PartnerStream] DIRECT DELIVERED message_id={created.get('id')}")
+                    # Best-effort APNs notification for new partner message
+                    try:
+                        meta = current_user.get("user_metadata") or {}
+                        sender_name = meta.get("full_name") or meta.get("name") or meta.get("display_name")
+                        asyncio.run(send_partner_message_notification_to_user(
+                            recipient_user_id=partner_user_id,
+                            session_id=recipient_session_id,  # type: ignore[arg-type]
+                            preview=final_content,
+                            sender_name=sender_name,
+                        ))
+                    except Exception:
+                        pass
                 except Exception as e:
                     print(f"[PartnerStream] DIRECT DELIVERY ERROR: {e}")
                     yield f"event: error\ndata: {json.dumps(str(e))}\n\n".encode()
