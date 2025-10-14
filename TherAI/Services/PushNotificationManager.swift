@@ -70,6 +70,16 @@ extension PushNotificationManager: UNUserNotificationCenterDelegate {
     @MainActor
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         // Include .list so notifications also land in Notification Center when app is foreground
+        // If this is a partner message, emit a received event so UI can badge the session
+        let userInfo = notification.request.content.userInfo
+        if let sessionIdString = userInfo["session_id"] as? String,
+           let sessionId = UUID(uuidString: sessionIdString) {
+            // Only post if linked; otherwise ignore
+            if AuthService.shared.isAuthenticated {
+                // We do not have direct access to ChatSessionsViewModel here; gate by auth only
+                NotificationCenter.default.post(name: .partnerMessageReceived, object: nil, userInfo: ["sessionId": sessionId])
+            }
+        }
         return [.banner, .list, .sound, .badge]
     }
 

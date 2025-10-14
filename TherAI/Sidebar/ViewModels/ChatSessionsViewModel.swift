@@ -6,12 +6,24 @@ class ChatSessionsViewModel: ObservableObject {
     @Published var sessions: [ChatSession] = []
     @Published var isLoadingSessions: Bool = false
     @Published var pendingRequests: [BackendService.PartnerPendingRequest] = []
-    @Published var activeSessionId: UUID? = nil
+    @Published var activeSessionId: UUID? = nil {
+        didSet {
+            if let id = activeSessionId {
+                if unreadPartnerSessionIds.remove(id) != nil {
+                    print("[SessionsVM] Cleared unread on active change for session=\(id)")
+                    saveCachedUnread()
+                }
+            }
+        }
+    }
     @Published var chatViewKey: UUID = UUID()
     @Published var myAvatarURL: String? = nil
     @Published var partnerAvatarURL: String? = nil
     @Published var partnerInfo: BackendService.PartnerInfo? = nil
     @Published var avatarsLoaded: Bool = false
+    @Published private(set) var unreadPartnerSessionIds: Set<UUID> = []
+    // Suppress false-positive unread when this device just sent a message
+    private var suppressUnreadSessionIds: Set<UUID> = []
 
     var onRefreshPendingRequests: (() -> Void)?
 
@@ -33,6 +45,7 @@ class ChatSessionsViewModel: ObservableObject {
 
     init() {
         loadCachedSessions()
+        loadCachedUnread()
     }
 
     deinit {
@@ -47,6 +60,11 @@ class ChatSessionsViewModel: ObservableObject {
     func openSession(_ id: UUID) {
         activeSessionId = id
         chatViewKey = UUID()
+        // Mark as read on open
+        if unreadPartnerSessionIds.remove(id) != nil {
+            print("[SessionsVM] openSession cleared unread for session=\(id)")
+            saveCachedUnread()
+        }
     }
 
     func openPendingRequest(_ request: BackendService.PartnerPendingRequest) {
@@ -87,14 +105,22 @@ class ChatSessionsViewModel: ObservableObject {
                     lastMessageContent: dto.last_message_content
                 )
             }
+            // Infer unread on receiver by comparing lastMessageContent changes, skipping suppressed and active sessions
+            for session in mapped {
+                if let lastMessage = session.lastMessageContent, !lastMessage.isEmpty {
+                    let previousSession = self.sessions.first { $0.id == session.id }
+                    if previousSession?.lastMessageContent != lastMessage {
+                        if session.id != self.activeSessionId && !self.suppressUnreadSessionIds.contains(session.id) {
+                            self.unreadPartnerSessionIds.insert(session.id)
+                        }
+                    }
+                }
+            }
+            if !self.unreadPartnerSessionIds.isEmpty { self.saveCachedUnread() }
             await MainActor.run {
                 self.sessions = mapped
                 self.isLoadingSessions = false
                 print("📱 Updated local sessions list with \(mapped.count) sessions")
-                // Don't automatically open the first session - let user choose
-                // if self.activeSessionId == nil, let first = mapped.first {
-                //     self.activeSessionId = first.id
-                // }
                 self.saveCachedSessions()
             }
         } catch {
@@ -202,6 +228,12 @@ class ChatSessionsViewModel: ObservableObject {
                 var item = self.sessions.remove(at: idx)
                 item.lastMessageContent = messageContent
                 self.sessions.insert(item, at: 0)
+                // We authored a message in this session; do not mark unread from upcoming refresh
+                self.suppressUnreadSessionIds.insert(sid)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+                    self?.suppressUnreadSessionIds.remove(sid)
+                }
+                print("[SessionsVM] chatMessageSent by self; suppress unread for session=\(sid)")
             }
         }
         observers.append(sent)
@@ -222,6 +254,28 @@ class ChatSessionsViewModel: ObservableObject {
             }
         }
         observers.append(avatarChanged)
+
+        // Partner message received: mark session as unread unless it's currently open
+        let partnerReceived = NotificationCenter.default.addObserver(forName: .partnerMessageReceived, object: nil, queue: .main) { [weak self] note in
+            guard let self = self else { return }
+            guard let sid = note.userInfo?["sessionId"] as? UUID else { return }
+            // Only mark if not the active session
+            if self.activeSessionId != sid {
+                self.unreadPartnerSessionIds.insert(sid)
+                print("[SessionsVM] partnerMessageReceived → mark unread for session=\(sid)")
+                self.saveCachedUnread()
+            }
+            // Also lift this session to top and update preview if provided
+            if let idx = self.sessions.firstIndex(where: { $0.id == sid }) {
+                var item = self.sessions.remove(at: idx)
+                if let preview = note.userInfo?["messagePreview"] as? String {
+                    item.lastMessageContent = preview
+                }
+                self.sessions.insert(item, at: 0)
+                print("[SessionsVM] partnerMessageReceived → lifted session; wasIdx=\(idx)")
+            }
+        }
+        observers.append(partnerReceived)
 
         // Push tapped: open partner request by accepting it and navigating to chat
         let pushTapped = NotificationCenter.default.addObserver(forName: .partnerRequestOpen, object: nil, queue: .main) { [weak self] note in
@@ -278,6 +332,10 @@ class ChatSessionsViewModel: ObservableObject {
             guard AuthService.shared.isAuthenticated else { return }
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
+                // First mark as unread if linked (before loading sessions)
+                if self.partnerInfo?.linked == true && sessionId != self.activeSessionId {
+                    self.unreadPartnerSessionIds.insert(sessionId)
+                }
                 // Make sure sessions list includes this session, then navigate
                 await self.loadSessions()
                 self.activeSessionId = sessionId
@@ -376,6 +434,10 @@ extension ChatSessionsViewModel {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         return dir.appendingPathComponent("chat_sessions_cache.json")
     }
+    private var unreadCacheURL: URL {
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        return dir.appendingPathComponent("chat_unread_cache.json")
+    }
 
     private func loadCachedSessions() {
         do {
@@ -395,6 +457,32 @@ extension ChatSessionsViewModel {
             try data.write(to: cacheURL, options: .atomic)
         } catch {
             print("⚠️ Failed to save cached sessions: \(error)")
+        }
+    }
+
+    private struct UnreadCache: Codable { let unread: [UUID] }
+
+    private func loadCachedUnread() {
+        do {
+            let url = unreadCacheURL
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            let data = try Data(contentsOf: url)
+            let decoded = try JSONDecoder().decode(UnreadCache.self, from: data)
+            self.unreadPartnerSessionIds = Set(decoded.unread)
+            print("[SessionsVM] Loaded unread cache; count=\(decoded.unread.count)")
+        } catch {
+            print("⚠️ Failed to load unread cache: \(error)")
+        }
+    }
+
+    private func saveCachedUnread() {
+        do {
+            let body = UnreadCache(unread: Array(self.unreadPartnerSessionIds))
+            let data = try JSONEncoder().encode(body)
+            try data.write(to: unreadCacheURL, options: .atomic)
+            print("[SessionsVM] Saved unread cache; count=\(self.unreadPartnerSessionIds.count)")
+        } catch {
+            print("⚠️ Failed to save unread cache: \(error)")
         }
     }
 }

@@ -8,6 +8,7 @@ extension Notification.Name {
     static let avatarChanged = Notification.Name("avatar.changed")
     static let partnerRequestOpen = Notification.Name("partner.request.open")
     static let partnerMessageOpen = Notification.Name("partner.message.open")
+    static let partnerMessageReceived = Notification.Name("partner.message.received")
 }
 
 

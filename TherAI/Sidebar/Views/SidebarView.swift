@@ -28,6 +28,31 @@ struct SlidebarView: View {
         return !trimmed.isEmpty && trimmed.uppercased() != "NULL"
     }
 
+    // Approximate truncation to a full word before ellipsis based on target width
+    private func wordBoundaryTruncated(_ text: String, _ targetWidth: CGFloat) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "" }
+        // Approximate average character width for 14pt system font
+        let avgCharWidth: CGFloat = 7.0
+        let maxChars = max(8, Int((targetWidth / avgCharWidth).rounded(.down)))
+        if trimmed.count <= maxChars { return trimmed }
+        var result: String = ""
+        for word in trimmed.split(separator: " ") {
+            if result.isEmpty {
+                if word.count > maxChars {
+                    // If a single word is too long, hard cut it
+                    return String(word.prefix(maxChars))
+                } else {
+                    result = String(word)
+                }
+            } else {
+                if result.count + 1 + word.count > maxChars { break }
+                result += " " + word
+            }
+        }
+        return result
+    }
+
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
@@ -301,11 +326,23 @@ struct SlidebarView: View {
                                                     .font(.system(size: 12))
                                                     .foregroundColor(.secondary)
                                             }
-                                            Text(shouldShowLastMessage(session.lastMessageContent) ? session.lastMessageContent! : "No messages yet")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.secondary)
-                                                .lineLimit(1)
-                                                .truncationMode(.tail)
+                                            HStack(spacing: 6) {
+                                                let previewTargetWidth = geometry.size.width * 0.86
+                                                let rawPreview = shouldShowLastMessage(session.lastMessageContent) ? session.lastMessageContent! : "No messages yet"
+                                                let clippedPreview = wordBoundaryTruncated(rawPreview, previewTargetWidth)
+                                                Text(clippedPreview + (clippedPreview.count < rawPreview.count ? " …" : ""))
+                                                    .font(.system(size: 14))
+                                                    .foregroundColor(.secondary)
+                                                    .lineLimit(1)
+                                                    .truncationMode(.tail)
+                                                    .frame(maxWidth: previewTargetWidth, alignment: .leading)
+                                                Spacer()
+                                                if ((linkVM.state == .linked) || (sessionsViewModel.partnerInfo?.linked == true)) && sessionsViewModel.unreadPartnerSessionIds.contains(session.id) {
+                                                    Circle()
+                                                        .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                                        .frame(width: 14, height: 14)
+                                                }
+                                            }
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.horizontal, 2)
