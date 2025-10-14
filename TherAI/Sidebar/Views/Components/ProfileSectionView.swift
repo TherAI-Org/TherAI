@@ -10,11 +10,12 @@ struct ProfileSectionView: View {
     @Namespace private var profileNamespace
     
     private var userName: String {
-        // Try to get user name from AuthService
+        // Prefer loaded profile info full name if available via SettingsViewModel cache on NotificationCenter
+        if let cached = UserDefaults.standard.string(forKey: "therai_profile_full_name"), !cached.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return cached
+        }
         if let user = AuthService.shared.currentUser {
-            // Extract name from user metadata
             let metadata = user.userMetadata
-            // Try different possible name fields
             if let fullName = metadata["full_name"]?.stringValue, !fullName.isEmpty {
                 return fullName
             } else if let name = metadata["name"]?.stringValue, !name.isEmpty {
@@ -22,7 +23,6 @@ struct ProfileSectionView: View {
             } else if let displayName = metadata["display_name"]?.stringValue, !displayName.isEmpty {
                 return displayName
             }
-            // Fallback to email if no name available
             return user.email ?? "User"
         }
         return "User"
@@ -119,6 +119,13 @@ struct ProfileSectionView: View {
                 profileNamespace: profileNamespace
             )
             .environmentObject(sessionsViewModel)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
+            // Update cached name and refresh UI
+            if let cached = UserDefaults.standard.string(forKey: "therai_profile_full_name"), !cached.isEmpty {
+                // trigger view refresh
+                avatarRefreshKey = UUID()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
             // Force refresh of the avatar display by changing the ID
