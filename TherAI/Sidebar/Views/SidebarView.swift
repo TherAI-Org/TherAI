@@ -22,6 +22,14 @@ struct SlidebarView: View {
 
     let profileNamespace: Namespace.ID
 
+    private var shouldShowPartnerBanner: Bool {
+        if isSearching { return false }
+        if !sessionsViewModel.pendingRequests.isEmpty { return false }
+        if sessionsViewModel.partnerInfo?.linked == true { return false }
+        if case .linked = linkVM.state { return false }
+        return true
+    }
+
     private func shouldShowLastMessage(_ content: String?) -> Bool {
         guard let content = content else { return false }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -153,22 +161,23 @@ struct SlidebarView: View {
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.primary)
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                             .frame(width: 44, height: 44)
-                            .background(
-                                Group {
-                                    if #available(iOS 26.0, *) {
-                                        Color.clear
-                                            .glassEffect(.regular)
-                                    } else {
-                                        Color(.systemGray6)
-                                            .opacity(0.85)
-                                    }
-                                }
-                            )
-                            .clipShape(Circle())
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .background(
+                        Group {
+                            if #available(iOS 26.0, *) {
+                                Color.clear
+                                    .glassEffect(.regular)
+                            } else {
+                                Color(.systemGray6)
+                                    .opacity(0.8)
+                            }
+                        }
+                    )
+                    .clipShape(Circle())
+                    .buttonStyle(.plain)
+                    .contentShape(Circle())
                 }
             }
             .padding(.leading, 20)
@@ -424,6 +433,14 @@ struct SlidebarView: View {
                 // Extended gradient area that starts much higher
                 Spacer()
                     .frame(height: 100) // This creates space for the gradient to start earlier
+
+                // Partner Invite Banner (only when not linked and no pending requests)
+                if shouldShowPartnerBanner {
+                    PartnerInviteBannerView()
+                        .padding(.horizontal, 20)
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
+                }
 
                 // Profile Section
                 ProfileSectionView()
