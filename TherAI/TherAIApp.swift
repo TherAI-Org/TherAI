@@ -66,6 +66,8 @@ struct TherAIApp: App {
                         Task {
                             await linkVM.ensureInviteReady()
                             sessionsViewModel.startObserving()
+                            // Trigger bootstrap early when auth flips to true
+                            await sessionsViewModel.bootstrapInitialData()
                             PushNotificationManager.shared.tryUploadIfAuthenticated()
                             PushNotificationManager.shared.consumePendingIfReady()
                         }
