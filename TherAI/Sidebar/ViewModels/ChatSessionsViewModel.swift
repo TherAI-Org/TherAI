@@ -370,13 +370,7 @@ class ChatSessionsViewModel: ObservableObject {
         await loadPairedAvatars()
         await preloadAvatars()
 
-        // Choose a default active session if none selected yet
-        await MainActor.run {
-            if self.activeSessionId == nil, let first = self.sessions.first?.id {
-                self.activeSessionId = first
-                self.chatViewKey = UUID()
-            }
-        }
+        // Do not auto-select a previous session; allow a fresh chat by default
 
         await MainActor.run {
             self.isBootstrapping = false
