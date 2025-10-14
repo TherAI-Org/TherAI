@@ -64,8 +64,6 @@ struct ChatContentView: View {
             .zIndex(1)
         }
         .animation(.easeOut(duration: 0.15), value: personalMessages.count)
-        .id(animationID)
-        .onChange(of: personalMessages.count) { _, _ in animationID = UUID() }
     }
 }
 
