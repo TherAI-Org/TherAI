@@ -8,6 +8,9 @@ struct MessagesListView: View {
     let keyboardScrollTrigger: Int
     let onPreScrollComplete: (() -> Void)?
     let isAssistantTyping: Bool
+    let focusTopId: UUID?
+    let streamingScrollToken: Int
+    let streamingTargetId: UUID?
 
     @State private var savedScrollPosition: UUID?
 
@@ -18,7 +21,10 @@ struct MessagesListView: View {
         preScrollTrigger: Int = 0,
         keyboardScrollTrigger: Int = 0,
         onPreScrollComplete: (() -> Void)? = nil,
-        isAssistantTyping: Bool = false
+        isAssistantTyping: Bool = false,
+        focusTopId: UUID? = nil,
+        streamingScrollToken: Int = 0,
+        streamingTargetId: UUID? = nil
     ) {
         self.messages = messages
         self.isInputFocused = isInputFocused
@@ -27,6 +33,9 @@ struct MessagesListView: View {
         self.keyboardScrollTrigger = keyboardScrollTrigger
         self.onPreScrollComplete = onPreScrollComplete
         self.isAssistantTyping = isAssistantTyping
+        self.focusTopId = focusTopId
+        self.streamingScrollToken = streamingScrollToken
+        self.streamingTargetId = streamingTargetId
     }
 
     var body: some View {
@@ -64,6 +73,15 @@ struct MessagesListView: View {
                     onPreScrollComplete?()
                 }
             }
+            // One-time push: align the just-sent user message to the top
+            .onChange(of: focusTopId) { _, newId in
+                guard let newId = newId else { return }
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo(newId, anchor: .top)
+                    }
+                }
+            }
             .onChange(of: isInputFocused) { oldValue, newValue in
                 if newValue && !oldValue {
                     guard let lastId = messages.last?.id else { return }
@@ -88,11 +106,12 @@ struct MessagesListView: View {
                     }
                 }
             }
-            .onChange(of: messages.count) { _, _ in
-                guard let lastId = messages.last?.id else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                        proxy.scrollTo(lastId, anchor: .bottom)
+            // During streaming: gently auto-scroll to keep assistant reply visible
+            .onChange(of: streamingScrollToken) { _, _ in
+                guard let targetId = streamingTargetId else { return }
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) {
+                        proxy.scrollTo(targetId, anchor: .bottom)
                     }
                 }
             }
