@@ -297,6 +297,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TherAI/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TherAI needs the microphone to record your voice during voice chats. Recording starts only when you begin a voice session.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TherAI uses speech recognition to transcribe your voice to text so the assistant can respond. Transcription may be processed by Apple’s servers.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -328,6 +330,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TherAI/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TherAI needs the microphone to record your voice during voice chats. Recording starts only when you begin a voice session.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "TherAI uses speech recognition to transcribe your voice to text so the assistant can respond. Transcription may be processed by Apple’s servers.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
