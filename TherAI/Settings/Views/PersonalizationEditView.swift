@@ -14,8 +14,7 @@ struct PersonalizationEditView: View {
     @State private var showSaveButton = false
     
     // Personal info fields
-    @State private var firstName: String = ""
-    @State private var lastName: String = ""
+    @State private var fullName: String = ""
     @State private var birthday: Date = Date()
     @State private var personalInfo: String = ""
     
@@ -26,6 +25,7 @@ struct PersonalizationEditView: View {
     @State private var isSaving: Bool = false
     @State private var showSaveSuccess: Bool = false
     @State private var avatarSaved: Bool = false
+    @State private var isSavingAvatar: Bool = false
     
     var body: some View {
         ZStack {
@@ -159,45 +159,40 @@ struct PersonalizationEditView: View {
                         
                         // Personal Information Section
                         VStack(spacing: 16) {
-                            // Name Fields Section - Combined Container
+                            // Full Name Field
                             VStack(spacing: 0) {
-                                // Combined name container
-                                VStack(spacing: 0) {
-                                    // First Name
-                                    TextField("First Name", text: $firstName)
-                                        .font(.system(size: 16, weight: .medium))
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                    
-                                    // Separator line
-                                    Rectangle()
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(height: 0.5)
-                                        .padding(.horizontal, 16)
-                                    
-                                    // Last Name
-                                    TextField("Last Name", text: $lastName)
-                                        .font(.system(size: 16, weight: .medium))
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                }
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
-                                        )
-                                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-                                )
+                                TextField("Full Name", text: $fullName)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(Color.white)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                            )
+                                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                    )
+                                    .onChange(of: fullName) { newValue in
+                                        let limit = 22
+                                        if newValue.count > limit {
+                                            fullName = String(newValue.prefix(limit))
+                                        }
+                                    }
                                 
                                 // Helper text
-                                Text("Enter your name and add an optional profile photo.")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 4)
-                                    .padding(.top, 8)
+                                HStack {
+                                    Text("Enter your name and add an optional profile photo.")
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.secondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    Text("\(fullName.count)/22")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(fullName.count > 22 ? .red : .secondary)
+                                }
+                                .padding(.horizontal, 4)
+                                .padding(.top, 8)
                             }
                             
                             // Bio Section
@@ -229,40 +224,7 @@ struct PersonalizationEditView: View {
                         .padding(.horizontal, 8)
                         .padding(.bottom, 40)
                         
-                        // Save Button - Always visible
-                        Button(action: {
-                            Task {
-                                await saveAllChanges()
-                            }
-                        }) {
-                            HStack {
-                                if isSaving {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                        .foregroundColor(.white)
-                                } else {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.white)
-                                }
-                                Text(isSaving ? "Saving..." : "Save Changes")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(isSaving ? Color.gray : Color.blue)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                            )
-                            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-                        }
-                        .disabled(isSaving)
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 20)
+                        // (Replaced by top-left toolbar Save button)
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 24)
@@ -278,6 +240,10 @@ struct PersonalizationEditView: View {
                 }
                 .onAppear {
                     loadProfileData()
+                    viewModel.loadProfileInfo()
+                }
+                .onChange(of: viewModel.isProfileLoaded) { loaded in
+                    if loaded { loadProfileData() }
                 }
             }
         }
@@ -330,6 +296,7 @@ struct PersonalizationEditView: View {
                             uploadedImageData: $previewImageData,
                             showSaveButton: $showSaveButton,
                             avatarSaved: $avatarSaved,
+                            isSavingAvatar: $isSavingAvatar,
                             onSaveAvatar: {
                                 Task {
                                     await saveAvatarOnly()
@@ -356,7 +323,7 @@ struct PersonalizationEditView: View {
             }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                     .frame(width: 44, height: 44)
             }
             .background(
@@ -377,6 +344,48 @@ struct PersonalizationEditView: View {
             .contentShape(Circle())
             .padding(.top, 8)
             .padding(.trailing, 16)
+            .zIndex(10)
+        }
+        .overlay(alignment: .topLeading) {
+            // Save button in top left
+            Button(action: {
+                Haptics.impact(.light)
+                Task {
+                    await saveAllChanges()
+                }
+            }) {
+                if isSaving {
+                    ProgressView()
+                        .scaleEffect(0.9)
+                        .tint(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .frame(height: 44)
+                        .padding(.horizontal, 18)
+                } else {
+                    Text("Save")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .padding(.horizontal, 18)
+                        .frame(height: 44)
+                }
+            }
+            .background(
+                Group {
+                    if #available(iOS 26.0, *) {
+                        Color.clear
+                            .glassEffect(.regular)
+                    } else {
+                        Color(.systemGray6)
+                            .opacity(0.8)
+                    }
+                }
+            )
+            .clipShape(Capsule())
+            .buttonStyle(.plain)
+            .contentShape(Capsule())
+            .padding(.top, 8)
+            .padding(.leading, 16)
+            .opacity(isSaving && showSaveSuccess == false ? 0.8 : 1.0)
+            .disabled(isSaving)
             .zIndex(10)
         }
         .onAppear {
@@ -433,8 +442,7 @@ struct PersonalizationEditView: View {
     
     // Load profile data from ViewModel
     private func loadProfileData() {
-        firstName = viewModel.firstName
-        lastName = viewModel.lastName
+        fullName = viewModel.fullName
         personalInfo = viewModel.bio
     }
     
@@ -448,6 +456,7 @@ struct PersonalizationEditView: View {
             let emojiToSave = previewEmoji
             let imageDataToSave = previewImageData
             
+            await MainActor.run { isSavingAvatar = true }
             // Update frontend immediately with new avatar
             await updateFrontendImmediately(emoji: emojiToSave, imageData: imageDataToSave, oldURL: oldAvatarURL)
             
@@ -455,13 +464,7 @@ struct PersonalizationEditView: View {
             await MainActor.run {
                 // Don't clear previewEmoji and previewImageData - keep them visible
                 showSaveButton = false
-                avatarSaved = true
-                
-                // Close picker and reset avatarSaved after 2 seconds
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    showingAvatarSelection = false
-                    avatarSaved = false
-                }
+                // Do not close the picker; wait until backend refresh confirms
             }
             
             // Upload to backend in background
@@ -474,6 +477,14 @@ struct PersonalizationEditView: View {
                 } else if let data = imageDataToSave {
                     await viewModel.uploadAvatar(data: data)
                     await refreshAvatarAfterUpload(oldURL: oldAvatarURL)
+                }
+                await MainActor.run {
+                    self.avatarSaved = true
+                    self.isSavingAvatar = false
+                    // Keep the picker open; auto-clear saved state after a short delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        self.avatarSaved = false
+                    }
                 }
             }
         }
@@ -556,8 +567,7 @@ struct PersonalizationEditView: View {
         
         // Save profile information
         let profileSaved = await viewModel.saveProfileInfo(
-            firstName: firstName,
-            lastName: lastName,
+            fullName: fullName,
             bio: personalInfo
         )
         
@@ -600,6 +610,9 @@ struct PersonalizationEditView: View {
             isSaving = false
             if profileSaved {
                 showSaveSuccess = true
+                viewModel.fullName = fullName
+                viewModel.bio = personalInfo
+                NotificationCenter.default.post(name: .profileChanged, object: nil)
                 // Auto-hide success message after 2 seconds
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     showSaveSuccess = false
