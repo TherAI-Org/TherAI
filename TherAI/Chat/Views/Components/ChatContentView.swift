@@ -11,9 +11,9 @@ struct ChatContentView: View {
     let personalPreScrollToken: Int
     let keyboardScrollToken: Int
     var isAssistantTyping: Bool = false
-    let focusTopId: UUID?
-    let streamingScrollToken: Int
-    let streamingTargetId: UUID?
+    var focusTopId: UUID? = nil
+    var streamingScrollToken: Int = 0
+    var streamingTargetId: UUID? = nil
 
     @State private var showPersonalPreScrollOverlay: Bool = false
     @State private var preScrollToken: Int = 0

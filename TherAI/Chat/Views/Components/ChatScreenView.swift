@@ -137,7 +137,7 @@ struct ChatScreenView: View {
                     }
                 }
                 suggestionsDelayWorkItem = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
             } else {
                 showSuggestionsDelayed = false
             }
@@ -156,7 +156,7 @@ struct ChatScreenView: View {
                     }
                 }
                 suggestionsDelayWorkItem = work
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: work)
             } else {
                 suggestionsDelayWorkItem?.cancel()
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.95)) {
@@ -170,10 +170,6 @@ struct ChatScreenView: View {
                     keyboardScrollToken &+= 1
                 }
             }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .init("TherAI_ClearChatInputFocus"))) { _ in
-            // Clear input focus when sidebar opens to prevent keyboard in sidebar
-            isInputFocused.wrappedValue = false
         }
     }
 }
