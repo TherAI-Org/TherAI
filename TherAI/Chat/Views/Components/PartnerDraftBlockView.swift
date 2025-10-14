@@ -92,7 +92,7 @@ struct PartnerDraftBlockView: View {
             RoundedRectangle(cornerRadius: 16)
                 .strokeBorder(Color(.separator), lineWidth: 1)
                 .background(
-                    RoundedRectangle(cornerRadius: 16).fill(Color(.systemBackground))
+                    RoundedRectangle(cornerRadius: 16).fill(Color(red: 0.95, green: 0.92, blue: 0.98))
                 )
         )
         .onAppear {
