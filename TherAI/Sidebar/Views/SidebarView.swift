@@ -187,6 +187,13 @@ struct SlidebarView: View {
             .onChange(of: isSearchFocused) { old, newVal in
                 isSearching = newVal
             }
+            .onChange(of: isOpen) { _, open in
+                if open {
+                    // Ensure the sidebar search field does not auto-focus on open
+                    isSearchFocused = false
+                    isSearching = false
+                }
+            }
 
             ScrollView {
                 VStack(spacing: 10) {
@@ -400,6 +407,11 @@ struct SlidebarView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemBackground))
+        .onAppear {
+            // Defensive: avoid any lingering focus when the sidebar view first appears
+            isSearchFocused = false
+            isSearching = false
+        }
         .sheet(isPresented: $showRenameSheet) {
             VStack(spacing: 16) {
                 Text("Rename Conversation")
