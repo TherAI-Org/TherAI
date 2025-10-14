@@ -226,7 +226,7 @@ struct LinkPartnerSettingRow: View {
                         .foregroundColor(.secondary)
                     Spacer()
                 }
-                .padding(.bottom, 16)
+                .padding(.vertical, 12)
 
             case .creating:
                 HStack {
@@ -236,7 +236,7 @@ struct LinkPartnerSettingRow: View {
                         .foregroundColor(.secondary)
                     Spacer()
                 }
-                .padding(.bottom, 16)
+                .padding(.vertical, 12)
 
             case .shareReady(let url):
                 VStack(spacing: 12) {
@@ -267,7 +267,7 @@ struct LinkPartnerSettingRow: View {
                         // Share button
                         ShareLink(item: url) { IconButtonLabelView(systemName: "square.and.arrow.up") }
                     }
-                    .padding(12)
+                    .padding(10)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
                             .fill(Color(.systemGray6))
@@ -278,7 +278,7 @@ struct LinkPartnerSettingRow: View {
                     )
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .padding(.vertical, 12)
 
             case .accepting:
                 HStack {
@@ -288,7 +288,7 @@ struct LinkPartnerSettingRow: View {
                         .foregroundColor(.secondary)
                     Spacer()
                 }
-                .padding(.bottom, 16)
+                .padding(.vertical, 12)
 
             case .linked:
                 HStack(spacing: 12) {
@@ -345,7 +345,7 @@ struct LinkPartnerSettingRow: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 16)
+                .padding(.bottom, 12)
 
             case .unlinking:
                 HStack {
@@ -355,7 +355,7 @@ struct LinkPartnerSettingRow: View {
                         .foregroundColor(.secondary)
                     Spacer()
                 }
-                .padding(.bottom, 16)
+                .padding(.vertical, 12)
 
             case .unlinked:
                 HStack {
@@ -365,7 +365,7 @@ struct LinkPartnerSettingRow: View {
                         .foregroundColor(.secondary)
                     Spacer()
                 }
-                .padding(.bottom, 16)
+                .padding(.vertical, 12)
             }
         }
         .background(Color(.systemBackground))
