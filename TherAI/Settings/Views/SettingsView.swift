@@ -67,30 +67,26 @@ struct SettingsView: View {
                         
                         // User name and connection status
                         VStack(spacing: 8) {
-                            if let user = AuthService.shared.currentUser {
-                                // User name
-                                if let fullName = user.userMetadata["full_name"]?.stringValue, !fullName.isEmpty {
-                                    Text(fullName)
-                                        .font(.system(size: 20, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                } else if let name = user.userMetadata["name"]?.stringValue, !name.isEmpty {
-                                    Text(name)
-                                        .font(.system(size: 20, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                } else if let email = user.email {
-                                    Text(email.components(separatedBy: "@").first ?? "User")
-                                        .font(.system(size: 20, weight: .semibold))
-                                        .foregroundColor(.primary)
+                            // Prefer profile full name loaded from backend; fallback to auth metadata or email
+                            let preferredName = !viewModel.fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? viewModel.fullName : {
+                                if let user = AuthService.shared.currentUser {
+                                    if let n = user.userMetadata["full_name"]?.stringValue, !n.isEmpty { return n }
+                                    if let n = user.userMetadata["name"]?.stringValue, !n.isEmpty { return n }
+                                    if let email = user.email { return email.components(separatedBy: "@").first ?? "User" }
                                 }
-                                
-                                // Connection capsule (only show if connected)
-                                if viewModel.isConnectedToPartner {
-                                    ConnectionCapsuleView(
-                                        partnerName: viewModel.partnerName,
-                                        partnerAvatarURL: viewModel.partnerAvatarURL
-                                    )
-                                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                                }
+                                return "User"
+                            }()
+                            Text(preferredName)
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.primary)
+
+                            // Connection capsule (only show if connected)
+                            if viewModel.isConnectedToPartner {
+                                ConnectionCapsuleView(
+                                    partnerName: viewModel.partnerName,
+                                    partnerAvatarURL: viewModel.partnerAvatarURL
+                                )
+                                .transition(.opacity.combined(with: .scale(scale: 0.8)))
                             }
                         }
                         .padding(.bottom, 24)
@@ -185,6 +181,8 @@ struct SettingsView: View {
             
             // Refresh connection status immediately
             viewModel.refreshConnectionStatus()
+            // Preload partner avatar from cached URL for instant capsule image
+            viewModel.preloadPartnerAvatarIfAvailable()
             
             // Preload avatar for personalization screen
             viewModel.preloadAvatar()
@@ -197,6 +195,10 @@ struct SettingsView: View {
                     showCards = true
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
+            // Reload profile info and update UI immediately
+            viewModel.loadProfileInfo()
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
             // Force refresh of the avatar display by changing the ID
