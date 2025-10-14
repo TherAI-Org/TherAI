@@ -21,6 +21,7 @@ class ChatViewModel: ObservableObject {
     @Published var isLoadingHistory: Bool = false
     @Published var emptyPrompt: String = ""
     @Published var isAssistantTyping: Bool = false
+    @Published var isVoiceRecording: Bool = false
 
     private let backend = BackendService.shared
     private let authService = AuthService.shared
@@ -628,6 +629,16 @@ class ChatViewModel: ObservableObject {
     func clearChat() {
         messages.removeAll()
         generateEmptyPrompt()
+    }
+    
+    // Voice recording methods
+    func startVoiceRecording() {
+        isVoiceRecording = true
+    }
+    
+    func stopVoiceRecording(withTranscription transcription: String) {
+        isVoiceRecording = false
+        // Don't automatically send - let user edit and send manually
     }
 
     func generateEmptyPrompt() {
