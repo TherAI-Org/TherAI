@@ -445,8 +445,7 @@ extension BackendService {
 
     // Profile information structures
     struct ProfileInfo: Codable {
-        let first_name: String
-        let last_name: String
+        let full_name: String
         let bio: String
     }
 
@@ -486,24 +485,20 @@ extension BackendService {
     }
 
     // Update user profile information
-    func updateProfile(accessToken: String, firstName: String?, lastName: String?, bio: String?) async throws -> ProfileUpdateResponse {
-        func makeRequest(at base: URL) -> URLRequest {
+    func updateProfile(accessToken: String, fullName: String?, bio: String?) async throws -> ProfileUpdateResponse {
+        func makeRequest(at base: URL, method: String) -> URLRequest {
             let url = base
                 .appendingPathComponent("profile")
                 .appendingPathComponent("update")
             var request = URLRequest(url: url)
-            request.httpMethod = "PUT"
+            request.httpMethod = method
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
             var formDataComponents: [String] = []
-            if let firstName = firstName, !firstName.isEmpty {
-                let encoded = firstName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? firstName
-                formDataComponents.append("first_name=\(encoded)")
-            }
-            if let lastName = lastName, !lastName.isEmpty {
-                let encoded = lastName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? lastName
-                formDataComponents.append("last_name=\(encoded)")
+            if let fullName = fullName, !fullName.isEmpty {
+                let encoded = fullName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fullName
+                formDataComponents.append("full_name=\(encoded)")
             }
             if let bio = bio, !bio.isEmpty {
                 let encoded = bio.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? bio
@@ -514,22 +509,28 @@ extension BackendService {
             return request
         }
 
-        var request = makeRequest(at: baseURL)
-        var (data, response) = try await urlSession.data(for: request)
-        var http = response as? HTTPURLResponse
-        if let h = http, h.statusCode == 404 { // try /api fallback
-            request = makeRequest(at: baseURL.appendingPathComponent("api"))
-            (data, response) = try await urlSession.data(for: request)
-            http = response as? HTTPURLResponse
+        // Try PUT on base and /api, then retry with POST mirror if blocked
+        let attempts: [(URL, String)] = [
+            (baseURL, "PUT"),
+            (baseURL.appendingPathComponent("api"), "PUT"),
+            (baseURL, "POST"),
+            (baseURL.appendingPathComponent("api"), "POST")
+        ]
+
+        for (base, method) in attempts {
+            let request = makeRequest(at: base, method: method)
+            do {
+                let (data, response) = try await urlSession.data(for: request)
+                if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
+                    return try jsonDecoder.decode(ProfileUpdateResponse.self, from: data)
+                }
+            } catch {
+                // Try next attempt
+                continue
+            }
         }
-        guard let final = http else {
-            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
-        }
-        guard (200..<300).contains(final.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: final.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-        return try jsonDecoder.decode(ProfileUpdateResponse.self, from: data)
+
+        throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Profile update failed on all attempts"])
     }
 
     struct PartnerInfo: Codable {
