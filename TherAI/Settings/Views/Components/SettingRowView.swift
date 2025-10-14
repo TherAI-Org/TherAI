@@ -370,11 +370,7 @@ struct LinkPartnerSettingRow: View {
         }
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .onAppear {
-            Task {
-                await linkViewModel.ensureInviteReady()
-            }
-        }
+        // Removed auto ensure on appear to avoid creating links when opening Settings.
     }
 
     private var shouldShowExpandedContent: Bool {

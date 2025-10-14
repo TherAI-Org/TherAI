@@ -72,9 +72,7 @@ struct PartnerInviteBannerView: View {
                 )
         )
         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.20 : 0.06), radius: 12, x: 0, y: 6)
-        .onAppear {
-            Task { await linkVM.ensureInviteReady() }
-        }
+        // Removed auto ensure on appear; invite is prepared during app bootstrap loading.
     }
 
     @ViewBuilder

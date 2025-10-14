@@ -220,6 +220,9 @@ struct SettingsView: View {
             // Load profile information
             viewModel.loadProfileInfo()
 
+            // Apply any already-known partner info from sessions VM instantly
+            viewModel.applyPartnerInfo(sessionsVM.partnerInfo)
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.92)) {
                     showCards = true
@@ -231,6 +234,19 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
             avatarRefreshKey = UUID()
+        }
+        // Keep connection capsule synced with linking state changes
+        .onChange(of: linkVM.state) { _, newState in
+            // If linked, refresh from backend; otherwise clear immediately so capsule hides live
+            if case .linked = newState {
+                viewModel.refreshConnectionStatus()
+            } else {
+                viewModel.applyPartnerInfo(nil)
+            }
+        }
+        // React to session-level partner info updates as a live source of truth
+        .onReceive(sessionsVM.$partnerInfo) { newInfo in
+            viewModel.applyPartnerInfo(newInfo)
         }
     }
 

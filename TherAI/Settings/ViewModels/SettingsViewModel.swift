@@ -274,6 +274,28 @@ class SettingsViewModel: ObservableObject {
         loadPartnerConnectionStatus()
     }
 
+    /// Apply partner info updates coming from elsewhere in the app (e.g., sessions VM)
+    func applyPartnerInfo(_ info: BackendService.PartnerInfo?) {
+        if let info = info, info.linked, let partner = info.partner {
+            self.isConnectedToPartner = true
+            self.partnerName = partner.name
+            self.partnerAvatarURL = partner.avatar_url
+            self.savePartnerConnectionCache()
+            // Warm avatar cache for instant UI
+            if let url = self.partnerAvatarURL, !url.isEmpty {
+                Task { [weak self] in
+                    guard let self = self else { return }
+                    _ = await self.avatarCacheManager.getCachedImage(urlString: url)
+                }
+            }
+        } else {
+            self.isConnectedToPartner = false
+            self.partnerName = nil
+            self.partnerAvatarURL = nil
+            self.clearPartnerConnectionCache()
+        }
+    }
+
     // Cached partner connection
     private func loadCachedPartnerConnection() {
         if UserDefaults.standard.object(forKey: PreferenceKeys.partnerConnected) != nil {

@@ -131,6 +131,7 @@ struct SlidebarView: View {
                     isSearching = true
                     isSearchFocused = true
                 }
+                .offset(y: -2)
                 Spacer().frame(width: 18)
 
                 if isSearching {
@@ -178,6 +179,7 @@ struct SlidebarView: View {
                     .clipShape(Circle())
                     .buttonStyle(.plain)
                     .contentShape(Circle())
+                    .offset(y: -2)
                 }
             }
             .padding(.leading, 20)

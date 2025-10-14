@@ -3,20 +3,20 @@ import SwiftUI
 struct ConnectionCapsuleView: View {
     let partnerName: String?
     let partnerAvatarURL: String?
-    
+
     var body: some View {
         HStack(spacing: 8) {
             // Green status circle
             Circle()
                 .fill(Color.green)
                 .frame(width: 8, height: 8)
-            
+
             // "Connected to" and partner name grouped together
             HStack(spacing: 2) {
-                Text("Connected to")
+                Text("Connected with")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.black)
-                
+
                 // Partner name
                 if let name = partnerName {
                     Text(name)
@@ -29,7 +29,7 @@ struct ConnectionCapsuleView: View {
                         .foregroundColor(.gray)
                 }
             }
-            
+
             // Partner avatar (moved after name)
             AvatarCacheManager.shared.cachedAsyncImage(
                 urlString: partnerAvatarURL,
@@ -80,19 +80,19 @@ struct ConnectionCapsuleView: View {
             partnerName: "Sarah Johnson",
             partnerAvatarURL: nil
         )
-        
+
         // With avatar URL
         ConnectionCapsuleView(
             partnerName: "Alex Chen",
             partnerAvatarURL: "https://example.com/avatar.jpg"
         )
-        
+
         // Show how it looks in context
         VStack(spacing: 8) {
             Text("John Doe")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.primary)
-            
+
             ConnectionCapsuleView(
                 partnerName: "Emma Wilson",
                 partnerAvatarURL: nil
