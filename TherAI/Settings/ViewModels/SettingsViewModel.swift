@@ -31,8 +31,7 @@ class SettingsViewModel: ObservableObject {
     private let avatarCacheManager = AvatarCacheManager.shared
     
     // Profile information
-    @Published var firstName: String = ""
-    @Published var lastName: String = ""
+    @Published var fullName: String = ""
     @Published var bio: String = ""
     @Published var isProfileLoaded: Bool = false
     var currentAppearance: String {
@@ -42,6 +41,7 @@ class SettingsViewModel: ObservableObject {
     init() {
         loadSettings()
         setupSettingsSections()
+        loadCachedPartnerConnection()
         loadPartnerConnectionStatus()
     }
 
@@ -150,6 +150,12 @@ class SettingsViewModel: ObservableObject {
             // Sign out user
             Task {
                 await AuthService.shared.signOut()
+                await MainActor.run {
+                    self.isConnectedToPartner = false
+                    self.partnerName = nil
+                    self.partnerAvatarURL = nil
+                    self.clearPartnerConnectionCache()
+                }
             }
         default:
             // Handle other navigation and action items
@@ -176,9 +182,7 @@ class SettingsViewModel: ObservableObject {
         Task { @MainActor in
             do {
                 guard let token = await AuthService.shared.getAccessToken() else {
-                    self.isConnectedToPartner = false
-                    self.partnerName = nil
-                    self.partnerAvatarURL = nil
+                    // Keep cached state if token is unavailable
                     return
                 }
                 let partnerInfo = try await BackendService.shared.fetchPartnerInfo(accessToken: token)
@@ -187,15 +191,23 @@ class SettingsViewModel: ObservableObject {
                 if partnerInfo.linked, let partner = partnerInfo.partner {
                     self.partnerName = partner.name
                     self.partnerAvatarURL = partner.avatar_url
+                    self.savePartnerConnectionCache()
+                    // Preload partner avatar into cache for instant display
+                    if let url = self.partnerAvatarURL, !url.isEmpty {
+                        Task { [weak self] in
+                            guard let self = self else { return }
+                            _ = await self.avatarCacheManager.getCachedImage(urlString: url)
+                        }
+                    }
                 } else {
+                    self.isConnectedToPartner = false
                     self.partnerName = nil
                     self.partnerAvatarURL = nil
+                    self.clearPartnerConnectionCache()
                 }
             } catch {
                 print("Failed to load partner connection status: \(error)")
-                self.isConnectedToPartner = false
-                self.partnerName = nil
-                self.partnerAvatarURL = nil
+                // Preserve cached UI on error
             }
         }
     }
@@ -226,10 +238,11 @@ class SettingsViewModel: ObservableObject {
                     return
                 }
                 let profileInfo = try await BackendService.shared.fetchProfileInfo(accessToken: token)
-                self.firstName = profileInfo.first_name
-                self.lastName = profileInfo.last_name
+                self.fullName = profileInfo.full_name
                 self.bio = profileInfo.bio
                 self.isProfileLoaded = true
+                // Persist display name for use in sidebar and other views
+                UserDefaults.standard.set(self.fullName, forKey: "therai_profile_full_name")
             } catch {
                 print("Failed to load profile info: \(error)")
                 self.isProfileLoaded = false
@@ -237,17 +250,25 @@ class SettingsViewModel: ObservableObject {
         }
     }
     
-    func saveProfileInfo(firstName: String, lastName: String, bio: String) async -> Bool {
+    func saveProfileInfo(fullName: String, bio: String) async -> Bool {
         do {
             guard let token = await AuthService.shared.getAccessToken() else {
                 return false
             }
             let response = try await BackendService.shared.updateProfile(
                 accessToken: token,
-                firstName: firstName.isEmpty ? nil : firstName,
-                lastName: lastName.isEmpty ? nil : lastName,
+                fullName: fullName.isEmpty ? nil : fullName,
                 bio: bio.isEmpty ? nil : bio
             )
+            if response.success {
+                await MainActor.run {
+                    self.fullName = fullName
+                    self.bio = bio
+                    self.isProfileLoaded = true
+                    UserDefaults.standard.set(self.fullName, forKey: "therai_profile_full_name")
+                    NotificationCenter.default.post(name: .profileChanged, object: nil)
+                }
+            }
             return response.success
         } catch {
             print("Failed to save profile info: \(error)")
@@ -258,6 +279,55 @@ class SettingsViewModel: ObservableObject {
     // Public method to refresh connection status
     func refreshConnectionStatus() {
         loadPartnerConnectionStatus()
+    }
+
+    // Cached partner connection
+    private func loadCachedPartnerConnection() {
+        if UserDefaults.standard.object(forKey: PreferenceKeys.partnerConnected) != nil {
+            let connected = UserDefaults.standard.bool(forKey: PreferenceKeys.partnerConnected)
+            self.isConnectedToPartner = connected
+            if connected {
+                self.partnerName = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName)
+                self.partnerAvatarURL = UserDefaults.standard.string(forKey: PreferenceKeys.partnerAvatarURL)
+                // Warm partner avatar cache on app/settings open
+                if let url = self.partnerAvatarURL, !url.isEmpty {
+                    Task { [weak self] in
+                        guard let self = self else { return }
+                        _ = await self.avatarCacheManager.getCachedImage(urlString: url)
+                    }
+                }
+            } else {
+                self.partnerName = nil
+                self.partnerAvatarURL = nil
+            }
+        }
+    }
+
+    private func savePartnerConnectionCache() {
+        UserDefaults.standard.set(self.isConnectedToPartner, forKey: PreferenceKeys.partnerConnected)
+        if self.isConnectedToPartner {
+            if let name = self.partnerName {
+                UserDefaults.standard.set(name, forKey: PreferenceKeys.partnerName)
+            }
+            if let avatar = self.partnerAvatarURL {
+                UserDefaults.standard.set(avatar, forKey: PreferenceKeys.partnerAvatarURL)
+            }
+        }
+    }
+
+    private func clearPartnerConnectionCache() {
+        UserDefaults.standard.set(false, forKey: PreferenceKeys.partnerConnected)
+        UserDefaults.standard.removeObject(forKey: PreferenceKeys.partnerName)
+        UserDefaults.standard.removeObject(forKey: PreferenceKeys.partnerAvatarURL)
+    }
+
+    // Public: preload using currently known cached URL
+    func preloadPartnerAvatarIfAvailable() {
+        Task { @MainActor in
+            if let url = self.partnerAvatarURL, !url.isEmpty {
+                _ = await self.avatarCacheManager.getCachedImage(urlString: url)
+            }
+        }
     }
 }
 
