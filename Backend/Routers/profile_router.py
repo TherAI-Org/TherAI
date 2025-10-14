@@ -53,8 +53,7 @@ async def upload_avatar(file: UploadFile = File(...), current_user: dict = Depen
 # Update user profile information (PUT)
 @router.put("/update")
 async def update_profile(
-    first_name: str = Form(None),
-    last_name: str = Form(None), 
+    full_name: str = Form(None),
     bio: str = Form(None),
     current_user: dict = Depends(get_current_user)
 ):
@@ -66,10 +65,11 @@ async def update_profile(
 
         # Build update payload with only provided fields
         update_data = {}
-        if first_name is not None:
-            update_data["first_name"] = first_name
-        if last_name is not None:
-            update_data["last_name"] = last_name
+        if full_name is not None:
+            # Enforce reasonable length limit for full name
+            if len(full_name) > 22:
+                raise HTTPException(status_code=400, detail="Full name must be 22 characters or fewer")
+            update_data["full_name"] = full_name
         if bio is not None:
             update_data["bio"] = bio
 
@@ -94,8 +94,7 @@ async def update_profile(
 # Update user profile information (POST mirror for environments that block PUT)
 @router.post("/update")
 async def update_profile_post(
-    first_name: str = Form(None),
-    last_name: str = Form(None), 
+    full_name: str = Form(None),
     bio: str = Form(None),
     current_user: dict = Depends(get_current_user)
 ):
@@ -106,10 +105,11 @@ async def update_profile_post(
             raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
         update_data = {}
-        if first_name is not None:
-            update_data["first_name"] = first_name
-        if last_name is not None:
-            update_data["last_name"] = last_name
+        if full_name is not None:
+            # Enforce reasonable length limit for full name
+            if len(full_name) > 22:
+                raise HTTPException(status_code=400, detail="Full name must be 22 characters or fewer")
+            update_data["full_name"] = full_name
         if bio is not None:
             update_data["bio"] = bio
 
@@ -140,7 +140,7 @@ async def get_profile_info(current_user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
         # Get profile from database
-        result = supabase.table("profiles").select("first_name, last_name, bio").eq("user_id", str(user_id)).limit(1).execute()
+        result = supabase.table("profiles").select("full_name, bio").eq("user_id", str(user_id)).limit(1).execute()
         
         if getattr(result, "error", None):
             raise HTTPException(status_code=500, detail=f"Failed to get profile: {result.error}")
@@ -150,9 +150,13 @@ async def get_profile_info(current_user: dict = Depends(get_current_user)):
         # Fallback to auth metadata if profile fields are empty
         auth_metadata = current_user.get("user_metadata", {})
         
+        # Derive a sensible fallback full name from auth metadata
+        fallback_full = (auth_metadata.get("full_name") or
+                         auth_metadata.get("name") or
+                         "").strip()
+
         return {
-            "first_name": profile_data.get("first_name") or auth_metadata.get("first_name") or "",
-            "last_name": profile_data.get("last_name") or auth_metadata.get("last_name") or "",
+            "full_name": profile_data.get("full_name") or fallback_full,
             "bio": profile_data.get("bio") or "",
         }
     except HTTPException:
@@ -264,7 +268,7 @@ async def get_partner_info(current_user: dict = Depends(get_current_user)):
         if not partner_id:
             return {"linked": False, "partner": None}
 
-        # Get partner info from auth provider
+        # Get partner info from auth provider, but prefer saved profile full_name if present
         try:
             res = supabase.auth.admin.get_user_by_id(str(partner_id))  # type: ignore[attr-defined]
             user = getattr(res, "user", None) or getattr(res, "data", None)
@@ -294,6 +298,17 @@ async def get_partner_info(current_user: dict = Depends(get_current_user)):
                 meta = getattr(user, "user_metadata", None)
                 name = extract_name_from_meta(meta if isinstance(meta, dict) else None)
                 avatar_url = extract_avatar_from_meta(meta if isinstance(meta, dict) else None)
+
+            # Prefer partner's saved profile full_name if available
+            try:
+                prof = supabase.table("profiles").select("full_name").eq("user_id", str(partner_id)).limit(1).execute()
+                if not getattr(prof, "error", None) and prof.data:
+                    saved_full = (prof.data[0].get("full_name") or "").strip()
+                    if saved_full:
+                        name = saved_full
+            except Exception:
+                # ignore profile lookup errors and keep provider-derived name
+                pass
 
             # Try to get custom avatar from storage
             ps = supabase.table("profiles").select("avatar_path").eq("user_id", str(partner_id)).limit(1).execute()
