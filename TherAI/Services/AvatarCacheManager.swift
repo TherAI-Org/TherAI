@@ -5,20 +5,20 @@ import UIKit
 @MainActor
 class AvatarCacheManager: ObservableObject {
     nonisolated static let shared = AvatarCacheManager()
-    
+
     // Memory cache for immediate access
     private let memoryCache = NSCache<NSString, UIImage>()
-    
+
     // URLSession with disk cache
     nonisolated private let urlSession: URLSession
-    
+
     // Track loading states
     @Published var loadingAvatars: Set<String> = []
     @Published var cachedAvatars: [String: UIImage] = [:]
-    
+
     // Notification observer
     private var avatarChangeObserver: NSObjectProtocol?
-    
+
     nonisolated private init() {
         // Configure URLSession with disk cache
         let config = URLSessionConfiguration.default
@@ -28,27 +28,27 @@ class AvatarCacheManager: ObservableObject {
             diskPath: "avatar_cache"
         )
         config.requestCachePolicy = .returnCacheDataElseLoad
-        
+
         self.urlSession = URLSession(configuration: config)
-        
+
         // Configure memory cache
         Task { @MainActor in
             memoryCache.countLimit = 100
             memoryCache.totalCostLimit = 50 * 1024 * 1024 // 50MB
         }
-        
+
         // Set up notification observer for avatar changes
         Task { @MainActor in
             setupAvatarChangeObserver()
         }
     }
-    
+
     deinit {
         if let observer = avatarChangeObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
-    
+
     private func setupAvatarChangeObserver() {
         avatarChangeObserver = NotificationCenter.default.addObserver(
             forName: .avatarChanged,
@@ -60,17 +60,17 @@ class AvatarCacheManager: ObservableObject {
             }
         }
     }
-    
+
     private func handleAvatarChange() async {
         // Clear all caches to force reload of all avatars
         clearCache()
-        
+
         // Force UI update
         objectWillChange.send()
     }
-    
+
     // MARK: - Public Methods
-    
+
     /// Preload and cache avatar images from URLs
     func preloadAvatars(urls: [String]) async {
         await withTaskGroup(of: Void.self) { group in
@@ -82,29 +82,56 @@ class AvatarCacheManager: ObservableObject {
             }
         }
     }
-    
+
     /// Get cached image for URL, or load if not cached
     func getCachedImage(urlString: String) async -> UIImage? {
         // Check memory cache first
         if let cachedImage = memoryCache.object(forKey: urlString as NSString) {
             return cachedImage
         }
-        
+
         // Check if we have it in our published cache
         if let cachedImage = cachedAvatars[urlString] {
             memoryCache.setObject(cachedImage, forKey: urlString as NSString)
             return cachedImage
         }
-        
+
         // Load from network/disk cache
         return await loadAndCacheImage(urlString: urlString)
     }
-    
+
+    /// Get image synchronously if already cached (memory or disk), no network
+    func getImageIfCached(urlString: String) -> UIImage? {
+        // Memory cache first
+        if let image = memoryCache.object(forKey: urlString as NSString) {
+            return image
+        }
+        if let image = cachedAvatars[urlString] {
+            memoryCache.setObject(image, forKey: urlString as NSString)
+            return image
+        }
+        // Try URLCache (disk) synchronously
+        if let url = URL(string: urlString), let urlCache = urlSession.configuration.urlCache {
+            let request = URLRequest(url: url, cachePolicy: .returnCacheDataDontLoad, timeoutInterval: 0.1)
+            if let cached = urlCache.cachedResponse(for: request) {
+                if let image = UIImage(data: cached.data) {
+                    // Promote to memory and published caches
+                    memoryCache.setObject(image, forKey: urlString as NSString)
+                    Task { @MainActor in
+                        self.cachedAvatars[urlString] = image
+                    }
+                    return image
+                }
+            }
+        }
+        return nil
+    }
+
     /// Check if image is already cached
     func isImageCached(urlString: String) -> Bool {
         return cachedAvatars[urlString] != nil
     }
-    
+
     /// Clear all caches
     func clearCache() {
         Task { @MainActor in
@@ -113,72 +140,72 @@ class AvatarCacheManager: ObservableObject {
         }
         urlSession.configuration.urlCache?.removeAllCachedResponses()
     }
-    
+
     /// Force refresh all avatar displays
     func forceRefreshAllAvatars() async {
         // Clear all caches
         clearCache()
-        
+
         // Force UI update
         await MainActor.run {
             objectWillChange.send()
         }
     }
-    
+
     /// Clear a specific image from cache
     func clearSpecificImage(urlString: String) async {
         await MainActor.run {
             // Remove from memory cache
             memoryCache.removeObject(forKey: urlString as NSString)
-            
+
             // Remove from published cache
             _ = cachedAvatars.removeValue(forKey: urlString)
         }
-        
+
         // Remove from disk cache
         if let url = URL(string: urlString) {
             urlSession.configuration.urlCache?.removeCachedResponse(for: URLRequest(url: url))
         }
     }
-    
+
     /// Cache an image immediately for instant display
     func cacheImageImmediately(urlString: String, image: UIImage) async {
         await MainActor.run {
             // Cache in memory
             memoryCache.setObject(image, forKey: urlString as NSString)
-            
+
             // Update published cache
             cachedAvatars[urlString] = image
         }
     }
-    
+
     // MARK: - Private Methods
-    
+
     private func loadAndCacheImage(urlString: String) async -> UIImage? {
         guard let url = URL(string: urlString) else { return nil }
-        
+
         // Mark as loading
         loadingAvatars.insert(urlString)
         defer { loadingAvatars.remove(urlString) }
-        
+
         do {
             let (data, response) = try await urlSession.data(from: url)
-            
+
             // Validate response
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200,
                   let image = UIImage(data: data) else {
                 return nil
             }
-            
+
             // Cache in memory
             memoryCache.setObject(image, forKey: urlString as NSString)
-            
+
             // Update published cache
             cachedAvatars[urlString] = image
-            
+
             return image
-            
+
         } catch {
             print("Failed to load avatar image from \(urlString): \(error)")
             return nil
@@ -190,7 +217,7 @@ class AvatarCacheManager: ObservableObject {
 
 extension AvatarCacheManager {
     /// Create an AsyncImage that uses the cache manager
-    func cachedAsyncImage(urlString: String?, 
+    func cachedAsyncImage(urlString: String?,
                          placeholder: @escaping () -> AnyView = { AnyView(ProgressView()) },
                          fallback: @escaping () -> AnyView = { AnyView(EmptyView()) }) -> some View {
         Group {
@@ -213,10 +240,10 @@ struct CachedAsyncImageView: View {
     let cacheManager: AvatarCacheManager
     let placeholder: () -> AnyView
     let fallback: () -> AnyView
-    
+
     @State private var image: UIImage?
     @State private var isLoading = false
-    
+
     var body: some View {
         Group {
             if let image = image {
@@ -229,15 +256,22 @@ struct CachedAsyncImageView: View {
                 fallback()
             }
         }
+        .onAppear {
+            if image == nil {
+                if let cached = cacheManager.getImageIfCached(urlString: urlString) {
+                    image = cached
+                }
+            }
+        }
         .task {
             await loadImage()
         }
     }
-    
+
     private func loadImage() async {
         isLoading = true
         defer { isLoading = false }
-        
+
         image = await cacheManager.getCachedImage(urlString: urlString)
     }
 }

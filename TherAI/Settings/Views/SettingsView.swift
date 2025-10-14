@@ -6,6 +6,7 @@ struct SettingsView: View {
     let profileNamespace: Namespace.ID
 
     @StateObject private var viewModel = SettingsViewModel()
+    // Appearance controls removed; view follows app appearance
     @EnvironmentObject private var linkVM: LinkViewModel
     @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
 
@@ -21,7 +22,7 @@ struct SettingsView: View {
                         // Top gap
                         Color.clear
                             .frame(height: 20)
-                        
+
                         // User avatar (or settings emblem)
                         ZStack {
                             // Background: Always render saved avatar or default
@@ -64,7 +65,7 @@ struct SettingsView: View {
                         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .padding(.bottom, 12)
-                        
+
                         // User name and connection status
                         VStack(spacing: 8) {
                             // Prefer profile full name loaded from backend; fallback to auth metadata or email
@@ -109,7 +110,7 @@ struct SettingsView: View {
                                         }
                                     )
                                 }
-                                
+
                                 // Version text at bottom
                                 VStack(spacing: 0) {
                                     Text("VERSION 1.0.0")
@@ -156,12 +157,40 @@ struct SettingsView: View {
                     }
                 }
             }
-            .sheet(item: $viewModel.destination) { dest in
+            .navigationDestination(for: SettingsDestination.self) { dest in
                 switch dest {
                 case .link:
                     MainLinkView(accessTokenProvider: {
                         await AuthService.shared.getAccessToken() ?? ""
                     })
+                    .navigationTitle("Link Partner")
+                    .navigationBarTitleDisplayMode(.inline)
+                case .contactSupport:
+                    ContactSupportView()
+                        .navigationTitle("Contact Support")
+                        .navigationBarTitleDisplayMode(.inline)
+                case .privacyPolicy:
+                    PrivacyPolicyView()
+                        .navigationTitle("Privacy Policy")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+            }
+            .navigationDestination(item: $viewModel.destination) { dest in
+                switch dest {
+                case .link:
+                    MainLinkView(accessTokenProvider: {
+                        await AuthService.shared.getAccessToken() ?? ""
+                    })
+                    .navigationTitle("Link Partner")
+                    .navigationBarTitleDisplayMode(.inline)
+                case .contactSupport:
+                    ContactSupportView()
+                        .navigationTitle("Contact Support")
+                        .navigationBarTitleDisplayMode(.inline)
+                case .privacyPolicy:
+                    PrivacyPolicyView()
+                        .navigationTitle("Privacy Policy")
+                        .navigationBarTitleDisplayMode(.inline)
                 }
             }
             .sheet(isPresented: $viewModel.showPersonalizationEdit) {
@@ -174,22 +203,23 @@ struct SettingsView: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        // No view-level appearance logic anymore (follows app)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
         .onAppear {
             showCards = false
-            
+
             // Refresh connection status immediately
             viewModel.refreshConnectionStatus()
             // Preload partner avatar from cached URL for instant capsule image
             viewModel.preloadPartnerAvatarIfAvailable()
-            
+
             // Preload avatar for personalization screen
             viewModel.preloadAvatar()
-            
+
             // Load profile information
             viewModel.loadProfileInfo()
-            
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.92)) {
                     showCards = true
@@ -197,11 +227,9 @@ struct SettingsView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
-            // Reload profile info and update UI immediately
             viewModel.loadProfileInfo()
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
-            // Force refresh of the avatar display by changing the ID
             avatarRefreshKey = UUID()
         }
     }

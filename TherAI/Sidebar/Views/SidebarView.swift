@@ -353,10 +353,16 @@ struct SlidebarView: View {
                                                     .truncationMode(.tail)
                                                     .frame(maxWidth: previewTargetWidth, alignment: .leading)
                                                 Spacer()
-                                                if ((linkVM.state == .linked) || (sessionsViewModel.partnerInfo?.linked == true)) && sessionsViewModel.unreadPartnerSessionIds.contains(session.id) {
+                                                let isLinked = (linkVM.state == .linked) || (sessionsViewModel.partnerInfo?.linked == true)
+                                                let hasUnread = sessionsViewModel.unreadPartnerSessionIds.contains(session.id)
+                                                let _ = print("[SidebarView] Session \(session.id): linked=\(isLinked), hasUnread=\(hasUnread), unreadSet=\(sessionsViewModel.unreadPartnerSessionIds)")
+                                                if isLinked && hasUnread {
                                                     Circle()
                                                         .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
                                                         .frame(width: 14, height: 14)
+                                                        .onAppear {
+                                                            print("[SidebarView] Showing unread for session \(session.id)")
+                                                        }
                                                 }
                                             }
                                         }

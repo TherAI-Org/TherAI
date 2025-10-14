@@ -4,11 +4,11 @@ struct ProfileSectionView: View {
     @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
     @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
     @Environment(\.colorScheme) private var colorScheme
-    
+
     @State private var showSettingsSheet = false
     @State private var avatarRefreshKey = UUID()
     @Namespace private var profileNamespace
-    
+
     private var userName: String {
         // Prefer loaded profile info full name if available via SettingsViewModel cache on NotificationCenter
         if let cached = UserDefaults.standard.string(forKey: "therai_profile_full_name"), !cached.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -27,7 +27,7 @@ struct ProfileSectionView: View {
         }
         return "User"
     }
-    
+
     var body: some View {
         Button(action: {
             Haptics.impact(.medium)
@@ -85,15 +85,15 @@ struct ProfileSectionView: View {
                         .stroke(Color.white.opacity(0.2), lineWidth: 1)
                 )
                 .id(avatarRefreshKey)
-                
+
                 // User Name
                 Text(userName)
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundColor(colorScheme == .dark ? .white : .black)
                     .lineLimit(1)
-                
+
                 Spacer(minLength: 20)
-                
+
                 // Settings Icon with gradient
                 Image(systemName: "gearshape")
                     .font(.system(size: 22, weight: .medium))

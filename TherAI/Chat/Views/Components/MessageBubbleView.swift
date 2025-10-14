@@ -43,12 +43,18 @@ struct MessageBubbleView: View {
                     .frame(maxWidth: 320, alignment: .trailing)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
+                    // Partner-sent user messages (from linked partner) are shown in a block
+                    if message.isFromPartnerUser {
+                        PartnerMessageBlockView(text: message.content)
+                    }
                     // Render segments if available, otherwise fall back to old behavior
                     if !message.segments.isEmpty {
                         ForEach(message.segments) { segment in
                             switch segment {
                             case .text(let text):
-                                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                // Avoid rendering body text if this message represents only partner content
+                                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !trimmed.isEmpty {
                                     MarkdownRendererView(markdown: text)
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(.horizontal, 4)

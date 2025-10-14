@@ -99,6 +99,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         }
         .onAppear {
             sessionsViewModel.setNavigationViewModel(navigationViewModel)
+            sessionsViewModel.setLinkViewModel(linkVM)
             sessionsViewModel.startObserving()
             navigationViewModel.dragOffset = 0
         }

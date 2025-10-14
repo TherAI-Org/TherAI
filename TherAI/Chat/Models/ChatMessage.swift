@@ -5,6 +5,7 @@ struct ChatMessage: Identifiable {
     let content: String  // Keep for backward compatibility
     let segments: [MessageSegment]  // New: segmented content
     let isFromUser: Bool
+    let isFromPartnerUser: Bool
     let timestamp: Date
     let isPartnerMessage: Bool
     let partnerMessageContent: String?
@@ -17,6 +18,7 @@ struct ChatMessage: Identifiable {
         self.content = content
         self.segments = [.text(content)]  // Simple text segment
         self.isFromUser = isFromUser
+        self.isFromPartnerUser = false
         self.timestamp = timestamp
         let parsed = Self.parsePartnerMessage(content)
         self.isPartnerMessage = parsed.isPartner
@@ -33,6 +35,7 @@ struct ChatMessage: Identifiable {
             content: text,
             segments: [.partnerMessage(text)],
             isFromUser: false,
+            isFromPartnerUser: false,
             timestamp: Date(),
             isPartnerMessage: true,
             partnerMessageContent: text,
@@ -42,11 +45,12 @@ struct ChatMessage: Identifiable {
     }
 
     // Explicit initializer to construct a message with partner flags and segments
-    init(id: UUID = UUID(), content: String, segments: [MessageSegment]? = nil, isFromUser: Bool, timestamp: Date = Date(), isPartnerMessage: Bool, partnerMessageContent: String?, partnerDrafts: [String] = [], isToolLoading: Bool = false) {
+    init(id: UUID = UUID(), content: String, segments: [MessageSegment]? = nil, isFromUser: Bool, isFromPartnerUser: Bool = false, timestamp: Date = Date(), isPartnerMessage: Bool, partnerMessageContent: String?, partnerDrafts: [String] = [], isToolLoading: Bool = false) {
         self.id = id
         self.content = content
         self.segments = segments ?? [.text(content)]
         self.isFromUser = isFromUser
+        self.isFromPartnerUser = isFromPartnerUser
         self.timestamp = timestamp
         self.isPartnerMessage = isPartnerMessage
         self.partnerMessageContent = partnerMessageContent
@@ -57,7 +61,9 @@ struct ChatMessage: Identifiable {
     // Initializes a chat message from a backend DTO
     init(dto: ChatMessageDTO, currentUserId: UUID) {
         self.id = dto.id
-        self.isFromUser = (dto.user_id == currentUserId) && dto.role == "user"
+        let isOwnUserRole = (dto.user_id == currentUserId) && dto.role == "user"
+        self.isFromUser = isOwnUserRole
+        self.isFromPartnerUser = (dto.user_id != currentUserId) && dto.role == "user"
         self.timestamp = Date()
 
         // Try to parse structured annotations. Handle both direct JSON and double-encoded JSON strings.
@@ -113,12 +119,16 @@ struct ChatMessage: Identifiable {
         }
 
         // Default path: plain text content
-        self.content = dto.content
-        self.segments = [.text(dto.content)]
-        let parsed = Self.parsePartnerMessage(dto.content)
-        self.isPartnerMessage = parsed.isPartner
-        self.partnerMessageContent = parsed.content
-        self.partnerDrafts = parsed.content.map { [$0] } ?? []
+        // Handle legacy <partner_message>...</partner_message> tags to populate segments
+        let legacy = Self.extractPartnerTagsAndBody(from: dto.content)
+        self.content = legacy.body
+        var segs: [MessageSegment] = []
+        if !legacy.body.isEmpty { segs.append(.text(legacy.body)) }
+        if let first = legacy.drafts.first { segs.append(.partnerMessage(first)) }
+        self.segments = segs.isEmpty ? [.text(dto.content)] : segs
+        self.isPartnerMessage = !legacy.drafts.isEmpty
+        self.partnerMessageContent = legacy.drafts.first
+        self.partnerDrafts = legacy.drafts
         self.isToolLoading = false
     }
 
@@ -147,6 +157,26 @@ struct ChatMessage: Identifiable {
             let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return cleaned.isEmpty ? (false, nil) : (true, cleaned)
         }
+        // Legacy tag format: <partner_message>...</partner_message>
+        let legacy = extractPartnerTagsAndBody(from: content)
+        if let first = legacy.drafts.first, !first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return (true, first)
+        }
         return (false, nil)
+    }
+
+    // Extracts partner message(s) from legacy tag markup and returns body without tags
+    private static func extractPartnerTagsAndBody(from content: String) -> (body: String, drafts: [String]) {
+        let openTag = "<partner_message>"
+        let closeTag = "</partner_message>"
+        var drafts: [String] = []
+        var remaining = content
+        while let openRange = remaining.range(of: openTag), let closeRange = remaining.range(of: closeTag, range: openRange.upperBound..<remaining.endIndex) {
+            let draft = String(remaining[openRange.upperBound..<closeRange.lowerBound])
+            drafts.append(draft.trimmingCharacters(in: .whitespacesAndNewlines))
+            remaining.removeSubrange(openRange.lowerBound..<closeRange.upperBound)
+        }
+        let body = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (body, drafts)
     }
 }

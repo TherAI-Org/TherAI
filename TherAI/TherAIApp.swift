@@ -56,6 +56,10 @@ struct TherAIApp: App {
                     }
                 }
                 .onChange(of: auth.isAuthenticated) { _, isAuthed in
+                    if !isAuthed {
+                        // User logged out - reset session view model for fresh login
+                        sessionsViewModel.resetForLogout()
+                    }
                     if isAuthed, let token = linkVM.pendingInviteToken, !token.isEmpty {  // If user just signed in and we have a pending invite token, accept it
                         Task {
                             await linkVM.acceptInvite(using: token)

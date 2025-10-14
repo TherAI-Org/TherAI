@@ -3,6 +3,8 @@ import SwiftUI
 
 enum SettingsDestination: Hashable {
     case link
+    case contactSupport
+    case privacyPolicy
 }
 
 extension SettingsDestination: Identifiable {
@@ -10,6 +12,10 @@ extension SettingsDestination: Identifiable {
         switch self {
         case .link:
             return "link"
+        case .contactSupport:
+            return "contactSupport"
+        case .privacyPolicy:
+            return "privacyPolicy"
         }
     }
 }
@@ -27,16 +33,14 @@ class SettingsViewModel: ObservableObject {
     @Published var partnerAvatarURL: String? = nil
     @Published var showPersonalizationEdit: Bool = false
     @Published var isAvatarPreloaded: Bool = false
-    
+
     private let avatarCacheManager = AvatarCacheManager.shared
-    
+
     // Profile information
     @Published var fullName: String = ""
     @Published var bio: String = ""
     @Published var isProfileLoaded: Bool = false
-    var currentAppearance: String {
-        UserDefaults.standard.string(forKey: PreferenceKeys.appearancePreference) ?? "System"
-    }
+    // Appearance selection removed; app follows system
 
     init() {
         loadSettings()
@@ -59,17 +63,15 @@ class SettingsViewModel: ObservableObject {
     }
 
     private func setupSettingsSections() {
-        let currentAppearance = self.currentAppearance
         settingsSections = [
-            // 1. App Settings → Notifications, Appearance, Haptic Feedback
+            // 1. App Settings → Notifications, Haptic Feedback
             SettingsSection(
                 title: "App Settings",
                 icon: "gear",
                 gradient: [Color.blue, Color.purple],
                 settings: [
-                    SettingItem(title: "Notifications", subtitle: "Email and push notifications", type: .navigation, icon: "bell"),
-                    SettingItem(title: "Appearance", subtitle: currentAppearance, type: .picker(["System", "Light", "Dark"]), icon: "paintpalette"),
-                    SettingItem(title: "Haptic Feedback", subtitle: "Vibration feedback for interactions", type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
+                    SettingItem(title: "Notifications", subtitle: nil, type: .toggle(PushNotificationManager.shared.isPushEnabled), icon: "bell"),
+                    SettingItem(title: "Haptics", subtitle: nil, type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]
             ),
             // 2. Link Your Partner → Separate section for partner linking
@@ -87,8 +89,8 @@ class SettingsViewModel: ObservableObject {
                 icon: "questionmark.circle",
                 gradient: [Color.green, Color.blue],
                 settings: [
-                    SettingItem(title: "Contact Support", subtitle: "Get help with your account", type: .navigation, icon: "envelope"),
-                    SettingItem(title: "Privacy Policy", subtitle: "How we protect your data", type: .navigation, icon: "hand.raised")
+                    SettingItem(title: "Contact Support", subtitle: nil, type: .navigation, icon: "envelope"),
+                    SettingItem(title: "Privacy Policy", subtitle: nil, type: .navigation, icon: "hand.raised")
                 ]
             ),
             // 4. Account → Sign out
@@ -108,12 +110,19 @@ class SettingsViewModel: ObservableObject {
         let setting = section.settings[settingIndex]
 
         switch (section.title, setting.title) {
-        case ("App Settings", "Haptic Feedback"):
+        case ("App Settings", "Haptic Feedback"), ("App Settings", "Haptics"):
             settingsData.hapticFeedbackEnabled.toggle()
             UserDefaults.standard.set(settingsData.hapticFeedbackEnabled, forKey: PreferenceKeys.hapticsEnabled)
             if settingsData.hapticFeedbackEnabled {
                 Haptics.selection()
             }
+        case ("App Settings", "Push Notifications"), ("App Settings", "Notifications"):
+            let current = UserDefaults.standard.object(forKey: "therai_push_enabled") != nil ?
+                UserDefaults.standard.bool(forKey: "therai_push_enabled") : true
+            let newValue = !current
+            PushNotificationManager.shared.setPushEnabled(newValue)
+            // ensure UI reflects latest value
+            DispatchQueue.main.async { self.setupSettingsSections() }
         case ("Chat Settings", "Auto Scroll"):
             break
         // Message Sound setting removed
@@ -134,18 +143,12 @@ class SettingsViewModel: ObservableObject {
         case "Link Your Partner":
             destination = .link
         case "Notifications":
-            // Navigate to notifications detail view
+            // Inline toggle only; no navigation
             break
         case "Contact Support":
-            // Open support contact
-            if let url = URL(string: "mailto:support@therai.app") {
-                UIApplication.shared.open(url)
-            }
+            destination = .contactSupport
         case "Privacy Policy":
-            // Open privacy policy
-            if let url = URL(string: "https://therai.app/privacy") {
-                UIApplication.shared.open(url)
-            }
+            destination = .privacyPolicy
         case "Sign Out":
             // Sign out user
             Task {
@@ -163,20 +166,10 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
-    func selectAppearance(_ option: String) {
-        UserDefaults.standard.set(option, forKey: PreferenceKeys.appearancePreference)
-        showAppearanceDialog = false
-        setupSettingsSections()
+    func handlePickerSelection(for sectionIndex: Int, settingIndex: Int, value: String) {
+        // No pickers in current settings
     }
 
-    func handlePickerSelection(for sectionIndex: Int, settingIndex: Int, value: String) {
-        let section = settingsSections[sectionIndex]
-        let setting = section.settings[settingIndex]
-        if section.title == "App Settings" && setting.title == "Appearance" {
-            selectAppearance(value)
-        }
-    }
-    
     // Load partner connection status from backend
     private func loadPartnerConnectionStatus() {
         Task { @MainActor in
@@ -187,7 +180,7 @@ class SettingsViewModel: ObservableObject {
                 }
                 let partnerInfo = try await BackendService.shared.fetchPartnerInfo(accessToken: token)
                 self.isConnectedToPartner = partnerInfo.linked
-                
+
                 if partnerInfo.linked, let partner = partnerInfo.partner {
                     self.partnerName = partner.name
                     self.partnerAvatarURL = partner.avatar_url
@@ -211,7 +204,7 @@ class SettingsViewModel: ObservableObject {
             }
         }
     }
-    
+
     func preloadAvatar() {
         Task { @MainActor in
             // Use the cache manager to preload avatar
@@ -223,13 +216,13 @@ class SettingsViewModel: ObservableObject {
             }
         }
     }
-    
+
     /// Get cached avatar image
     func getCachedAvatar(urlString: String?) async -> UIImage? {
         guard let urlString = urlString, !urlString.isEmpty else { return nil }
         return await avatarCacheManager.getCachedImage(urlString: urlString)
     }
-    
+
     func loadProfileInfo() {
         Task { @MainActor in
             do {
@@ -249,7 +242,7 @@ class SettingsViewModel: ObservableObject {
             }
         }
     }
-    
+
     func saveProfileInfo(fullName: String, bio: String) async -> Bool {
         do {
             guard let token = await AuthService.shared.getAccessToken() else {
@@ -275,7 +268,7 @@ class SettingsViewModel: ObservableObject {
             return false
         }
     }
-    
+
     // Public method to refresh connection status
     func refreshConnectionStatus() {
         loadPartnerConnectionStatus()

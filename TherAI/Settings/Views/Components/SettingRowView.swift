@@ -30,55 +30,25 @@ struct SettingRowView: View {
                     isLast: isLast,
                     linkViewModel: linkVM
                 )
-            } else if case .picker(let options) = setting.type {
+            } else if case .picker = setting.type {
                 HStack(spacing: 12) {
                     // Icon - iOS Settings style
                     Image(systemName: setting.icon)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.primary)
                         .frame(width: 24, height: 24)
-                    
+
                     // Content
                     VStack(alignment: .leading, spacing: 2) {
                         Text(setting.title)
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
-                        
-                        if let subtitle = setting.subtitle {
-                            Text(subtitle)
-                                .font(.system(size: 13, weight: .regular))
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.leading)
-                                .hidden() // keep height consistent but hide subtitle when menu is used
-                        }
                     }
-                    
+
                     Spacer()
-                    
-                    Menu {
-                        ForEach(options, id: \.self) { option in
-                            Button(action: { onPickerSelect?(option) }) {
-                                HStack {
-                                    Text(option)
-                                    if option == (setting.subtitle ?? "") {
-                                        Spacer()
-                                        Image(systemName: "checkmark")
-                                    }
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(setting.subtitle ?? "")
-                                .font(.system(size: 16, weight: .regular))
-                                .foregroundColor(.secondary)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
+
+                    EmptyView()
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -107,23 +77,48 @@ struct SettingRowView: View {
 
                     Spacer()
 
-                    let currentIsOn: Bool = {
-                        if case .toggle(let isOn) = setting.type { return isOn }
-                        return false
-                    }()
-
                     Toggle("", isOn: Binding(
-                        get: { currentIsOn },
-                        set: { newValue in
-                            if newValue != currentIsOn { onToggle() }
-                        }
+                        get: {
+                            if case .toggle(let isOn) = setting.type { return isOn }
+                            return false
+                        },
+                        set: { _ in onToggle() }
                     ))
                     .labelsHidden()
                     .tint(.green)
+                    .allowsHitTesting(true)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
                 .background(Color(.systemBackground))
+                // Do not add row-level onTap for toggle rows to avoid double toggles
+            } else if case .navigation = setting.type {
+                NavigationLink(destination: viewForTitle(setting.title)) {
+                    HStack(spacing: 12) {
+                        // Icon - iOS Settings style
+                        Image(systemName: setting.icon)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.primary)
+                            .frame(width: 24, height: 24)
+
+                        // Content
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(setting.title)
+                                .font(.system(size: 16, weight: .regular))
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(.systemBackground))
+                }
             } else {
                 Button(action: {
                     switch setting.type {
@@ -144,14 +139,14 @@ struct SettingRowView: View {
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.primary)
                             .frame(width: 24, height: 24)
-                        
+
                         // Content
                         VStack(alignment: .leading, spacing: 2) {
                             Text(setting.title)
                                 .font(.system(size: 16, weight: .regular))
                                 .foregroundColor(.primary)
                                 .multilineTextAlignment(.leading)
-                            
+
                             if let subtitle = setting.subtitle {
                                 Text(subtitle)
                                     .font(.system(size: 13, weight: .regular))
@@ -159,9 +154,9 @@ struct SettingRowView: View {
                                     .multilineTextAlignment(.leading)
                             }
                         }
-                        
+
                         Spacer()
-                        
+
                         // Right side content
                         switch setting.type {
                         case .toggle(let isOn):
@@ -198,40 +193,31 @@ struct SettingRowView: View {
                 .buttonStyle(PlainButtonStyle())
             }
         }
-        
-        if !isLast {
-            Divider()
-                .padding(.leading, 52)
-        }
     }
 }
 
 // Preview removed to prevent build-time initializer mismatches during codegen.
+
+@ViewBuilder
+private func viewForTitle(_ title: String) -> some View {
+    switch title {
+    case "Contact Support":
+        ContactSupportView()
+    case "Privacy Policy":
+        PrivacyPolicyView()
+    default:
+        EmptyView()
+    }
+}
 
 struct LinkPartnerSettingRow: View {
     let setting: SettingItem
     let isLast: Bool
     @ObservedObject var linkViewModel: LinkViewModel
     @State private var copied: Bool = false
-    
+
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack {
-                Image(systemName: setting.icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
-                
-                Text(setting.title)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(.primary)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
-            
             // Content based on state
             switch linkViewModel.state {
             case .idle:
@@ -312,7 +298,7 @@ struct LinkPartnerSettingRow: View {
                         .foregroundColor(.green)
                         .font(.subheadline)
                         .fontWeight(.medium)
-                    
+
                     Button(action: {
                         Task { await linkViewModel.unlink() }
                     }) {
@@ -345,7 +331,7 @@ struct LinkPartnerSettingRow: View {
                         .foregroundColor(.orange)
                         .font(.subheadline)
                         .multilineTextAlignment(.center)
-                    
+
                     Button(action: {
                         Task { await linkViewModel.createInviteLink() }
                     }) {
@@ -401,7 +387,7 @@ struct LinkPartnerSettingRow: View {
             }
         }
     }
-    
+
     private var shouldShowExpandedContent: Bool {
         switch linkViewModel.state {
         case .shareReady, .linked, .error:
@@ -410,7 +396,7 @@ struct LinkPartnerSettingRow: View {
             return false
         }
     }
-    
+
     private func truncatedDisplay(for url: URL) -> String {
         let host = url.host ?? ""
         let path = url.path

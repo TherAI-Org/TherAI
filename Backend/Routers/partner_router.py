@@ -159,9 +159,23 @@ async def accept_request_endpoint(request_id: uuid.UUID, current_user: dict = De
         relationship_id=relationship_id, source_session_id=sender_session_id
     )
     recipient_session_id: uuid.UUID
-    if linked_row and linked_row.get("user_b_personal_session_id"):
-        recipient_session_id = uuid.UUID(linked_row["user_b_personal_session_id"])  # type: ignore[index]
-    else:
+
+    # Determine which session belongs to the recipient based on who is the sender
+    if linked_row:
+        sender_user_id = uuid.UUID(req["sender_user_id"])  # type: ignore[arg-type]
+        if linked_row.get("user_a_id") == str(sender_user_id):
+            # Sender is user_a, so recipient is user_b
+            recipient_session_str = linked_row.get("user_b_personal_session_id")
+        else:
+            # Sender is user_b, so recipient is user_a
+            recipient_session_str = linked_row.get("user_a_personal_session_id")
+
+        if recipient_session_str:
+            recipient_session_id = uuid.UUID(recipient_session_str)
+        else:
+            linked_row = None  # Force creation of new session
+
+    if not linked_row or not recipient_session_str:
         new_session = await create_session(user_id=user_uuid, title="New Chat")
         candidate_session_id = uuid.UUID(new_session["id"])  # type: ignore[index]
         await update_linked_session_partner_session_for_source(
