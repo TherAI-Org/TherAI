@@ -49,7 +49,10 @@ struct ChatScreenView: View {
                 onBackgroundTap: { isInputFocused.wrappedValue = false },
                 personalPreScrollToken: personalPreScrollToken,
                 keyboardScrollToken: keyboardScrollToken,
-                isAssistantTyping: chatViewModel.isAssistantTyping
+                isAssistantTyping: chatViewModel.isAssistantTyping,
+                focusTopId: chatViewModel.focusTopMessageId,
+                streamingScrollToken: chatViewModel.streamingScrollToken,
+                streamingTargetId: chatViewModel.assistantScrollTargetId
             )
             .safeAreaInset(edge: .bottom) {
                 Color.clear
@@ -166,6 +169,10 @@ struct ChatScreenView: View {
                     keyboardScrollToken &+= 1
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .init("TherAI_ClearChatInputFocus"))) { _ in
+            // Clear input focus when sidebar opens to prevent keyboard in sidebar
+            isInputFocused.wrappedValue = false
         }
     }
 }
