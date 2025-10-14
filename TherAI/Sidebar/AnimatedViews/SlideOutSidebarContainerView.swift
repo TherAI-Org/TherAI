@@ -4,8 +4,8 @@ import UIKit
 
 struct SlideOutSidebarContainerView<Content: View>: View {
 
-    @StateObject private var navigationViewModel = SidebarNavigationViewModel()
-    @StateObject private var sessionsViewModel = ChatSessionsViewModel()
+    @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
+    @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
 
     @Namespace private var profileNamespace
 
@@ -97,8 +97,6 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     }
             )
         }
-        .environmentObject(navigationViewModel)
-        .environmentObject(sessionsViewModel)
         .onAppear {
             sessionsViewModel.setNavigationViewModel(navigationViewModel)
             sessionsViewModel.startObserving()
