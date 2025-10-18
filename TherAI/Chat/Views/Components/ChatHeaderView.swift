@@ -12,10 +12,29 @@ struct ChatHeaderView: View {
                 Haptics.impact(.medium)
                 navigationViewModel.openSidebar()
             }) {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                    .frame(width: 44, height: 44)
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .frame(width: 44, height: 44)
+
+                    let unreadCount = sessionsViewModel.unreadPartnerSessionIds.count + sessionsViewModel.pendingRequests.count
+                    if unreadCount > 0 {
+                        ZStack {
+                            Circle()
+                                .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
+                            Text("\(min(unreadCount, 99))")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .minimumScaleFactor(0.7)
+                                .lineLimit(1)
+                        }
+                        .frame(width: 16, height: 16)
+                        // Pull further inside so it doesn't exceed the circular button bounds
+                        .offset(x: -5, y: 5)
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                }
             }
             .background(
                 Group {

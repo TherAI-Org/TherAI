@@ -54,7 +54,7 @@ struct LinkPartnerInlineRow: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-            case .idle, .creating, .shareReady, .accepting, .error, .unlinking, .unlinked:
+            case .creating, .accepting, .unlinking:
                 HStack {
                     Spacer()
                     ProgressView()
@@ -63,6 +63,32 @@ struct LinkPartnerInlineRow: View {
                     Spacer()
                 }
                 .padding(.vertical, 12)
+            case .shareReady:
+                HStack(spacing: 8) {
+                    Image(systemName: "link")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.primary)
+                        .frame(width: 20, height: 20)
+                    Text("Invite ready to share")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            case .idle, .unlinked, .error:
+                HStack(spacing: 8) {
+                    Image(systemName: "person.2.slash")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .frame(width: 20, height: 20)
+                    Text("Not linked")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
         }
         .background(Color(.systemBackground))
