@@ -8,7 +8,7 @@ from starlette.concurrency import iterate_in_threadpool
 
 from ..auth import get_current_user
 from ..Database.link_repo import get_link_status_for_user, get_partner_user_id
-from ..Database.session_repo import create_session, assert_session_owned_by_user, touch_session, delete_session
+from ..Database.session_repo import create_session, assert_session_owned_by_user, touch_session, delete_session, get_session_by_id
 from ..Database.chat_repo import save_message, list_messages_for_session, update_session_last_message
 from ..Database.linked_sessions_repo import (
     create_linked_session,
@@ -176,7 +176,15 @@ async def accept_request_endpoint(request_id: uuid.UUID, background_tasks: Backg
             linked_row = None  # Force creation of new session
 
     if not linked_row or not recipient_session_str:
-        new_session = await create_session(user_id=user_uuid, title="New Chat")
+        # Mirror the sender's session title for the recipient
+        sender_user_id = uuid.UUID(req["sender_user_id"])  # type: ignore[arg-type]
+        try:
+            sender_session_row = await get_session_by_id(user_id=sender_user_id, session_id=sender_session_id)
+            mirrored_title = (sender_session_row or {}).get("title")
+        except Exception:
+            mirrored_title = None
+
+        new_session = await create_session(user_id=user_uuid, title=mirrored_title or "New Chat")
         candidate_session_id = uuid.UUID(new_session["id"])  # type: ignore[index]
         await update_linked_session_partner_session_for_source(
             relationship_id=relationship_id, source_session_id=sender_session_id, partner_session_id=candidate_session_id

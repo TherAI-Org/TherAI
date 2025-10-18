@@ -49,6 +49,23 @@ async def list_sessions_for_user(*, user_id: uuid.UUID, limit: int = 100, offset
 
     return res.data or []
 
+# Fetch a single session by id, ensuring it belongs to the user
+async def get_session_by_id(*, user_id: uuid.UUID, session_id: uuid.UUID) -> Optional[dict]:
+    def _select():
+        return (
+            supabase
+            .table(SESSIONS_TABLE)
+            .select("*")
+            .eq("id", str(session_id))
+            .eq("user_id", str(user_id))
+            .limit(1)
+            .execute()
+        )
+    res = await run_in_threadpool(_select)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase select session failed: {res.error}")
+    return (res.data or [None])[0]
+
 # Bump the session's last_message_at timestamp to now (needed to order sessions by recent activity)
 async def touch_session(*, session_id: uuid.UUID) -> None:
     def _update():

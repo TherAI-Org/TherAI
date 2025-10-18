@@ -10,10 +10,44 @@ struct PartnerMessageBlockView: View {
     var body: some View {
         VStack(alignment: .leading) {
             HStack {
-                Text("Partner")
-                    .font(.footnote)
-                    .foregroundColor(Color.secondary)
-                    .offset(y: -4)
+                HStack(spacing: 6) {
+                    let name = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName)
+                    let firstName = name?.split(separator: " ").first.map(String.init)
+                    let avatarURL = UserDefaults.standard.string(forKey: PreferenceKeys.partnerAvatarURL)
+
+                    AvatarCacheManager.shared.cachedAsyncImage(
+                        urlString: avatarURL,
+                        placeholder: {
+                            AnyView(
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .overlay(
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundColor(.gray)
+                                    )
+                            )
+                        },
+                        fallback: {
+                            AnyView(
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .overlay(
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundColor(.gray)
+                                    )
+                            )
+                        }
+                    )
+                    .frame(width: 16, height: 16)
+                    .clipShape(Circle())
+
+                    Text(firstName ?? "Partner")
+                        .font(.footnote)
+                        .foregroundColor(Color.secondary)
+                }
+                .offset(y: -4)
 
                 Spacer()
 

@@ -13,6 +13,8 @@ struct PartnerDraftBlockView: View {
     let isSent: Bool  // Now passed in from parent instead of local state
 
     let onAction: (Action) -> Void
+    @State private var isConfirmingNormalSend: Bool = false
+    @State private var showSentLocally: Bool = false
 
     init(initialText: String, isSent: Bool = false, onAction: @escaping (Action) -> Void) {
         self.initialText = initialText
@@ -72,42 +74,79 @@ struct PartnerDraftBlockView: View {
             }
 
             HStack {
+                // Left-side Cancel (only when confirming)
+                if isConfirmingNormalSend {
+                    Button(action: {
+                        Haptics.impact(.light)
+                        withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                            isConfirmingNormalSend = false
+                        }
+                    }) {
+                        Text("Cancel")
+                            .font(.subheadline)
+                            .foregroundColor(Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
+                }
+
                 Spacer()
 
-                Button(action: {
-                    // Prevent multiple sends
-                    guard !isSent && !isSending else { return }
-                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !trimmed.isEmpty else { return }
+                // Normal Send (two-step: Send -> Sure? -> Sent)
+                HStack(spacing: 8) {
+                    Button(action: {
+                        // Prevent multiple sends
+                        guard !isSent && !isSending else { return }
+                        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
 
-                    Haptics.impact(.light)
+                        Haptics.impact(.light)
 
-                    // Set sending state immediately to prevent double-clicks
-                    isSending = true
-
-                    // Call the action (parent will update the sent state)
-                    onAction(.send(trimmed))
-                }) {
-                    HStack(spacing: 6) {
-                        Text(isSent ? "Sent" : "Send")
-                            .font(.subheadline)
-                            .foregroundColor(isSent ? Color.secondary : Color.accentColor)
-                            .animation(nil, value: isSent)
-
-                        Group {
-                            if isSent {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(Color.green)
-                                    .transition(.opacity.combined(with: .scale))
-                            } else {
-                                Image(systemName: "arrow.turn.up.right")
+                        if isConfirmingNormalSend {
+                            // Second tap confirms send
+                            isSending = true
+                            withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                                // Optimistically show Sent! immediately
+                                showSentLocally = true
+                                isConfirmingNormalSend = false
+                            }
+                            onAction(.send(trimmed))
+                        } else {
+                            // First tap asks for confirmation (animated)
+                            withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                                isConfirmingNormalSend = true
+                            }
+                        }
+                    }) {
+                        ZStack {
+                            if (isSent || showSentLocally) {
+                                HStack(spacing: 6) {
+                                    Text("Sent")
+                                        .font(.subheadline)
+                                        .foregroundColor(Color.secondary)
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(Color.green)
+                                }
+                                .transition(.scale.combined(with: .opacity))
+                            } else if isConfirmingNormalSend {
+                                Text("Sure?")
+                                    .font(.subheadline)
                                     .foregroundColor(Color.accentColor)
-                                    .transition(.opacity.combined(with: .scale))
+                                    .transition(.scale.combined(with: .opacity))
+                            } else {
+                                HStack(spacing: 6) {
+                                    Text("Send")
+                                        .font(.subheadline)
+                                        .foregroundColor(Color.accentColor)
+                                    Image(systemName: "arrow.turn.up.right")
+                                        .foregroundColor(Color.accentColor)
+                                }
+                                .transition(.scale.combined(with: .opacity))
                             }
                         }
                     }
+                    .disabled(isSent || isSending)
                 }
-                .disabled(isSent || isSending)
             }
         }
         .padding(12)
@@ -122,9 +161,19 @@ struct PartnerDraftBlockView: View {
             if self.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 self.text = self.initialText
             }
+            isConfirmingNormalSend = false
+            showSentLocally = false
         }
         .onChange(of: initialText) { _, newValue in
             self.text = newValue
+            isConfirmingNormalSend = false
+            showSentLocally = false
+        }
+        .onChange(of: isSent) { _, _ in
+            // Reset confirmation state if sent status changes
+            isConfirmingNormalSend = false
+            // Clear local optimistic flag once parent state reflects sent
+            if isSent { showSentLocally = false }
         }
     }
 }
