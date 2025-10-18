@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
 struct PartnerMessageBlockView: View {
 
@@ -51,20 +52,8 @@ struct PartnerMessageBlockView: View {
 
                 Spacer()
 
-                Button(action: {
-                    guard !showCheck else { return }
-                    UIPasteboard.general.string = text
-                    Haptics.impact(.light)
-                    showCheck = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showCheck = false
-                    }
-                }) {
-                    Image(systemName: showCheck ? "checkmark" : "square.on.square")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color.secondary)
-                }
-                .offset(y: -4)
+                MessageActionsView(text: text)
+                    .offset(y: -4)
             }
 
             Divider()

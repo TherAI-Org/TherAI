@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import AVFoundation
 
 struct PartnerDraftBlockView: View {
 
@@ -8,13 +9,13 @@ struct PartnerDraftBlockView: View {
     @State private var text: String
     @State private var measuredTextHeight: CGFloat = 0
     @State private var showCheck: Bool = false
-    let initialText: String
     @State private var isSending: Bool = false
-    let isSent: Bool  // Now passed in from parent instead of local state
-
-    let onAction: (Action) -> Void
     @State private var isConfirmingNormalSend: Bool = false
     @State private var showSentLocally: Bool = false
+
+    let initialText: String
+    let isSent: Bool
+    let onAction: (Action) -> Void
 
     init(initialText: String, isSent: Bool = false, onAction: @escaping (Action) -> Void) {
         self.initialText = initialText
@@ -33,19 +34,7 @@ struct PartnerDraftBlockView: View {
 
                 Spacer()
 
-                Button(action: {
-                    guard !showCheck else { return }
-                    UIPasteboard.general.string = text
-                    Haptics.impact(.light)
-                    showCheck = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showCheck = false
-                    }
-                }) {
-                    Image(systemName: showCheck ? "checkmark" : "square.on.square")
-                        .font(.system(size: 14))
-                        .foregroundColor(Color.secondary)
-                }
+                MessageActionsView(text: text)
                 .offset(y: -4)
             }
 

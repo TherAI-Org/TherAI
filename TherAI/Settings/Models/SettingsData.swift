@@ -8,6 +8,7 @@ struct SettingsData: Codable {
     var hapticFeedbackEnabled: Bool = true
     var saveChatsEnabled: Bool = true
     var crashReportingEnabled: Bool = true
+    var ttsVoiceIdentifier: String? = nil
 
     init() {
     }

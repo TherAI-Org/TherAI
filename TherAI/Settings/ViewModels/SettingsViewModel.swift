@@ -35,6 +35,10 @@ class SettingsViewModel: ObservableObject {
             settingsData.hapticFeedbackEnabled = true
             UserDefaults.standard.set(true, forKey: PreferenceKeys.hapticsEnabled)
         }
+
+        if let storedVoice = UserDefaults.standard.string(forKey: PreferenceKeys.ttsVoiceIdentifier) {
+            settingsData.ttsVoiceIdentifier = storedVoice
+        }
     }
 
     private func setupSettingsSections() {
