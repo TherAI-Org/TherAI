@@ -6,7 +6,7 @@ final class GoogleSignInService {
         let session = try await client.auth.signInWithOAuth(
             provider: .google,
             redirectTo: redirectURL,
-            queryParams: [(name: "prompt", value: "select_account")]  // Force the Google account chooser to appear each time
+            queryParams: [(name: "prompt", value: "select_account")]
         )
         return session
     }

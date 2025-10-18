@@ -70,15 +70,6 @@ struct ChatView: View {
         .onReceive(NotificationCenter.default.publisher(for: .init("SkipPartnerDraftRequested"))) { _ in
             viewModel.requestNewPartnerDraft()
         }
-        .onChange(of: sessionsViewModel.activeSessionId) { _, newSessionId in
-            if let sid = newSessionId {
-                // Only handle session changes when the view's session is different
-                // This happens when navigating without recreating the ChatView
-                if viewModel.sessionId != sid {
-                    Task { await viewModel.presentSession(sid) }
-                }
-            }
-        }
         .onChange(of: sessionsViewModel.chatViewKey) { _, _ in
             if sessionsViewModel.activeSessionId == nil {
                 viewModel.sessionId = nil

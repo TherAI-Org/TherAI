@@ -17,7 +17,6 @@ class ChatViewModel: ObservableObject {
         didSet {
             if sessionId == nil {
                 messages = [] // Clear messages when no session is active
-                generateEmptyPrompt()
             }
         }
     }
@@ -26,6 +25,8 @@ class ChatViewModel: ObservableObject {
     @Published var emptyPrompt: String = ""
     @Published var isAssistantTyping: Bool = false
     @Published var isVoiceRecording: Bool = false
+    // One-shot token to request initial jump-to-bottom on first open in this runtime
+    @Published var initialJumpToken: Int = 0
 
     private let backend = BackendService.shared
     private let authService = AuthService.shared
@@ -68,15 +69,28 @@ class ChatViewModel: ObservableObject {
 
     init(sessionId: UUID? = nil) {
         self.sessionId = sessionId
-        self.generateEmptyPrompt()
+
 
         // Always load persisted sent drafts (they're global now)
         self.loadSentDrafts()
+
+        // Cache-first: if launched with an existing session, prefer immediate cached messages
+        if let sid = sessionId {
+            if let entry = messagesCache[sid], !entry.messages.isEmpty {
+                self.messages = entry.messages
+                self.isLoadingHistory = false
+            } else {
+                self.messages = []
+                self.isLoadingHistory = true
+            }
+        }
 
         // Load history on initialization
         Task { [weak self] in
             guard let self = self else { return }
             await self.loadHistory()
+            // If this is first-time open in this session and there are messages, request a one-shot jump
+            if !self.messages.isEmpty { self.initialJumpToken &+= 1 }
         }
 
         // Observe partner message notifications to refresh when new partner messages arrive
@@ -210,10 +224,13 @@ class ChatViewModel: ObservableObject {
             if let entry = self.messagesCache[id], !entry.messages.isEmpty {
                 self.messages = entry.messages
                 self.isLoadingHistory = false
+                // Jump on first open when no cache was previously shown in this runtime
+                self.initialJumpToken &+= 1
                 return // Exit early - we have cached messages, no need to clear
             } else {
                 // Only clear messages if there's no cache
                 self.messages = []
+                self.isLoadingHistory = true
             }
         }
 
@@ -719,7 +736,6 @@ class ChatViewModel: ObservableObject {
 
     func clearChat() {
         messages.removeAll()
-        generateEmptyPrompt()
     }
 
     // Start polling for partner messages every few seconds
@@ -755,41 +771,6 @@ class ChatViewModel: ObservableObject {
 
     func stopVoiceRecording(withTranscription transcription: String) {
         isVoiceRecording = false
-        // Don't automatically send - let user edit and send manually
-    }
-
-    func generateEmptyPrompt() {
-        // Short, varied, natural prompts that real therapists use to begin conversations
-        let prompts = [
-            "Where would you like to start?",
-            "What's on your mind today?",
-            "What would you like to talk about today?",
-            "How are things going?",
-            "What's been going on?",
-            "How have you been?",
-            "What's on your mind?",
-            "How have things been?",
-            "What would you like to discuss?",
-            "What brings you here today?",
-            "What would be most helpful to focus on today?",
-            "Tell me what's been happening",
-            "What would you like to work on today?",
-            "How are you doing?",
-            "What's been on your heart?",
-            "How are you feeling today?",
-            "Where shall we begin?",
-            "What feels most pressing right now?",
-            "What's happening for you?",
-            "What would you like to explore today?"
-        ]
-
-        // Use a seed per new chat so it changes each new session but stays stable per view appearance
-        var generator = SystemRandomNumberGenerator()
-        if let choice = prompts.randomElement(using: &generator) {
-            emptyPrompt = choice
-        } else {
-            emptyPrompt = "What's on your mind today?"
-        }
     }
 
     // Inject an accepted partner request instantly into the UI without waiting for fetch

@@ -13,7 +13,6 @@ struct ChatScreenView: View {
     @State private var inputBarHeight: CGFloat = 0
     @State private var suggestionsHeight: CGFloat = 0
     @State private var bottomSafeInset: CGFloat = 0
-    @State private var personalPreScrollToken: Int = 0
     @State private var keyboardScrollToken: Int = 0
     @State private var showSuggestionsDelayed: Bool = false
     @State private var suggestionsDelayWorkItem: DispatchWorkItem?
@@ -41,19 +40,20 @@ struct ChatScreenView: View {
                 showDivider: !chatViewModel.messages.isEmpty
             )
 
-            ChatContentView(
-                personalMessages: chatViewModel.messages,
+            // Inlined ChatContentView
+            MessagesListView(
+                messages: chatViewModel.messages,
                 chatViewModel: chatViewModel,
-                emptyPrompt: chatViewModel.emptyPrompt,
-                onDoubleTapPartnerMessage: { _ in },
                 isInputFocused: isInputFocused.wrappedValue,
                 onBackgroundTap: { isInputFocused.wrappedValue = false },
-                personalPreScrollToken: personalPreScrollToken,
-                keyboardScrollToken: keyboardScrollToken,
+                preScrollTrigger: 0,
+                keyboardScrollTrigger: keyboardScrollToken,
+                onPreScrollComplete: nil,
                 isAssistantTyping: chatViewModel.isAssistantTyping,
                 focusTopId: chatViewModel.focusTopMessageId,
                 streamingScrollToken: chatViewModel.streamingScrollToken,
-                streamingTargetId: chatViewModel.assistantScrollTargetId
+                streamingTargetId: chatViewModel.assistantScrollTargetId,
+                initialJumpToken: chatViewModel.initialJumpToken
             )
             .safeAreaInset(edge: .bottom) {
                 Color.clear
@@ -142,11 +142,7 @@ struct ChatScreenView: View {
                 showSuggestionsDelayed = false
             }
         }
-        .onChange(of: chatViewModel.isLoadingHistory) { _, isLoading in
-            if !isLoading && !chatViewModel.messages.isEmpty {
-                personalPreScrollToken &+= 1
-            }
-        }
+        // Removed pre-scroll behavior to avoid visible scrolling on load
         .onChange(of: isNewChatReadyForSuggestions) { _, ready in
             if ready {
                 suggestionsDelayWorkItem?.cancel()

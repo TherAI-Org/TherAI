@@ -12,6 +12,7 @@ struct MessagesListView: View {
     let focusTopId: UUID?
     let streamingScrollToken: Int
     let streamingTargetId: UUID?
+    let initialJumpToken: Int
 
     @State private var savedScrollPosition: UUID?
 
@@ -26,7 +27,8 @@ struct MessagesListView: View {
         isAssistantTyping: Bool = false,
         focusTopId: UUID? = nil,
         streamingScrollToken: Int = 0,
-        streamingTargetId: UUID? = nil
+        streamingTargetId: UUID? = nil,
+        initialJumpToken: Int = 0
     ) {
         self.messages = messages
         self.chatViewModel = chatViewModel
@@ -39,6 +41,7 @@ struct MessagesListView: View {
         self.focusTopId = focusTopId
         self.streamingScrollToken = streamingScrollToken
         self.streamingTargetId = streamingTargetId
+        self.initialJumpToken = initialJumpToken
     }
 
     var body: some View {
@@ -75,6 +78,13 @@ struct MessagesListView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) {
                     onPreScrollComplete?()
                 }
+            }
+            // First-open jump to bottom without animation
+            .onChange(of: initialJumpToken) { _, token in
+                guard token > 0 else { return }
+                guard let lastId = messages.last?.id else { return }
+                // Non-animated to avoid visible scroll
+                withAnimation(nil) { proxy.scrollTo(lastId, anchor: .bottom) }
             }
             // Removed one-time push after send
             .onChange(of: isInputFocused) { oldValue, newValue in
