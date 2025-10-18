@@ -5,6 +5,21 @@ struct SettingsCardView: View {
     let onToggle: (Int) -> Void
     let onAction: (Int) -> Void
     let onPickerSelect: ((Int, String) -> Void)?
+    let headerAccessory: AnyView?
+
+    init(
+        section: SettingsSection,
+        onToggle: @escaping (Int) -> Void,
+        onAction: @escaping (Int) -> Void,
+        onPickerSelect: ((Int, String) -> Void)? = nil,
+        headerAccessory: AnyView? = nil
+    ) {
+        self.section = section
+        self.onToggle = onToggle
+        self.onAction = onAction
+        self.onPickerSelect = onPickerSelect
+        self.headerAccessory = headerAccessory
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -16,6 +31,10 @@ struct SettingsCardView: View {
                     .textCase(.uppercase)
 
                 Spacer()
+
+                if let headerAccessory {
+                    headerAccessory
+                }
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)

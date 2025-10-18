@@ -98,9 +98,14 @@ class SettingsViewModel: ObservableObject {
                 title: "Account",
                 icon: "person.circle",
                 gradient: [Color.red, Color.orange],
-                settings: [
-                    SettingItem(title: "Sign Out", subtitle: nil, type: .action, icon: "rectangle.portrait.and.arrow.right")
-                ]
+                settings: {
+                    var items: [SettingItem] = []
+                    if isConnectedToPartner {
+                        items.append(SettingItem(title: "Unlink Partner", subtitle: nil, type: .action, icon: "link.badge.minus"))
+                    }
+                    items.append(SettingItem(title: "Sign Out", subtitle: nil, type: .action, icon: "rectangle.portrait.and.arrow.right"))
+                    return items
+                }()
             )
         ]
     }
@@ -198,6 +203,8 @@ class SettingsViewModel: ObservableObject {
                     self.partnerAvatarURL = nil
                     self.clearPartnerConnectionCache()
                 }
+                // Rebuild sections to reflect connection status changes
+                self.setupSettingsSections()
             } catch {
                 print("Failed to load partner connection status: \(error)")
                 // Preserve cached UI on error
@@ -294,6 +301,8 @@ class SettingsViewModel: ObservableObject {
             self.partnerAvatarURL = nil
             self.clearPartnerConnectionCache()
         }
+        // Rebuild sections to reflect connection status changes
+        self.setupSettingsSections()
     }
 
     // Cached partner connection

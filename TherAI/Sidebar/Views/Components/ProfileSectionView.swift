@@ -115,8 +115,8 @@ struct ProfileSectionView: View {
         .buttonStyle(PlainButtonStyle())
         .sheet(isPresented: $showSettingsSheet) {
             SettingsView(
-                isPresented: $showSettingsSheet,
-                profileNamespace: profileNamespace
+                profileNamespace: profileNamespace,
+                isPresented: $showSettingsSheet
             )
             .environmentObject(sessionsViewModel)
         }

@@ -6,58 +6,57 @@ struct ConnectionCapsuleView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Green status circle
             Circle()
                 .fill(Color.green)
                 .frame(width: 8, height: 8)
 
-            // "Connected to" and partner name grouped together
-            HStack(spacing: 2) {
+            HStack(spacing: 8) {
                 Text("Connected with")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.black)
 
-                // Partner name
-                if let name = partnerName {
-                    Text(name)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.black)
-                        .lineLimit(1)
-                } else {
-                    Text("Partner")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.gray)
+                HStack(spacing: 4) {
+                    AvatarCacheManager.shared.cachedAsyncImage(
+                        urlString: partnerAvatarURL,
+                        placeholder: {
+                            AnyView(
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .overlay(
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 8, weight: .medium))
+                                            .foregroundColor(.gray)
+                                    )
+                            )
+                        },
+                        fallback: {
+                            AnyView(
+                                Circle()
+                                    .fill(Color.gray.opacity(0.2))
+                                    .overlay(
+                                        Image(systemName: "person.fill")
+                                            .font(.system(size: 8, weight: .medium))
+                                            .foregroundColor(.gray)
+                                    )
+                            )
+                        }
+                    )
+                    .frame(width: 20, height: 20)
+                    .clipShape(Circle())
+
+                    // Partner name
+                    if let name = partnerName {
+                        Text(name)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.black)
+                            .lineLimit(1)
+                    } else {
+                        Text("Partner")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.gray)
+                    }
                 }
             }
-
-            // Partner avatar (moved after name)
-            AvatarCacheManager.shared.cachedAsyncImage(
-                urlString: partnerAvatarURL,
-                placeholder: {
-                    AnyView(
-                        Circle()
-                            .fill(Color.gray.opacity(0.2))
-                            .overlay(
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundColor(.gray)
-                            )
-                    )
-                },
-                fallback: {
-                    AnyView(
-                        Circle()
-                            .fill(Color.gray.opacity(0.2))
-                            .overlay(
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 8, weight: .medium))
-                                    .foregroundColor(.gray)
-                            )
-                    )
-                }
-            )
-            .frame(width: 20, height: 20)
-            .clipShape(Circle())
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

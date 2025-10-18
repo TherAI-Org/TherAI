@@ -142,7 +142,7 @@ struct SettingRowView: View {
 
                         // Content
                         VStack(alignment: .leading, spacing: 2) {
-                            if setting.title == "Sign Out" {
+                            if setting.title == "Sign Out" || setting.title == "Unlink Partner" {
                                 Text(setting.title)
                                     .font(.system(size: 16, weight: .regular))
                                     .foregroundColor(.red)
@@ -292,24 +292,13 @@ struct LinkPartnerSettingRow: View {
 
             case .linked:
                 HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.system(size: 16, weight: .semibold))
-
-                    Text("Linked")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.primary)
-
+                    let name = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName)
+                    let avatarURL = UserDefaults.standard.string(forKey: PreferenceKeys.partnerAvatarURL)
+                    ConnectionCapsuleView(
+                        partnerName: name,
+                        partnerAvatarURL: avatarURL
+                    )
                     Spacer()
-
-                    Button(action: {
-                        Task { await linkViewModel.unlink() }
-                    }) {
-                        Text("Unlink")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.red)
-                    }
-                    .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

@@ -74,8 +74,8 @@ struct SlideOutSidebarContainerView<Content: View>: View {
 
                 if navigationViewModel.showSettingsOverlay {
                     SettingsView(
-                        isPresented: $navigationViewModel.showSettingsOverlay,
-                        profileNamespace: profileNamespace
+                        profileNamespace: profileNamespace,
+                        isPresented: $navigationViewModel.showSettingsOverlay
                     )
                     .environmentObject(sessionsViewModel)
                     .zIndex(2)
