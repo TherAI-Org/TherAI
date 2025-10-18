@@ -2,7 +2,6 @@ import Foundation
 import SwiftUI
 
 struct SettingsData: Codable {
-
     var emailNotifications: Bool = true
     var pushNotifications: Bool = true
     var darkModeEnabled: Bool = false
@@ -34,4 +33,18 @@ enum SettingType {
     case action
     case picker([String])
     case linkPartner
+}
+
+enum SettingsDestination: Hashable, Identifiable {
+    case contactSupport
+    case privacyPolicy
+
+    var id: String {
+        switch self {
+        case .contactSupport:
+            return "contactSupport"
+        case .privacyPolicy:
+            return "privacyPolicy"
+        }
+    }
 }

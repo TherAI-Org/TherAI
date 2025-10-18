@@ -1,6 +1,9 @@
 import SwiftUI
 
 struct SettingsCardView: View {
+
+    @EnvironmentObject private var linkVM: LinkViewModel
+
     let section: SettingsSection
     let onToggle: (Int) -> Void
     let onAction: (Int) -> Void
@@ -22,8 +25,7 @@ struct SettingsCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Section Header - iOS Settings style
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(section.title)
                     .font(.system(size: 13, weight: .regular))
@@ -37,18 +39,134 @@ struct SettingsCardView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, 4)
+            .padding(.bottom, 2)
 
-            // Settings Items in grouped card
             VStack(spacing: 0) {
                 ForEach(Array(section.settings.enumerated()), id: \.offset) { index, setting in
-                    SettingRowView(
-                        setting: setting,
-                        isLast: index == section.settings.count - 1,
-                        onToggle: { onToggle(index) },
-                        onAction: { onAction(index) },
-                        onPickerSelect: { value in onPickerSelect?(index, value) }
-                    )
+                    Group {
+                        switch setting.type {
+                        case .linkPartner:
+                            LinkPartnerInlineRow(linkViewModel: linkVM)
+
+                        case .picker:
+                            HStack(spacing: 12) {
+                                Image(systemName: setting.icon)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.primary)
+                                    .frame(width: 24, height: 24)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(setting.title)
+                                        .font(.system(size: 16, weight: .regular))
+                                        .foregroundColor(.primary)
+                                        .multilineTextAlignment(.leading)
+                                }
+
+                                Spacer()
+                                EmptyView()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color(.systemBackground))
+
+                        case .toggle:
+                            HStack(spacing: 12) {
+                                Image(systemName: setting.icon)
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.primary)
+                                    .frame(width: 24, height: 24)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(setting.title)
+                                        .font(.system(size: 16, weight: .regular))
+                                        .foregroundColor(.primary)
+                                        .multilineTextAlignment(.leading)
+                                    if let subtitle = setting.subtitle {
+                                        Text(subtitle)
+                                            .font(.system(size: 13, weight: .regular))
+                                            .foregroundColor(.secondary)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                }
+
+                                Spacer()
+                                Toggle("", isOn: Binding(
+                                    get: {
+                                        if case .toggle(let isOn) = setting.type { return isOn }
+                                        return false
+                                    },
+                                    set: { _ in onToggle(index) }
+                                ))
+                                .labelsHidden()
+                                .tint(.green)
+                                .allowsHitTesting(true)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color(.systemBackground))
+
+                        case .navigation:
+                            NavigationLink(destination: viewForTitle(setting.title)) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: setting.icon)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.primary)
+                                        .frame(width: 24, height: 24)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(setting.title)
+                                            .font(.system(size: 16, weight: .regular))
+                                            .foregroundColor(.primary)
+                                            .multilineTextAlignment(.leading)
+                                    }
+
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(.systemBackground))
+                            }
+
+                        case .action:
+                            Button(action: { onAction(index) }) {
+                                HStack(spacing: 12) {
+                                    Image(systemName: setting.icon)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.primary)
+                                        .frame(width: 24, height: 24)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        if setting.title == "Sign Out" || setting.title == "Unlink Partner" {
+                                            Text(setting.title)
+                                                .font(.system(size: 16, weight: .regular))
+                                                .foregroundColor(.red)
+                                                .multilineTextAlignment(.leading)
+                                        } else {
+                                            Text(setting.title)
+                                                .font(.system(size: 16, weight: .regular))
+                                                .foregroundColor(.primary)
+                                                .multilineTextAlignment(.leading)
+                                            if let subtitle = setting.subtitle {
+                                                Text(subtitle)
+                                                    .font(.system(size: 13, weight: .regular))
+                                                    .foregroundColor(.secondary)
+                                                    .multilineTextAlignment(.leading)
+                                            }
+                                        }
+                                    }
+
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .background(Color(.systemBackground))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
                 }
             }
             .background(Color(.systemBackground))
@@ -90,6 +208,18 @@ struct SettingsCardView: View {
         default:
             return ""
         }
+    }
+}
+
+@ViewBuilder
+private func viewForTitle(_ title: String) -> some View {
+    switch title {
+    case "Contact Support":
+        ContactSupportView()
+    case "Privacy Policy":
+        PrivacyPolicyView()
+    default:
+        EmptyView()
     }
 }
 

@@ -1,46 +1,25 @@
 import Foundation
 import SwiftUI
 
-enum SettingsDestination: Hashable {
-    case link
-    case contactSupport
-    case privacyPolicy
-}
-
-extension SettingsDestination: Identifiable {
-    var id: String {
-        switch self {
-        case .link:
-            return "link"
-        case .contactSupport:
-            return "contactSupport"
-        case .privacyPolicy:
-            return "privacyPolicy"
-        }
-    }
-}
 
 @MainActor
 class SettingsViewModel: ObservableObject {
+
     @Published var settingsData = SettingsData()
     @Published var settingsSections: [SettingsSection] = []
     @Published var destination: SettingsDestination? = nil
-    @Published var showAppearanceDialog: Bool = false
     @Published var isUploadingAvatar: Bool = false
     @Published var avatarURL: String? = nil
     @Published var isConnectedToPartner: Bool = false
     @Published var partnerName: String? = nil
     @Published var partnerAvatarURL: String? = nil
     @Published var showPersonalizationEdit: Bool = false
-    @Published var isAvatarPreloaded: Bool = false
 
     private let avatarCacheManager = AvatarCacheManager.shared
 
-    // Profile information
     @Published var fullName: String = ""
     @Published var bio: String = ""
     @Published var isProfileLoaded: Bool = false
-    // Appearance selection removed; app follows system
 
     init() {
         loadSettings()
@@ -50,21 +29,16 @@ class SettingsViewModel: ObservableObject {
     }
 
     private func loadSettings() {
-        // Load persisted preferences
         if UserDefaults.standard.object(forKey: PreferenceKeys.hapticsEnabled) != nil {
             settingsData.hapticFeedbackEnabled = UserDefaults.standard.bool(forKey: PreferenceKeys.hapticsEnabled)
         } else {
-            // Default to enabled and persist initial value
             settingsData.hapticFeedbackEnabled = true
             UserDefaults.standard.set(true, forKey: PreferenceKeys.hapticsEnabled)
         }
-
-        // Auto-scroll removed
     }
 
     private func setupSettingsSections() {
         settingsSections = [
-            // 1. App Settings → Notifications, Haptic Feedback
             SettingsSection(
                 title: "App Settings",
                 icon: "gear",
@@ -74,7 +48,6 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Haptics", subtitle: nil, type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]
             ),
-            // 2. Link Your Partner → Separate section for partner linking
             SettingsSection(
                 title: "Link Your Partner",
                 icon: "link",
@@ -83,7 +56,6 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Link Your Partner", subtitle: "Invite or manage link", type: .linkPartner, icon: "link")
                 ]
             ),
-            // 3. Help & Support → Support and policies
             SettingsSection(
                 title: "Help & Support",
                 icon: "questionmark.circle",
@@ -93,7 +65,6 @@ class SettingsViewModel: ObservableObject {
                     SettingItem(title: "Privacy Policy", subtitle: nil, type: .navigation, icon: "hand.raised")
                 ]
             ),
-            // 4. Account → Sign out
             SettingsSection(
                 title: "Account",
                 icon: "person.circle",
@@ -101,7 +72,7 @@ class SettingsViewModel: ObservableObject {
                 settings: {
                     var items: [SettingItem] = []
                     if isConnectedToPartner {
-                        items.append(SettingItem(title: "Unlink Partner", subtitle: nil, type: .action, icon: "link.badge.minus"))
+                        items.append(SettingItem(title: "Unlink Partner", subtitle: nil, type: .action, icon: "xmark.circle"))
                     }
                     items.append(SettingItem(title: "Sign Out", subtitle: nil, type: .action, icon: "rectangle.portrait.and.arrow.right"))
                     return items
@@ -122,21 +93,16 @@ class SettingsViewModel: ObservableObject {
                 Haptics.selection()
             }
         case ("App Settings", "Push Notifications"), ("App Settings", "Notifications"):
-            let current = UserDefaults.standard.object(forKey: "therai_push_enabled") != nil ?
-                UserDefaults.standard.bool(forKey: "therai_push_enabled") : true
+            let current = UserDefaults.standard.object(forKey: "therai_push_enabled") != nil ? UserDefaults.standard.bool(forKey: "therai_push_enabled") : true
             let newValue = !current
             PushNotificationManager.shared.setPushEnabled(newValue)
-            // ensure UI reflects latest value
             DispatchQueue.main.async { self.setupSettingsSections() }
         case ("Chat Settings", "Auto Scroll"):
             break
-        // Message Sound setting removed
-
         default:
             break
         }
 
-        // Rebuild sections to reflect UI changes
         setupSettingsSections()
     }
 
@@ -146,9 +112,8 @@ class SettingsViewModel: ObservableObject {
 
         switch setting.title {
         case "Link Your Partner":
-            destination = .link
+            break
         case "Notifications":
-            // Inline toggle only; no navigation
             break
         case "Contact Support":
             destination = .contactSupport
@@ -156,7 +121,6 @@ class SettingsViewModel: ObservableObject {
             destination = .privacyPolicy
         case "Sign Out":
             Task {
-                // Sign out immediately - this will trigger auth state change
                 await AuthService.shared.signOut()
                 await MainActor.run {
                     self.isConnectedToPartner = false
@@ -166,21 +130,14 @@ class SettingsViewModel: ObservableObject {
                 }
             }
         default:
-            // Handle other navigation and action items
             break
         }
     }
 
-    func handlePickerSelection(for sectionIndex: Int, settingIndex: Int, value: String) {
-        // No pickers in current settings
-    }
-
-    // Load partner connection status from backend
-    private func loadPartnerConnectionStatus() {
+    func loadPartnerConnectionStatus() {
         Task { @MainActor in
             do {
                 guard let token = await AuthService.shared.getAccessToken() else {
-                    // Keep cached state if token is unavailable
                     return
                 }
                 let partnerInfo = try await BackendService.shared.fetchPartnerInfo(accessToken: token)
@@ -190,7 +147,7 @@ class SettingsViewModel: ObservableObject {
                     self.partnerName = partner.name
                     self.partnerAvatarURL = partner.avatar_url
                     self.savePartnerConnectionCache()
-                    // Preload partner avatar into cache for instant display
+
                     if let url = self.partnerAvatarURL, !url.isEmpty {
                         Task { [weak self] in
                             guard let self = self else { return }
@@ -203,31 +160,19 @@ class SettingsViewModel: ObservableObject {
                     self.partnerAvatarURL = nil
                     self.clearPartnerConnectionCache()
                 }
-                // Rebuild sections to reflect connection status changes
                 self.setupSettingsSections()
             } catch {
                 print("Failed to load partner connection status: \(error)")
-                // Preserve cached UI on error
             }
         }
     }
 
     func preloadAvatar() {
         Task { @MainActor in
-            // Use the cache manager to preload avatar
             if let avatarURL = avatarURL, !avatarURL.isEmpty {
                 let _ = await avatarCacheManager.getCachedImage(urlString: avatarURL)
-                self.isAvatarPreloaded = true
-            } else {
-                self.isAvatarPreloaded = true // No avatar to preload
             }
         }
-    }
-
-    /// Get cached avatar image
-    func getCachedAvatar(urlString: String?) async -> UIImage? {
-        guard let urlString = urlString, !urlString.isEmpty else { return nil }
-        return await avatarCacheManager.getCachedImage(urlString: urlString)
     }
 
     func loadProfileInfo() {
@@ -241,7 +186,6 @@ class SettingsViewModel: ObservableObject {
                 self.fullName = profileInfo.full_name
                 self.bio = profileInfo.bio
                 self.isProfileLoaded = true
-                // Persist display name for use in sidebar and other views
                 UserDefaults.standard.set(self.fullName, forKey: "therai_profile_full_name")
             } catch {
                 print("Failed to load profile info: \(error)")
@@ -276,19 +220,12 @@ class SettingsViewModel: ObservableObject {
         }
     }
 
-    // Public method to refresh connection status
-    func refreshConnectionStatus() {
-        loadPartnerConnectionStatus()
-    }
-
-    /// Apply partner info updates coming from elsewhere in the app (e.g., sessions VM)
     func applyPartnerInfo(_ info: BackendService.PartnerInfo?) {
         if let info = info, info.linked, let partner = info.partner {
             self.isConnectedToPartner = true
             self.partnerName = partner.name
             self.partnerAvatarURL = partner.avatar_url
             self.savePartnerConnectionCache()
-            // Warm avatar cache for instant UI
             if let url = self.partnerAvatarURL, !url.isEmpty {
                 Task { [weak self] in
                     guard let self = self else { return }
@@ -301,11 +238,9 @@ class SettingsViewModel: ObservableObject {
             self.partnerAvatarURL = nil
             self.clearPartnerConnectionCache()
         }
-        // Rebuild sections to reflect connection status changes
         self.setupSettingsSections()
     }
 
-    // Cached partner connection
     private func loadCachedPartnerConnection() {
         if UserDefaults.standard.object(forKey: PreferenceKeys.partnerConnected) != nil {
             let connected = UserDefaults.standard.bool(forKey: PreferenceKeys.partnerConnected)
@@ -313,7 +248,6 @@ class SettingsViewModel: ObservableObject {
             if connected {
                 self.partnerName = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName)
                 self.partnerAvatarURL = UserDefaults.standard.string(forKey: PreferenceKeys.partnerAvatarURL)
-                // Warm partner avatar cache on app/settings open
                 if let url = self.partnerAvatarURL, !url.isEmpty {
                     Task { [weak self] in
                         guard let self = self else { return }
@@ -345,7 +279,6 @@ class SettingsViewModel: ObservableObject {
         UserDefaults.standard.removeObject(forKey: PreferenceKeys.partnerAvatarURL)
     }
 
-    // Public: preload using currently known cached URL
     func preloadPartnerAvatarIfAvailable() {
         Task { @MainActor in
             if let url = self.partnerAvatarURL, !url.isEmpty {
@@ -357,28 +290,18 @@ class SettingsViewModel: ObservableObject {
 
 extension SettingsViewModel {
     func uploadAvatar(data: Data) async {
-        print("DEBUG: ❗️ uploadAvatar called with data size: \(data.count) bytes")
-        print("DEBUG: ❗️ Stack trace:")
         Thread.callStackSymbols.forEach { print("  \($0)") }
         guard !data.isEmpty else {
-            print("DEBUG: ❗️ Data is empty, returning")
             return
         }
         isUploadingAvatar = true
         defer { isUploadingAvatar = false }
-        do {
-            guard let token = await AuthService.shared.getAccessToken() else {
-                print("DEBUG: ❗️ No access token, returning")
-                return
-            }
-            print("DEBUG: ❗️ About to call BackendService.uploadAvatar")
-            let result = try await BackendService.shared.uploadAvatar(imageData: data, contentType: "image/jpeg", accessToken: token)
-            await MainActor.run {
-                self.avatarURL = result.url
-                print("DEBUG: ❗️ Avatar uploaded successfully. URL: \(String(describing: result.url))")
-            }
-        } catch {
-            print("DEBUG: ❗️ Avatar upload failed: \(error)")
+        guard let token = await AuthService.shared.getAccessToken() else {
+            return
+        }
+        let result = try? await BackendService.shared.uploadAvatar(imageData: data, contentType: "image/jpeg", accessToken: token)
+        await MainActor.run {
+            self.avatarURL = result?.url
         }
     }
 }

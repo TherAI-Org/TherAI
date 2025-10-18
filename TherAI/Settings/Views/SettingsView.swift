@@ -15,7 +15,6 @@ struct SettingsView: View {
     @State private var showCards = false
     @State private var avatarRefreshKey = UUID()
 
-    // Break up complex view builders to help the type-checker
     private var avatarPlaceholder: AnyView { AnyView(Color.clear) }
 
     private var avatarFallback: AnyView {
@@ -80,7 +79,7 @@ struct SettingsView: View {
                     .foregroundColor(Color(.label).opacity(0.5))
             }
         }
-        .padding(.bottom, 24)
+        .padding(.bottom, 32)
     }
 
     @ViewBuilder
@@ -100,9 +99,6 @@ struct SettingsView: View {
                         } else {
                             viewModel.handleSettingAction(for: sectionIndex, settingIndex: settingIndex)
                         }
-                    },
-                    onPickerSelect: { settingIndex, value in
-                        viewModel.handlePickerSelection(for: sectionIndex, settingIndex: settingIndex, value: value)
                     }
                 )
             }
@@ -183,12 +179,6 @@ struct SettingsView: View {
             }
             .navigationDestination(for: SettingsDestination.self) { dest in
                 switch dest {
-                case .link:
-                    MainLinkView(accessTokenProvider: {
-                        await AuthService.shared.getAccessToken() ?? ""
-                    })
-                    .navigationTitle("Link Partner")
-                    .navigationBarTitleDisplayMode(.inline)
                 case .contactSupport:
                     ContactSupportView()
                         .navigationTitle("Contact Support")
@@ -201,12 +191,6 @@ struct SettingsView: View {
             }
             .navigationDestination(item: $viewModel.destination) { dest in
                 switch dest {
-                case .link:
-                    MainLinkView(accessTokenProvider: {
-                        await AuthService.shared.getAccessToken() ?? ""
-                    })
-                    .navigationTitle("Link Partner")
-                    .navigationBarTitleDisplayMode(.inline)
                 case .contactSupport:
                     ContactSupportView()
                         .navigationTitle("Contact Support")
@@ -234,7 +218,7 @@ struct SettingsView: View {
             showCards = false
 
             // Refresh connection status immediately
-            viewModel.refreshConnectionStatus()
+            viewModel.loadPartnerConnectionStatus()
             // Preload partner avatar from cached URL for instant capsule image
             viewModel.preloadPartnerAvatarIfAvailable()
 
@@ -263,7 +247,7 @@ struct SettingsView: View {
         .onChange(of: linkVM.state) { _, newState in
             // If linked, refresh from backend; otherwise clear immediately so capsule hides live
             if case .linked = newState {
-                viewModel.refreshConnectionStatus()
+                viewModel.loadPartnerConnectionStatus()
             } else {
                 viewModel.applyPartnerInfo(nil)
             }
