@@ -146,13 +146,7 @@ struct SettingsView: View {
                                 .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 7)
-                                .background(.ultraThinMaterial, in: Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                                )
-                                .offset(y: 2)
-                                .padding(.leading, -6)
+                                .glassEffect()
                         }
                         .buttonStyle(.plain)
                     }
@@ -165,13 +159,7 @@ struct SettingsView: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                                 .frame(width: 32, height: 32)
-                                .background(.ultraThinMaterial, in: Circle())
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                                )
-                                .offset(y: 2)
-                                .padding(.trailing, -6)
+                                .glassEffect()
                         }
                         .buttonStyle(.plain)
                     }
