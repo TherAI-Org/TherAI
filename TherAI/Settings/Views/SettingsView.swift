@@ -137,18 +137,14 @@ struct SettingsView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(action: {
+                        Button("Edit") {
                             Haptics.impact(.light)
                             viewModel.showPersonalizationEdit = true
-                        }) {
-                            Text("Edit")
-                                .font(.system(size: 18, weight: .regular))
-                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 7)
-                                .glassEffect()
                         }
-                        .buttonStyle(.plain)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button(action: {
@@ -159,7 +155,6 @@ struct SettingsView: View {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                                 .frame(width: 32, height: 32)
-                                .glassEffect()
                         }
                         .buttonStyle(.plain)
                     }
