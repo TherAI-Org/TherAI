@@ -24,7 +24,7 @@ class ChatSessionsViewModel: ObservableObject {
     @Published var isBootstrapping: Bool = false
     @Published var isBootstrapComplete: Bool = false
     @Published private(set) var unreadPartnerSessionIds: Set<UUID> = []
-    // Suppress false-positive unread when this device just sent a message
+
     private var suppressUnreadSessionIds: Set<UUID> = []
 
     var onRefreshPendingRequests: (() -> Void)?
@@ -37,12 +37,10 @@ class ChatSessionsViewModel: ObservableObject {
     private weak var linkViewModel: LinkViewModel?
     weak var chatViewModel: ChatViewModel?
     private var currentUserId: String?
-    // Holds a one-shot preview of an accepted partner request keyed by the target session
     private var pendingAcceptancePreviewBySession: [UUID: String] = [:]
 
     @MainActor
     private func findNavigationViewModel() -> SidebarNavigationViewModel? {
-        // Return the cached reference if available
         return navigationViewModel
     }
 
@@ -52,7 +50,6 @@ class ChatSessionsViewModel: ObservableObject {
 
     @MainActor
     private func findLinkViewModel() -> LinkViewModel? {
-        // Return the cached reference if available
         return linkViewModel
     }
 
@@ -60,7 +57,6 @@ class ChatSessionsViewModel: ObservableObject {
         self.linkViewModel = linkVM
     }
 
-    // Store a one-time partner acceptance preview for a session (consumed on navigation)
     @MainActor
     func storePendingAcceptance(sessionId: UUID, text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -68,13 +64,11 @@ class ChatSessionsViewModel: ObservableObject {
         pendingAcceptancePreviewBySession[sessionId] = trimmed
     }
 
-    // Get pending acceptance preview without consuming it (for passing through init)
     @MainActor
     func getPendingAcceptancePreview(for sessionId: UUID) -> String? {
         return pendingAcceptancePreviewBySession[sessionId]
     }
 
-    // Retrieve and clear any pending acceptance preview for a session
     @MainActor
     func consumePendingAcceptancePreview(for sessionId: UUID) -> String? {
         let val = pendingAcceptancePreviewBySession.removeValue(forKey: sessionId)
@@ -83,8 +77,6 @@ class ChatSessionsViewModel: ObservableObject {
 
     init() {
         loadCachedSessions()
-        // Load cached unread state for persistence between app launches
-        // This is safe now because we only save legitimate partner message unreads
         loadCachedUnread()
     }
 
@@ -98,7 +90,6 @@ class ChatSessionsViewModel: ObservableObject {
     }
 
     func resetForLogout() {
-        // Reset all state flags so everything loads fresh on next login
         hasStartedObserving = false
         isBootstrapComplete = false
         isBootstrapping = false
@@ -111,9 +102,6 @@ class ChatSessionsViewModel: ObservableObject {
         avatarsLoaded = false
         unreadPartnerSessionIds.removeAll()
         suppressUnreadSessionIds.removeAll()
-        // Don't clear cached unread - it's now per-user so each user keeps their own unread state
-        // clearCachedUnread()
-        // Clear notification observers to avoid duplicates
         for observer in observers {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -123,10 +111,13 @@ class ChatSessionsViewModel: ObservableObject {
     func openSession(_ id: UUID) {
         activeSessionId = id
         chatViewKey = UUID()
-        // Mark as read on open
         if unreadPartnerSessionIds.remove(id) != nil {
             print("[SessionsVM] openSession cleared unread for session=\(id)")
             saveCachedUnread()
+        }
+        // Force refresh messages when opening a session to avoid stale cache hiding new partner messages
+        Task { @MainActor [weak self] in
+            await self?.chatViewModel?.loadHistory(force: true)
         }
     }
 
@@ -171,15 +162,11 @@ class ChatSessionsViewModel: ObservableObject {
                 )
             }
 
-            // Load partner info first to know if we should check for unread
             if self.partnerInfo == nil {
                 await loadPartnerInfo()
             }
 
-            // Check for new partner messages by comparing with cached sessions
-            // This handles messages received while app was closed/background or during account switches
             if self.partnerInfo?.linked == true {
-                // Load the user's previously cached sessions for comparison
                 var previousSessions: [ChatSession] = []
                 do {
                     let url = self.cacheURL
@@ -188,7 +175,6 @@ class ChatSessionsViewModel: ObservableObject {
                         previousSessions = try JSONDecoder().decode([ChatSession].self, from: data)
                     }
                 } catch {
-                    // No cached sessions, use current in-memory sessions as fallback
                     previousSessions = self.sessions
                 }
 

@@ -36,6 +36,8 @@ class ChatViewModel: ObservableObject {
     private var receivedAnyAssistantOutput: Bool = false
     private var currentAssistantMessageId: UUID?
     private var isStreaming: Bool = false
+    // Chain id for Responses API stateful continuation per session
+    private var responseIdBySession: [UUID: String] = [:]
     // Track assistant placeholder per session when streaming continues off-screen
     private var assistantMessageIdBySession: [UUID: UUID] = [:]
     // Session currently streaming, to scope the loading indicator to the right chat
@@ -356,18 +358,32 @@ class ChatViewModel: ObservableObject {
             // Snapshot the on-screen state at stream start to avoid cross-session pollution
             let (initialMessagesForStream, initialAssistantPlaceholderId): ([ChatMessage], UUID?) = await MainActor.run { (self.messages, self.currentAssistantMessageId) }
 
+            // Precompute previousResponseId to avoid Swift 6 capture warnings
+            let prevId: String? = {
+                if let sid = self.sessionId { return self.responseIdBySession[sid] }
+                return nil
+            }()
+
             let handleId = ChatStreamManager.shared.startStream(
                 params: ChatStreamManager.StartParams(
                     message: messageToSend,
                     sessionId: self.sessionId,
                     chatHistory: Array(chatHistory),
                     accessToken: accessToken,
-                    focusSnippet: self.focusSnippet
+                    focusSnippet: self.focusSnippet,
+                    previousResponseId: prevId
                 ),
                 onEvent: { [weak self] event in
                     guard let self = self else { return }
                     eventCounter += 1
                     switch event {
+                    case .responseId(let rid):
+                        Task { @MainActor in
+                            let targetSid = streamSessionId ?? self.sessionId
+                            if let sid = targetSid {
+                                self.responseIdBySession[sid] = rid
+                            }
+                        }
                     case .toolStart:
                         sawToolStart = true
                         Task { @MainActor in

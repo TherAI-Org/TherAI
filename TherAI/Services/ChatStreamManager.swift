@@ -14,6 +14,7 @@ final class ChatStreamManager {
         let chatHistory: [ChatHistoryMessage]?
         let accessToken: String
         let focusSnippet: String?
+        let previousResponseId: String?
     }
 
     @discardableResult
@@ -30,7 +31,8 @@ final class ChatStreamManager {
                 sessionId: params.sessionId,
                 chatHistory: params.chatHistory,
                 accessToken: params.accessToken,
-                focusSnippet: params.focusSnippet
+                focusSnippet: params.focusSnippet,
+                previousResponseId: params.previousResponseId
             )
             for await event in stream {
                 onEvent(event)

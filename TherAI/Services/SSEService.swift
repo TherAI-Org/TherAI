@@ -34,15 +34,23 @@ final class SSEService {
 
                     func flush() {
                         let dataString = dataLines.joined(separator: "\n")
-                        switch currentEvent {
-                        case "session":
+                        let event = currentEvent ?? ""
+                        if event == "response_id" {
+                            print("[SSE] response_id event received")
+                            if let json = dataString.data(using: .utf8),
+                               let obj = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
+                               let rid = obj["response_id"] as? String {
+                                continuation.yield(.responseId(rid))
+                            }
+                        } else if event == "session" {
+                            print("[SSE] session event received")
                             if let json = dataString.data(using: .utf8),
                                let obj = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
                                let sidStr = obj["session_id"] as? String,
                                let sid = UUID(uuidString: sidStr) {
                                 continuation.yield(.session(sid))
                             }
-                        case "token":
+                        } else if event == "token" {
                             let token: String
                             if let data = dataString.data(using: .utf8), let decoded = try? JSONDecoder().decode(String.self, from: data) {
                                 token = decoded
@@ -54,7 +62,7 @@ final class SSEService {
                             }
                             print("[SSE] token chunk size=\(token.count)")
                             continuation.yield(.token(token))
-                        case "partner_message":
+                        } else if event == "partner_message" {
                             let text: String
                             if let data = dataString.data(using: .utf8), let decoded = try? JSONDecoder().decode(String.self, from: data) {
                                 text = decoded
@@ -64,7 +72,7 @@ final class SSEService {
                             print("[SSE] partner_message received len=\(text.count)")
                             continuation.yield(.partnerMessage(text))
                             sawPartnerMessage = true
-                        case "tool_start":
+                        } else if event == "tool_start" {
                             if let data = dataString.data(using: .utf8),
                                let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                                let name = obj["name"] as? String {
@@ -75,24 +83,24 @@ final class SSEService {
                                 continuation.yield(.toolStart(""))
                             }
                             sawToolStart = true
-                        case "tool_args":
+                        } else if event == "tool_args" {
                             if !sawToolStart {
                                 print("[SSE] tool_args before tool_start; synthesizing toolStart for UI")
                                 continuation.yield(.toolStart(""))
                                 sawToolStart = true
                             }
                             continuation.yield(.toolArgs(dataString))
-                        case "tool_done":
+                        } else if event == "tool_done" {
                             continuation.yield(.toolDone)
-                        case "done":
+                        } else if event == "done" {
                             print("[SSE] done received; sawToolStart=\(sawToolStart) sawPartnerMessage=\(sawPartnerMessage)")
                             continuation.yield(.done)
                             continuation.finish()
-                        case "error":
+                        } else if event == "error" {
                             continuation.yield(.error(dataString.replacingOccurrences(of: "\"", with: "")))
                             continuation.finish()
-                        default:
-                            break
+                        } else {
+                            // Ignore other events
                         }
                         currentEvent = nil
                         dataLines.removeAll(keepingCapacity: false)

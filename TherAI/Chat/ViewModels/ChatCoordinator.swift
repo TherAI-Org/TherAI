@@ -66,6 +66,8 @@ struct ChatCoordinator {
                     case .partnerMessage(_):
                         // No UI change here; partner UI comes from personal chat stream path
                         break
+                    case .responseId(_):
+                        break
                     }
                 }
             }

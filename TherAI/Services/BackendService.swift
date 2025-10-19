@@ -27,11 +27,12 @@ struct BackendService {
         case toolStart(String)    // tool name
         case toolArgs(String)     // arg delta (optional)
         case toolDone
+        case responseId(String)
         case done
         case error(String)
     }
 
-    func streamChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String, focusSnippet: String? = nil) -> AsyncStream<StreamEvent> {
+    func streamChatMessage(_ message: String, sessionId: UUID?, chatHistory: [ChatHistoryMessage]?, accessToken: String, focusSnippet: String? = nil, previousResponseId: String? = nil) -> AsyncStream<StreamEvent> {
         var request = URLRequest(url: baseURL
             .appendingPathComponent("chat")
             .appendingPathComponent("sessions")
@@ -41,7 +42,7 @@ struct BackendService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory)
+        let payload = ChatRequestBody(message: message, session_id: sessionId, chat_history: chatHistory, previous_response_id: previousResponseId)
         request.httpBody = try? jsonEncoder.encode(payload)
 
         return SSEService.shared.stream(request: request)
@@ -360,6 +361,7 @@ private struct ChatRequestBody: Codable {
     let message: String
     let session_id: UUID?
     let chat_history: [ChatHistoryMessage]?
+    let previous_response_id: String?
 }
 
 private struct ChatResponseBody: Codable {

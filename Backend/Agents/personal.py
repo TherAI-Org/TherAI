@@ -24,17 +24,13 @@ class PersonalAgent:
     def generate_response(self, user_message: str, chat_history: list = None,
                           partner_context: list = None, user_a_id = None) -> str:
         try:
-            input_messages = [{"role": "system", "content": self.system_prompt}]  # Build input array starting with system prompt
+            input_messages = [{"role": "system", "content": self.system_prompt}]  # Start with system prompt only
 
-            if chat_history:  # Build context from current user personal chat
-                for msg in chat_history:
-                    role = "user" if msg.get("role") == "user" else "assistant"
-                    input_messages.append({"role": role, "content": msg.get("content", "")})
-
-            if partner_context:  # Build context from partner's personal chat
-                partner_text = "Partner context (treat as what THEY said; reply on behalf of the CURRENT USER):\n"
+            # If partner context is provided by the caller, inject it as a labeled system block
+            if partner_context:
+                partner_text = "Partner context — treat this as what THEY said; generate a response for the CURRENT USER to send.\n"
                 for msg in partner_context:
-                    role = "User" if msg.get("role") == "user" else "Assistant"
+                    role = "Partner" if msg.get("role") == "user" else "AI Assistant to Partner"
                     partner_text += f"{role}: {msg.get('content', '')}\n"
                 input_messages.append({"role": "system", "content": partner_text.strip()})
 
