@@ -94,20 +94,12 @@ struct ProfileSectionView: View {
 
                 Spacer(minLength: 20)
 
-                // Settings Icon with gradient
+                // Settings Icon with glass effect
                 Image(systemName: "gearshape")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.26, green: 0.58, blue: 1.00),
-                                Color(red: 0.63, green: 0.32, blue: 0.98)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 28, height: 28)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .frame(width: 36, height: 36)
+                    .glassEffect()
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
