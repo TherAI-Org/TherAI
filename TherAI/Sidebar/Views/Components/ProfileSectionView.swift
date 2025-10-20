@@ -95,29 +95,46 @@ struct ProfileSectionView: View {
                 Spacer(minLength: 20)
 
                 // Settings Icon with glass effect
-                Image(systemName: "gearshape")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-                    .frame(width: 36, height: 36)
-                    .glassEffect()
+                Group {
+                    if #available(iOS 18.0, *) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
+                            .frame(width: 36, height: 36)
+                            .glassEffect()
+                            .matchedTransitionSource(id: "settingsGearIcon", in: profileNamespace)
+                    } else {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
+                            .frame(width: 36, height: 36)
+                            .glassEffect()
+                    }
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
         }
         .buttonStyle(PlainButtonStyle())
         .sheet(isPresented: $showSettingsSheet) {
-            SettingsView(
-                profileNamespace: profileNamespace,
-                isPresented: $showSettingsSheet
-            )
-            .environmentObject(sessionsViewModel)
+            if #available(iOS 18.0, *) {
+                SettingsView(
+                    profileNamespace: profileNamespace,
+                    isPresented: $showSettingsSheet
+                )
+                .environmentObject(sessionsViewModel)
+                .navigationTransition(.zoom(sourceID: "settingsGearIcon", in: profileNamespace))
+            } else {
+                SettingsView(
+                    profileNamespace: profileNamespace,
+                    isPresented: $showSettingsSheet
+                )
+                .environmentObject(sessionsViewModel)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
-            // Update cached name and refresh UI
-            if let cached = UserDefaults.standard.string(forKey: "therai_profile_full_name"), !cached.isEmpty {
-                // trigger view refresh
-                avatarRefreshKey = UUID()
-            }
+            // Always trigger a view refresh so name falls back to auth metadata if cache is cleared
+            avatarRefreshKey = UUID()
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
             // Force refresh of the avatar display by changing the ID
