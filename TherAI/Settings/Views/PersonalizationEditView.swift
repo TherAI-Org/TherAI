@@ -240,7 +240,10 @@ struct PersonalizationEditView: View {
                 }
                 .onAppear {
                     loadProfileData()
-                    viewModel.loadProfileInfo()
+                    // Only fetch from backend if not already loaded from cache
+                    if !viewModel.isProfileLoaded {
+                        viewModel.loadProfileInfo()
+                    }
                 }
                 .onChange(of: viewModel.isProfileLoaded) { _, loaded in
                     if loaded { loadProfileData() }
