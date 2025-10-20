@@ -205,7 +205,7 @@ class SettingsViewModel: ObservableObject {
             }
             let response = try await BackendService.shared.updateProfile(
                 accessToken: token,
-                fullName: fullName.isEmpty ? nil : fullName,
+                fullName: fullName,
                 bio: bio.isEmpty ? nil : bio
             )
             if response.success {
@@ -213,7 +213,11 @@ class SettingsViewModel: ObservableObject {
                     self.fullName = fullName
                     self.bio = bio
                     self.isProfileLoaded = true
-                    UserDefaults.standard.set(self.fullName, forKey: "therai_profile_full_name")
+                    if self.fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        UserDefaults.standard.removeObject(forKey: "therai_profile_full_name")
+                    } else {
+                        UserDefaults.standard.set(self.fullName, forKey: "therai_profile_full_name")
+                    }
                     NotificationCenter.default.post(name: .profileChanged, object: nil)
                 }
             }
