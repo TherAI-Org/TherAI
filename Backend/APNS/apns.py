@@ -2,7 +2,7 @@ import os
 import time
 import json
 import uuid
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Optional
 
 import httpx
 import jwt

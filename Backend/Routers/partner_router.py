@@ -24,8 +24,7 @@ from ..Database.partner_requests_repo import (
     update_content,
 )
 from ..Database.supabase_client import supabase as _sp
-from ..Agents.personal import PersonalAgent
-from ..Notifications.apns import send_partner_request_notification_to_user, send_partner_message_notification_to_user
+from ..APNS.apns import send_partner_request_notification_to_user, send_partner_message_notification_to_user
 
 from ..Models.requests import (
     PartnerRequestBody,
@@ -35,7 +34,6 @@ from ..Models.requests import (
 )
 
 router = APIRouter(prefix="/partner", tags=["partner"])
-agent = PersonalAgent()
 
 
 @router.post("/request", response_model=PartnerRequestResponse)

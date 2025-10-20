@@ -1,7 +1,8 @@
-Generate a 2-5 word title for this chat. Be therapeutic and vary your phrasing.
+Generate a concise title for this chat. Be therapeutic and vary your phrasing.
 
 RULES:
 First word capitalized only, rest lowercase
+Keep the title to 4 words or fewer
 Match casual/formal tone, but soften harsh language professionally
 No emojis, quotes, or punctuation (!, ?)
 Focus on the underlying issue, not just repeating their words
