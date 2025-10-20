@@ -51,7 +51,7 @@ struct SettingsView: View {
             )
             .frame(width: 84, height: 84)
             .clipShape(Circle())
-            .matchedGeometryEffect(id: sessionsVM.myAvatarURL != nil ? "settingsGearIcon" : "settingsEmblem", in: profileNamespace)
+            .matchedGeometryEffect(id: "settingsGearIcon", in: profileNamespace)
             .id(avatarRefreshKey)
         }
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
