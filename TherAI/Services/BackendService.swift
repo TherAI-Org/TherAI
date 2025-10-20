@@ -498,7 +498,7 @@ extension BackendService {
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
 
             var formDataComponents: [String] = []
-            if let fullName = fullName, !fullName.isEmpty {
+            if let fullName = fullName {
                 let encoded = fullName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? fullName
                 formDataComponents.append("full_name=\(encoded)")
             }
