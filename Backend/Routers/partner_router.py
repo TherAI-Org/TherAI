@@ -391,7 +391,6 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
                     asyncio.run(update_session_last_message(session_id=recipient_session_id, content=final_content))  # type: ignore[arg-type]
                     asyncio.run(touch_session(session_id=recipient_session_id))  # type: ignore[arg-type]
                     print(f"[PartnerStream] DIRECT DELIVERED message_id={created.get('id')}")
-                    # Best-effort APNs notification for new partner message
                     try:
                         meta = current_user.get("user_metadata") or {}
                         sender_name = meta.get("full_name") or meta.get("name") or meta.get("display_name")
