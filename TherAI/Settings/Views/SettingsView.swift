@@ -51,7 +51,7 @@ struct SettingsView: View {
             )
             .frame(width: 84, height: 84)
             .clipShape(Circle())
-            .matchedGeometryEffect(id: sessionsVM.myAvatarURL != nil ? "settingsGearIcon" : "settingsEmblem", in: profileNamespace)
+            .matchedGeometryEffect(id: "settingsGearIcon", in: profileNamespace)
             .id(avatarRefreshKey)
         }
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 6)
@@ -208,8 +208,10 @@ struct SettingsView: View {
             // Preload avatar for personalization screen
             viewModel.preloadAvatar()
 
-            // Load profile information
-            viewModel.loadProfileInfo()
+            // Load profile information only if not already loaded from cache
+            if !viewModel.isProfileLoaded {
+                viewModel.loadProfileInfo()
+            }
 
             // Apply any already-known partner info from sessions VM instantly
             viewModel.applyPartnerInfo(sessionsVM.partnerInfo)
@@ -221,6 +223,7 @@ struct SettingsView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
+            // Profile changed elsewhere; reload to sync cached name and bio
             viewModel.loadProfileInfo()
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in

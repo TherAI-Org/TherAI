@@ -23,6 +23,12 @@ class SettingsViewModel: ObservableObject {
 
     init() {
         loadSettings()
+        // Warm name from cache immediately to avoid flicker
+        if let cached = UserDefaults.standard.string(forKey: "therai_profile_full_name"),
+           !cached.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.fullName = cached
+            self.isProfileLoaded = true
+        }
         setupSettingsSections()
         loadCachedPartnerConnection()
         loadPartnerConnectionStatus()
@@ -205,7 +211,7 @@ class SettingsViewModel: ObservableObject {
             }
             let response = try await BackendService.shared.updateProfile(
                 accessToken: token,
-                fullName: fullName.isEmpty ? nil : fullName,
+                fullName: fullName,
                 bio: bio.isEmpty ? nil : bio
             )
             if response.success {
@@ -213,7 +219,11 @@ class SettingsViewModel: ObservableObject {
                     self.fullName = fullName
                     self.bio = bio
                     self.isProfileLoaded = true
-                    UserDefaults.standard.set(self.fullName, forKey: "therai_profile_full_name")
+                    if self.fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        UserDefaults.standard.removeObject(forKey: "therai_profile_full_name")
+                    } else {
+                        UserDefaults.standard.set(self.fullName, forKey: "therai_profile_full_name")
+                    }
                     NotificationCenter.default.post(name: .profileChanged, object: nil)
                 }
             }
