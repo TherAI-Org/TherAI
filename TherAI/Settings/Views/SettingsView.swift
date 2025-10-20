@@ -208,8 +208,10 @@ struct SettingsView: View {
             // Preload avatar for personalization screen
             viewModel.preloadAvatar()
 
-            // Load profile information
-            viewModel.loadProfileInfo()
+            // Load profile information only if not already loaded from cache
+            if !viewModel.isProfileLoaded {
+                viewModel.loadProfileInfo()
+            }
 
             // Apply any already-known partner info from sessions VM instantly
             viewModel.applyPartnerInfo(sessionsVM.partnerInfo)
@@ -221,6 +223,7 @@ struct SettingsView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
+            // Profile changed elsewhere; reload to sync cached name and bio
             viewModel.loadProfileInfo()
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
