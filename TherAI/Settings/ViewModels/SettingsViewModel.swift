@@ -23,6 +23,12 @@ class SettingsViewModel: ObservableObject {
 
     init() {
         loadSettings()
+        // Warm name from cache immediately to avoid flicker
+        if let cached = UserDefaults.standard.string(forKey: "therai_profile_full_name"),
+           !cached.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.fullName = cached
+            self.isProfileLoaded = true
+        }
         setupSettingsSections()
         loadCachedPartnerConnection()
         loadPartnerConnectionStatus()
