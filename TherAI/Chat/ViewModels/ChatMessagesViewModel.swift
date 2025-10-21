@@ -49,11 +49,24 @@ final class ChatMessagesViewModel: ObservableObject {
     static func preCachePartnerMessage(sessionId: UUID, text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        var messages = Self.sharedMessagesCache[sessionId]?.messages ?? []
         let partnerMessage = ChatMessage.partnerReceived(trimmed)
+        let exists = messages.contains { msg in
+            msg.segments.contains { seg in
+                if case .partnerReceived(let t) = seg { return t == trimmed } else { return false }
+            }
+        }
+        if !exists {
+            messages.append(partnerMessage)
+        }
         Self.sharedMessagesCache[sessionId] = MessagesCacheEntry(
-            messages: [partnerMessage],
+            messages: messages,
             lastLoaded: Date()
         )
+    }
+
+    static func preCacheMessages(sessionId: UUID, messages: [ChatMessage]) {
+        Self.sharedMessagesCache[sessionId] = MessagesCacheEntry(messages: messages, lastLoaded: Date())
     }
 
     func presentSession(_ id: UUID) async {

@@ -102,16 +102,23 @@ class ChatSessionsViewModel: ObservableObject {
         observers.removeAll()
     }
 
+    @MainActor
     func openSession(_ id: UUID) {
+        let wasUnread = unreadPartnerSessionIds.contains(id)
         activeSessionId = id
+
+        if wasUnread, let preview = sessions.first(where: { $0.id == id })?.lastMessageContent {
+            let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                ChatMessagesViewModel.preCachePartnerMessage(sessionId: id, text: trimmed)
+            }
+        }
+
         chatViewKey = UUID()
+
         if unreadPartnerSessionIds.remove(id) != nil {
             print("[SessionsVM] openSession cleared unread for session=\(id)")
             saveCachedUnread()
-        }
-        // Force refresh messages when opening a session to avoid stale cache hiding new partner messages
-        Task { @MainActor [weak self] in
-            await self?.chatViewModel?.loadHistory(force: true)
         }
     }
 
