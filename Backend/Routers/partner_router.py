@@ -22,6 +22,7 @@ from ..Database.partner_requests_repo import (
     mark_accepted_and_attach,
     get_request_by_id,
     update_content,
+    attach_session_and_message_on_pending,
 )
 from ..Database.supabase_client import supabase as _sp
 from ..APNS.apns import send_partner_request_notification_to_user, send_partner_message_notification_to_user
@@ -108,6 +109,8 @@ async def get_pending_partner_requests(current_user: dict = Depends(get_current_
                 content=r["content"],
                 created_at=r["created_at"],
                 status=r["status"],
+                recipient_session_id=(uuid.UUID(r["recipient_session_id"]) if r.get("recipient_session_id") else None),
+                created_message_id=(uuid.UUID(r["created_message_id"]) if r.get("created_message_id") else None),
             )
             for r in rows
         ]
@@ -229,9 +232,13 @@ async def accept_request_endpoint(request_id: uuid.UUID, background_tasks: Backg
 
     # Winner: finalize acceptance in the background to return immediately
     async def _finalize_acceptance():
-        # Insert the delivered message exactly once and update metadata
         try:
-            # Persist as structured annotation so iOS can render a dedicated received-partner block
+            pre_created_id_str = req.get("created_message_id")
+            if pre_created_id_str:
+                await update_session_last_message(session_id=recipient_session_id, content=req.get("content", ""))
+                await touch_session(session_id=recipient_session_id)
+                return
+
             partner_text = req.get("content", "")
             annotated = json.dumps({
                 "_therai": {"type": "partner_received", "text": partner_text},
@@ -249,7 +256,6 @@ async def accept_request_endpoint(request_id: uuid.UUID, background_tasks: Backg
                 created_message_id=uuid.UUID(created["id"])  # type: ignore[index]
             )
         except Exception:
-            # Best-effort: avoid surfacing background failures to client
             pass
 
     background_tasks.add_task(_finalize_acceptance)
@@ -365,13 +371,57 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
             # Deliver based on mode
             final_content = (final_text or "").strip() or body.message.strip()
             if created_request_id is not None:
-                # Update the pending request content so recipient sees the final version
+                # Create recipient session now and attach the partner message to it, while keeping request pending
                 try:
-                    asyncio.run(update_content(request_id=created_request_id, content=final_content))
-                    print(f"[PartnerStream] REQUEST UPDATED id={created_request_id} content_len={len(final_content)}")
+                    try:
+                        sender_session_row = asyncio.run(get_session_by_id(user_id=user_uuid, session_id=body.session_id))
+                        mirrored_title = (sender_session_row or {}).get("title")
+                    except Exception:
+                        mirrored_title = None
+                    new_session = asyncio.run(create_session(user_id=partner_user_id, title=mirrored_title or "New Chat"))
+                    recipient_session_id_created = uuid.UUID(new_session["id"])  # type: ignore[index]
+                    try:
+                        asyncio.run(update_linked_session_partner_session_for_source(
+                            relationship_id=relationship_id,
+                            source_session_id=body.session_id,
+                            partner_session_id=recipient_session_id_created,
+                        ))
+                    except Exception:
+                        pass
+                    annotated = json.dumps({
+                        "_therai": {"type": "partner_received", "text": final_content},
+                        "body": ""
+                    })
+                    created = asyncio.run(save_message(
+                        user_id=partner_user_id,
+                        session_id=recipient_session_id_created,  # type: ignore[arg-type]
+                        role="assistant",
+                        content=annotated,
+                    ))
+                    asyncio.run(update_session_last_message(session_id=recipient_session_id_created, content=final_content))  # type: ignore[arg-type]
+                    asyncio.run(touch_session(session_id=recipient_session_id_created))  # type: ignore[arg-type]
+                    asyncio.run(attach_session_and_message_on_pending(
+                        request_id=created_request_id,
+                        recipient_session_id=recipient_session_id_created,
+                        created_message_id=uuid.UUID(created["id"])  # type: ignore[index]
+                    ))
+                    try:
+                        meta = current_user.get("user_metadata") or {}
+                        sender_name = meta.get("full_name") or meta.get("name") or meta.get("display_name")
+                        asyncio.run(send_partner_message_notification_to_user(
+                            recipient_user_id=partner_user_id,
+                            session_id=recipient_session_id_created,  # type: ignore[arg-type]
+                            preview=final_content,
+                            sender_name=sender_name,
+                        ))
+                    except Exception:
+                        pass
                 except Exception as e:
-                    yield f"event: error\ndata: {json.dumps(str(e))}\n\n".encode()
-                    return
+                    print(f"[PartnerStream] ATTACH ON PENDING ERROR: {e}")
+                    try:
+                        asyncio.run(update_content(request_id=created_request_id, content=final_content))
+                    except Exception:
+                        pass
             else:
                 # Direct insert into recipient's personal session
                 try:

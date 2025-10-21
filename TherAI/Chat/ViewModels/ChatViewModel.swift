@@ -573,8 +573,6 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-
-
     func stopGeneration() {
         ChatStreamManager.shared.cancel(handleId: currentStreamHandleId)
         currentStreamHandleId = nil
@@ -597,8 +595,6 @@ class ChatViewModel: ObservableObject {
             }
         }
     }
-
-
 
     func sendToPartner(sessionsViewModel: ChatSessionsViewModel, customMessage: String? = nil) async {
         let resolved = await ensureSessionId()

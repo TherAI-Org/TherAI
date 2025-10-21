@@ -92,6 +92,29 @@ async def mark_accepted_and_attach(*, request_id: uuid.UUID, recipient_session_i
         raise RuntimeError(f"Supabase update partner_request accepted failed: {res.error}")
 
 
+async def attach_session_and_message_on_pending(*, request_id: uuid.UUID, recipient_session_id: uuid.UUID, created_message_id: uuid.UUID) -> None:
+    """Attach the created recipient session and message id to a still-pending request.
+
+    Does not change the status; used when we pre-create the session/message at request time
+    but leave the acceptance decision to the recipient.
+    """
+    def _update():
+        return (
+            supabase
+            .table(TABLE)
+            .update({
+                "recipient_session_id": str(recipient_session_id),
+                "created_message_id": str(created_message_id),
+            })
+            .eq("id", str(request_id))
+            .eq("status", "pending")
+            .execute()
+        )
+    res = await run_in_threadpool(_update)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase update partner_request attach pending failed: {res.error}")
+
+
 async def get_request_by_id(*, request_id: uuid.UUID) -> Optional[dict]:
     def _select():
         return (

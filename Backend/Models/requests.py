@@ -77,6 +77,8 @@ class PartnerPendingRequestDTO(BaseModel):
     content: str
     created_at: str
     status: str
+    recipient_session_id: UUID | None = None
+    created_message_id: UUID | None = None
 
 class PartnerPendingRequestsResponse(BaseModel):
     requests: list[PartnerPendingRequestDTO]

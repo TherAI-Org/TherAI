@@ -123,6 +123,16 @@ class ChatSessionsViewModel: ObservableObject {
     }
 
     func openPendingRequest(_ request: BackendService.PartnerPendingRequest) {
+        if let sid = request.recipient_session_id {
+            activeSessionId = sid
+            chatViewKey = UUID()
+            Task { @MainActor in
+                ChatMessagesViewModel.preCachePartnerMessage(sessionId: sid, text: request.content)
+            }
+            Task { @MainActor [weak self] in
+                await self?.chatViewModel?.loadHistory(force: true)
+            }
+        }
         Task { await acceptPendingRequest(request) }
     }
 
@@ -151,13 +161,21 @@ class ChatSessionsViewModel: ObservableObject {
             let accessToken = session.accessToken
             self.currentUserId = session.user.id.uuidString
             let dtos = try await BackendService.shared.fetchSessions(accessToken: accessToken)
-            let mapped = dtos.map { dto in
+            var mapped = dtos.map { dto in
                 return ChatSession(
                     id: dto.id,
                     title: dto.title,
                     lastUsedISO8601: dto.last_message_at,
                     lastMessageContent: dto.last_message_content
                 )
+            }
+
+            // UI tweak: hide pre-created partner-request sessions until the request is accepted
+            if !self.pendingRequests.isEmpty {
+                let hiddenIds = Set(self.pendingRequests.compactMap { $0.recipient_session_id })
+                if !hiddenIds.isEmpty {
+                    mapped.removeAll { hiddenIds.contains($0.id) }
+                }
             }
 
             if self.partnerInfo == nil {
@@ -194,10 +212,11 @@ class ChatSessionsViewModel: ObservableObject {
                 }
             }
 
+            let finalMapped = mapped
             await MainActor.run {
-                self.sessions = mapped
+                self.sessions = finalMapped
                 self.isLoadingSessions = false
-                print("📱 Updated local sessions list with \(mapped.count) sessions")
+                print("📱 Updated local sessions list with \(finalMapped.count) sessions")
                 self.saveCachedSessions()
             }
         } catch {
@@ -383,18 +402,22 @@ class ChatSessionsViewModel: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 do {
-                    if self.pendingRequests.isEmpty {
-                        await self.loadPendingRequests()
-                    }
-                    let messageContent = self.pendingRequests.first(where: { $0.id == requestId })?.content ?? ""
+                    if self.pendingRequests.isEmpty { await self.loadPendingRequests() }
+                    let req = self.pendingRequests.first(where: { $0.id == requestId })
+                    let messageContent = req?.content ?? ""
 
                     let session = try await AuthService.shared.client.auth.session
                     let accessToken = session.accessToken
+                    // If we already have a recipient session id from the pending request, open instantly
+                    if let sid = req?.recipient_session_id {
+                        self.activeSessionId = sid
+                        self.chatViewKey = UUID()
+                        if !messageContent.isEmpty { ChatMessagesViewModel.preCachePartnerMessage(sessionId: sid, text: messageContent) }
+                        await self.chatViewModel?.loadHistory(force: true)
+                    }
                     let partnerSessionId = try await BackendService.shared.acceptPartnerRequest(requestId: requestId, accessToken: accessToken)
                     await self.loadSessions()
-                    if !messageContent.isEmpty {
-                        ChatMessagesViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: messageContent)
-                    }
+                    if !messageContent.isEmpty { ChatMessagesViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: messageContent) }
                     self.activeSessionId = partnerSessionId
                     self.chatViewKey = UUID()
                     if let navVM = self.findNavigationViewModel() {

@@ -55,6 +55,8 @@ struct BackendService {
         let content: String
         let created_at: String
         let status: String
+        let recipient_session_id: UUID?
+        let created_message_id: UUID?
     }
 
     func registerPushToken(token: String, platform: String, bundleId: String, accessToken: String) async throws {

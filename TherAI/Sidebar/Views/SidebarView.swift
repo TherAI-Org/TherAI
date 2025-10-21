@@ -506,7 +506,6 @@ struct SlidebarView: View {
                 ChatSession(id: UUID(), title: "Weekend plans", lastUsedISO8601: "2025-07-15T18:30:00Z", lastMessageContent: "Let's meet at the coffee shop at 2pm on Saturday")
             ]
             sessionsVM.isLoadingSessions = false
-            // Seed example pending requests
             sessionsVM.pendingRequests = [
                 BackendService.PartnerPendingRequest(
                     id: UUID(),
@@ -514,7 +513,9 @@ struct SlidebarView: View {
                     sender_session_id: UUID(),
                     content: "Partner request: Share chat access?",
                     created_at: ISO8601DateFormatter().string(from: Date()),
-                    status: "pending"
+                    status: "pending",
+                    recipient_session_id: nil,
+                    created_message_id: nil
                 ),
                 BackendService.PartnerPendingRequest(
                     id: UUID(),
@@ -522,7 +523,9 @@ struct SlidebarView: View {
                     sender_session_id: UUID(),
                     content: "Invite from S: Connect for partner session",
                     created_at: ISO8601DateFormatter().string(from: Date()),
-                    status: "pending"
+                    status: "pending",
+                    recipient_session_id: nil,
+                    created_message_id: nil
                 )
             ]
             self.navigationViewModel = navVM
