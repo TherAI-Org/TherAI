@@ -31,7 +31,6 @@ struct ChatView: View {
         .contentShape(Rectangle())
         .onTapGesture { isInputFocused = false }
         .onAppear {
-            // Do not focus input when sidebar is open
             if navigationViewModel.isOpen {
                 isInputFocused = false
             } else {
@@ -46,7 +45,6 @@ struct ChatView: View {
         .onChange(of: navigationViewModel.isOpen) { _, newValue in ChatSidebarViewModel.shared.handleSidebarIsOpenChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
         .onAppear {
             Task { await sessionsViewModel.loadPendingRequests() }
-            // Register this ChatViewModel with SessionsViewModel so it can preload cache
             sessionsViewModel.chatViewModel = viewModel
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("SendPartnerMessageFromBubble"))) { note in
@@ -54,7 +52,6 @@ struct ChatView: View {
                 Task { await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text) }
             }
         }
-        // SkipPartnerDraftRequested no-op removed; feature not in use
         .onChange(of: sessionsViewModel.chatViewKey) { _, _ in
             if sessionsViewModel.activeSessionId == nil {
                 viewModel.sessionId = nil
