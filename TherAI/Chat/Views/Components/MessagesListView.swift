@@ -1,46 +1,27 @@
 import SwiftUI
 
 struct MessagesListView: View {
-    let messages: [ChatMessage]
+
     @ObservedObject var chatViewModel: ChatViewModel
-    let isInputFocused: Bool
-    let onBackgroundTap: () -> Void
-    let preScrollTrigger: Int
-    let keyboardScrollTrigger: Int
-    let onPreScrollComplete: (() -> Void)?
-    let isAssistantTyping: Bool
-    let focusTopId: UUID?
-    let streamingScrollToken: Int
-    let streamingTargetId: UUID?
-    let initialJumpToken: Int
 
     @State private var savedScrollPosition: UUID?
+
+    let messages: [ChatMessage]
+    let isInputFocused: Bool
+    let isAssistantTyping: Bool
+    let initialJumpToken: Int
 
     init(
         messages: [ChatMessage],
         chatViewModel: ChatViewModel,
         isInputFocused: Bool,
-        onBackgroundTap: @escaping () -> Void,
-        preScrollTrigger: Int = 0,
-        keyboardScrollTrigger: Int = 0,
-        onPreScrollComplete: (() -> Void)? = nil,
         isAssistantTyping: Bool = false,
-        focusTopId: UUID? = nil,
-        streamingScrollToken: Int = 0,
-        streamingTargetId: UUID? = nil,
         initialJumpToken: Int = 0
     ) {
         self.messages = messages
         self.chatViewModel = chatViewModel
         self.isInputFocused = isInputFocused
-        self.onBackgroundTap = onBackgroundTap
-        self.preScrollTrigger = preScrollTrigger
-        self.keyboardScrollTrigger = keyboardScrollTrigger
-        self.onPreScrollComplete = onPreScrollComplete
         self.isAssistantTyping = isAssistantTyping
-        self.focusTopId = focusTopId
-        self.streamingScrollToken = streamingScrollToken
-        self.streamingTargetId = streamingTargetId
         self.initialJumpToken = initialJumpToken
     }
 
@@ -49,7 +30,7 @@ struct MessagesListView: View {
             ScrollView {
                 VStack(spacing: 18) {
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                        MessageBubbleView(message: message, chatViewModel: chatViewModel, onSendToPartner: { text in
+                        MessageBubbleView(chatViewModel: chatViewModel, message: message, onSendToPartner: { text in
                             NotificationCenter.default.post(name: .init("SendPartnerMessageFromBubble"), object: nil, userInfo: ["content": text])
                         })
                             .id(message.id)
@@ -58,7 +39,7 @@ struct MessagesListView: View {
                     if isAssistantTyping {
                         HStack(alignment: .top, spacing: 0) {
                             TypingIndicatorView(showAfter: 0)
-                                .padding(.top, -10) // nudge slightly higher to align with message start
+                                .padding(.top, -10)
                             Spacer(minLength: 0)
                         }
                         .id("typing-indicator")
@@ -69,24 +50,11 @@ struct MessagesListView: View {
             }
             .scrollBounceBehavior(.always)
             .scrollIndicators(.visible)
-            .onChange(of: preScrollTrigger) { _, _ in
-                guard preScrollTrigger > 0 else { return }
-                guard let lastId = messages.last?.id else { return }
-                withAnimation(.easeOut(duration: 0.25)) {
-                    proxy.scrollTo(lastId, anchor: .bottom)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) {
-                    onPreScrollComplete?()
-                }
-            }
-            // First-open jump to bottom without animation
             .onChange(of: initialJumpToken) { _, token in
                 guard token > 0 else { return }
                 guard let lastId = messages.last?.id else { return }
-                // Non-animated to avoid visible scroll
                 withAnimation(nil) { proxy.scrollTo(lastId, anchor: .bottom) }
             }
-            // Removed one-time push after send
             .onChange(of: isInputFocused) { oldValue, newValue in
                 if newValue && !oldValue {
                     guard let lastId = messages.last?.id else { return }
@@ -110,10 +78,6 @@ struct MessagesListView: View {
                         savedScrollPosition = nil
                     }
                 }
-            }
-            // Disabled streaming auto-scroll to prevent list jumps after sending
-            .onChange(of: streamingScrollToken) { _, _ in
-                // no-op: keep current scroll position stable
             }
         }
     }

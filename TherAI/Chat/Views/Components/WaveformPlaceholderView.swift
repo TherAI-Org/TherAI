@@ -1,19 +1,18 @@
 import SwiftUI
 
 struct WaveformPlaceholderView: View {
-    // Live current level (0...1). We snapshot this when spawning each new bar.
+
     let currentLevel: CGFloat
-    
-    // Visual parameters
+
     var barWidth: CGFloat = 2.5
     var barSpacing: CGFloat = 1.5
     var minHeight: CGFloat = 2
     var maxHeight: CGFloat = 30
-    var color: Color = Color(red: 0.54, green: 0.32, blue: 0.78) // purple
-    var widthGain: CGFloat = 1.2 // added width proportional to level
-    var scrollSpeed: CGFloat = 40 // points/sec constant speed (slightly faster spawn cadence)
+    var color: Color = Color(red: 0.54, green: 0.32, blue: 0.78)
+    var widthGain: CGFloat = 1.2
+    var scrollSpeed: CGFloat = 40
+    private let maxBars: Int = 200
 
-    // Internal state: ring buffer of frozen bar heights
     @State private var bars: [CGFloat] = []
     @State private var phaseOffset: CGFloat = 0
     @State private var distanceAccumulator: CGFloat = 0
@@ -23,14 +22,11 @@ struct WaveformPlaceholderView: View {
     var body: some View {
         Canvas(rendersAsynchronously: true) { context, size in
             let unit = barWidth + barSpacing
-            // Fractional offset for smooth movement between bar spawns
             let offset = phaseOffset.truncatingRemainder(dividingBy: unit)
-                // Draw from right to left; newest bar is on the right
             let startIndex = max(0, bars.count - Int(ceil((size.width + unit) / unit)) - 2)
             var x = size.width - offset - unit * CGFloat(bars.count - 1 - startIndex)
             for i in startIndex..<bars.count {
                 let v = bars[i]
-                // Keep a visible base width, but cap growth so medium is truly medium
                 let w = barWidth + (widthGain * (0.5 + 0.5 * v))
                 let h = minHeight + (maxHeight - minHeight) * v
                 let rect = CGRect(x: x, y: (size.height - h) / 2, width: w, height: h)
@@ -50,10 +46,9 @@ struct WaveformPlaceholderView: View {
             distanceAccumulator += advance
             while distanceAccumulator >= unit {
                 distanceAccumulator -= unit
-                // Snapshot instantaneous level; clamp to ensure true zero on silence
                 let clamped = max(0, min(1, currentLevel))
                 bars.append(clamped)
-                if bars.count > 200 { bars.removeFirst(bars.count - 200) }
+                if bars.count > maxBars { bars.removeFirst(bars.count - maxBars) }
             }
         }
         .accessibilityHidden(true)

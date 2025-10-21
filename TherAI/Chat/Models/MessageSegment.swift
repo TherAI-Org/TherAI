@@ -1,6 +1,5 @@
 import Foundation
 
-// Represents a segment of a message - either text or a partner message
 enum MessageSegment: Identifiable, Equatable {
     case text(String)
     case partnerMessage(String)

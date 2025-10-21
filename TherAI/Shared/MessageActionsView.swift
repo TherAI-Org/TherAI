@@ -10,19 +10,16 @@ struct MessageActionsView: View {
     private static let ttsSynth = AVSpeechSynthesizer()
 
     private func normalizeLanguageIdentifier(_ raw: String) -> String {
-        // Convert underscored locale (en_US) to BCP-47 (en-US) expected by AVSpeechSynthesisVoice
-        return raw.replacingOccurrences(of: "_", with: "-")
+        raw.replacingOccurrences(of: "_", with: "-")
     }
 
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
-        // Playback ensures audio is heard even with the silent switch; duckOthers to be respectful
         try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
         try? session.setActive(true, options: [])
     }
 
     private func preferredVoice() -> AVSpeechSynthesisVoice? {
-        // Only allow Siri/Enhanced voices per user's request; no fallbacks
         let currentRaw = Locale.preferredLanguages.first ?? Locale.current.identifier
         let current = normalizeLanguageIdentifier(currentRaw)
         return AVSpeechSynthesisVoice.speechVoices().first(where: { voice in
@@ -36,7 +33,6 @@ struct MessageActionsView: View {
         configureAudioSession()
         if Self.ttsSynth.isSpeaking { Self.ttsSynth.stopSpeaking(at: .immediate) }
         let utterance = AVSpeechUtterance(string: trimmed)
-        // Respect user-selected voice if set, otherwise require a Siri/Enhanced voice
         if let savedId = UserDefaults.standard.string(forKey: PreferenceKeys.ttsVoiceIdentifier), let v = AVSpeechSynthesisVoice(identifier: savedId) {
             utterance.voice = v
         } else {

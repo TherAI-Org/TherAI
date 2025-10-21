@@ -1,12 +1,10 @@
 import SwiftUI
-import UIKit
-import AVFoundation
 
 struct PartnerMessageBlockView: View {
 
-    let text: String
-
     @State private var showCheck: Bool = false
+
+    let text: String
 
     var body: some View {
         VStack(alignment: .leading) {

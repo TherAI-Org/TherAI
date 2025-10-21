@@ -7,6 +7,7 @@ struct QuickSuggestion: Identifiable, Hashable {
 }
 
 struct QuickSuggestionsView: View {
+
     let suggestions: [QuickSuggestion]
     let onTap: (String) -> Void
 
@@ -29,27 +30,23 @@ struct QuickSuggestionsView: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(
-                            Group {
-                                if #available(iOS 26.0, *) {
-                                    Color.clear
-                                        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                } else {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(.ultraThinMaterial)
-                                }
+                        .background {
+                            if #available(iOS 26.0, *) {
+                                Color.clear
+                                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            } else {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(.ultraThinMaterial)
                             }
-                        )
-                        .overlay(
-                            Group {
-                                if #available(iOS 26.0, *) {
-                                    EmptyView()
-                                } else {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-                                }
+                        }
+                        .overlay {
+                            if #available(iOS 26.0, *) {
+                                Color.clear
+                            } else {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
                             }
-                        )
+                        }
                     }
                     .buttonStyle(.plain)
                 }

@@ -11,7 +11,6 @@ struct SplashOverlayView: View {
             Color(.systemBackground)
                 .ignoresSafeArea()
 
-            // Infinity logo with subtle breathing animation
             Image(systemName: "infinity")
                 .font(.system(size: 76, weight: .semibold))
                 .foregroundStyle(

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IconButtonLabelView: View {
     let systemName: String
+
     var body: some View {
         Image(systemName: systemName)
             .font(.system(size: 16, weight: .semibold))

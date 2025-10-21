@@ -6,6 +6,7 @@ import SwiftUI
 
 @MainActor
 class VoiceRecordingService: NSObject, ObservableObject {
+
     @Published var isRecording = false
     @Published var isTranscribing = false
     @Published var transcribedText = ""
@@ -14,7 +15,6 @@ class VoiceRecordingService: NSObject, ObservableObject {
     @Published var isShowingRecordingPlaceholder = false
     @Published var audioLevel: Float = 0.0
     @Published var waveformSamples: [CGFloat] = Array(repeating: 0.05, count: 48)
-    // Fast-reacting level for spawning bars (captures instantaneous loudness)
     @Published var spawnLevel: CGFloat = 0.0
 
     private var audioRecorder: AVAudioRecorder?
@@ -46,7 +46,6 @@ class VoiceRecordingService: NSObject, ObservableObject {
     }
 
     func requestPermissions() async -> Bool {
-        // Request microphone permission
         let micPermission: Bool
         if #available(iOS 17.0, *) {
             micPermission = await withCheckedContinuation { continuation in
@@ -62,7 +61,6 @@ class VoiceRecordingService: NSObject, ObservableObject {
             }
         }
 
-        // Request speech recognition permission
         let speechPermission = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status)
@@ -105,47 +103,35 @@ class VoiceRecordingService: NSObject, ObservableObject {
             transcribedText = ""
             isShowingRecordingPlaceholder = true
 
-            // Start timer for duration tracking and audio level monitoring
             recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
                 Task { @MainActor in
                     guard let strongSelf = self else { return }
                     strongSelf.recordingDuration += 0.05
-                    // Update audio level
                     strongSelf.audioRecorder?.updateMeters()
-                    // Use peak power for snappier response
                     let db = strongSelf.audioRecorder?.peakPower(forChannel: 0) ?? -60.0
-                    // Convert dB (-60..0) to 0..1
                     let normalized = max(0, min(1, (CGFloat(db) + 60) / 60))
-                    // Noise gate: keep very quiet inputs minimal
                     let noiseFloor: CGFloat = 0.11
                     let gated = max(0, normalized - noiseFloor) / (1 - noiseFloor)
-                    // Shaping: boost mids slightly while keeping lows low and highs under control
                     let midBoost = sqrt(gated)
                     let shapedFast = min(1, (0.55 * gated) + (0.45 * midBoost))
                     let shapedSmooth = min(1, (0.70 * gated) + (0.30 * midBoost))
-                    // Spawn level reacts quickly (captures pauses between words)
-                    // Instantaneous spawn level (no smoothing) for immediate bar changes
                     strongSelf.spawnLevel = shapedFast
-                    // UI level is smoother (for any other indicators)
                     strongSelf.smoothedLevel = (strongSelf.smoothedLevel * 0.85) + (shapedSmooth * 0.15)
                     strongSelf.audioLevel = Float(strongSelf.smoothedLevel)
 
-                    // Advance waveform samples
                     if strongSelf.waveformSamples.count != strongSelf.waveformSampleCount {
                         strongSelf.waveformSamples = Array(repeating: 0.05, count: strongSelf.waveformSampleCount)
                     }
                     strongSelf.waveformTick += 1
-                    if strongSelf.waveformTick % 4 == 0 { // append every 4 ticks -> even slower scroll
+                    if strongSelf.waveformTick % 4 == 0 {
                         strongSelf.waveformSamples.removeFirst()
                         strongSelf.waveformSamples.append(max(0.02, min(1.0, strongSelf.smoothedLevel)))
                     } else if let lastIndex = strongSelf.waveformSamples.indices.last {
-                        // Update last bar to reflect current loudness without scrolling
                         strongSelf.waveformSamples[lastIndex] = max(0.02, min(1.0, strongSelf.smoothedLevel))
                     }
                 }
             }
 
-            // Start speech recognition
             startSpeechRecognition()
 
         } catch {

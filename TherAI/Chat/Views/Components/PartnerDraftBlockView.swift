@@ -1,6 +1,4 @@
 import SwiftUI
-import UIKit
-import AVFoundation
 
 struct PartnerDraftBlockView: View {
 
@@ -8,7 +6,6 @@ struct PartnerDraftBlockView: View {
 
     @State private var text: String
     @State private var measuredTextHeight: CGFloat = 0
-    @State private var showCheck: Bool = false
     @State private var isSending: Bool = false
     @State private var isConfirmingNormalSend: Bool = false
     @State private var showSentLocally: Bool = false
@@ -51,7 +48,6 @@ struct PartnerDraftBlockView: View {
                     .disabled(true)
                     .frame(height: max(40, measuredTextHeight))
 
-                // Invisible sizing text to measure height needed for the editor content
                 Text(text.isEmpty ? " " : text)
                     .font(.callout)
                     .foregroundColor(.clear)
@@ -63,7 +59,6 @@ struct PartnerDraftBlockView: View {
             }
 
             HStack {
-                // Left-side Cancel (only when confirming)
                 if isConfirmingNormalSend {
                     Button(action: {
                         Haptics.impact(.light)
@@ -81,10 +76,8 @@ struct PartnerDraftBlockView: View {
 
                 Spacer()
 
-                // Normal Send (two-step: Send -> Sure? -> Sent)
                 HStack(spacing: 8) {
                     Button(action: {
-                        // Prevent multiple sends
                         guard !isSent && !isSending else { return }
                         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !trimmed.isEmpty else { return }
@@ -92,16 +85,13 @@ struct PartnerDraftBlockView: View {
                         Haptics.impact(.light)
 
                         if isConfirmingNormalSend {
-                            // Second tap confirms send
                             isSending = true
                             withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
-                                // Optimistically show Sent! immediately
                                 showSentLocally = true
                                 isConfirmingNormalSend = false
                             }
                             onAction(.send(trimmed))
                         } else {
-                            // First tap asks for confirmation (animated)
                             withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
                                 isConfirmingNormalSend = true
                             }
@@ -159,15 +149,11 @@ struct PartnerDraftBlockView: View {
             showSentLocally = false
         }
         .onChange(of: isSent) { _, _ in
-            // Reset confirmation state if sent status changes
             isConfirmingNormalSend = false
-            // Clear local optimistic flag once parent state reflects sent
             if isSent { showSentLocally = false }
         }
     }
 }
-
-// MARK: - Height measurement helpers
 
 private struct ViewHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
@@ -185,7 +171,7 @@ private struct HeightReader: View {
                 .preference(key: ViewHeightKey.self, value: proxy.size.height)
         }
         .onPreferenceChange(ViewHeightKey.self) { newValue in
-            if abs(newValue - height) > 0.5 { // avoid tight update loops
+            if abs(newValue - height) > 0.5 {
                 height = newValue
             }
         }

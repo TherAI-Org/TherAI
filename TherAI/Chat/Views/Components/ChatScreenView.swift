@@ -3,12 +3,7 @@ import UIKit
 
 struct ChatScreenView: View {
 
-    let isInputFocused: FocusState<Bool>.Binding
-
     @ObservedObject var chatViewModel: ChatViewModel
-
-    let onDoubleTapPartnerMessage: (_: Any) -> Void
-    let onSendToPartner: () -> Void
 
     @State private var inputBarHeight: CGFloat = 0
     @State private var suggestionsHeight: CGFloat = 0
@@ -16,6 +11,9 @@ struct ChatScreenView: View {
     @State private var keyboardScrollToken: Int = 0
     @State private var showSuggestionsDelayed: Bool = false
     @State private var suggestionsDelayWorkItem: DispatchWorkItem?
+
+    let onSendToPartner: () -> Void
+    let isInputFocused: FocusState<Bool>.Binding
 
     private var quickSuggestions: [QuickSuggestion] {
         return [
@@ -40,19 +38,11 @@ struct ChatScreenView: View {
                 showDivider: !chatViewModel.messages.isEmpty
             )
 
-            // Inlined ChatContentView
             MessagesListView(
                 messages: chatViewModel.messages,
                 chatViewModel: chatViewModel,
                 isInputFocused: isInputFocused.wrappedValue,
-                onBackgroundTap: { isInputFocused.wrappedValue = false },
-                preScrollTrigger: 0,
-                keyboardScrollTrigger: keyboardScrollToken,
-                onPreScrollComplete: nil,
                 isAssistantTyping: chatViewModel.isAssistantTyping,
-                focusTopId: chatViewModel.focusTopMessageId,
-                streamingScrollToken: chatViewModel.streamingScrollToken,
-                streamingTargetId: chatViewModel.assistantScrollTargetId,
                 initialJumpToken: chatViewModel.initialJumpToken
             )
             .safeAreaInset(edge: .bottom) {
@@ -98,7 +88,7 @@ struct ChatScreenView: View {
                     send: { chatViewModel.sendMessage() },
                     stop: { chatViewModel.stopGeneration() },
                     onSendToPartner: onSendToPartner,
-                    onVoiceRecordingStart: { chatViewModel.startVoiceRecording() },
+                    onVoiceRecordingStart: { },
                     onVoiceRecordingStop: { _ in }
                 )
                 .background(
@@ -128,7 +118,6 @@ struct ChatScreenView: View {
         }
         .onAppear {
             bottomSafeInset = currentBottomSafeInset()
-            // Schedule delayed appearance if entering a new chat
             if isNewChatReadyForSuggestions {
                 suggestionsDelayWorkItem?.cancel()
                 let work = DispatchWorkItem {
@@ -142,7 +131,6 @@ struct ChatScreenView: View {
                 showSuggestionsDelayed = false
             }
         }
-        // Removed pre-scroll behavior to avoid visible scrolling on load
         .onChange(of: isNewChatReadyForSuggestions) { _, ready in
             if ready {
                 suggestionsDelayWorkItem?.cancel()
@@ -188,4 +176,34 @@ private struct SuggestionsHeightPreferenceKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }
+}
+
+#Preview("Chat Screen") {
+    struct PreviewContainer: View {
+        @StateObject private var vm = ChatViewModel()
+        @FocusState private var isFocused: Bool
+
+        var body: some View {
+            ChatScreenView(
+                chatViewModel: vm,
+                onSendToPartner: { },
+                isInputFocused: $isFocused
+            )
+            .environmentObject(SidebarNavigationViewModel())
+            .environmentObject(ChatSessionsViewModel())
+            .onAppear {
+                vm.isLoading = false
+                vm.isLoadingHistory = false
+                vm.isAssistantTyping = false
+                vm.messages = [
+                    ChatMessage.text("Hey! Can we talk about yesterday?", isFromUser: true),
+                    ChatMessage(segments: [.text("Of course—what's on your mind?")], isFromUser: false),
+                    ChatMessage(segments: [.text("You could say:"), .partnerMessage("I felt dismissed during our talk. Can we revisit it?")], isFromUser: false),
+                    ChatMessage(segments: [.partnerReceived("Absolutely, I'd like that. When works for you?")], isFromUser: false)
+                ]
+            }
+        }
+    }
+
+    return PreviewContainer()
 }

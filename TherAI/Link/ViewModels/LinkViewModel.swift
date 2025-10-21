@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 final class LinkViewModel: ObservableObject {
+
     enum LinkingState: Equatable {
         case idle
         case creating
@@ -41,7 +42,6 @@ final class LinkViewModel: ObservableObject {
         do {
             let token = try await accessTokenProvider()
             try await BackendService.shared.acceptLinkInvite(inviteToken: inviteToken, accessToken: token)
-            // After accepting, refresh status to capture linkedAt
             try await refreshStatus()
         } catch {
             state = .error(message: error.localizedDescription)
@@ -54,7 +54,6 @@ final class LinkViewModel: ObservableObject {
         do {
             let token = try await accessTokenProvider()
             _ = try await BackendService.shared.unlink(accessToken: token)
-            // After unlink, generate a fresh invite immediately
             await createInviteLink()
         } catch {
             state = .error(message: error.localizedDescription)
@@ -69,10 +68,8 @@ final class LinkViewModel: ObservableObject {
         state = status.linked ? .linked : .idle
     }
 
-    // Ensure there is always a shareable link ready if not linked
     @MainActor
     func ensureInviteReady() async {
-        // First, refresh to know if we are linked
         do { try await refreshStatus() } catch {}
         switch state {
         case .linked, .shareReady:
@@ -84,7 +81,6 @@ final class LinkViewModel: ObservableObject {
         }
     }
 
-    // Store token to be processed after sign-in if needed
     func captureIncomingInviteToken(_ token: String) {
         pendingInviteToken = token
     }

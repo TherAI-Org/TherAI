@@ -5,9 +5,13 @@ import Speech
 
 struct InputAreaView: View {
 
+    @StateObject private var voiceService = VoiceRecordingService()
+
     @Binding var inputText: String
     @Binding var isLoading: Bool
     @Binding var focusSnippet: String?
+
+    @Namespace private var actionButtonNamespace
 
     let isInputFocused: FocusState<Bool>.Binding
     let send: () -> Void
@@ -17,8 +21,6 @@ struct InputAreaView: View {
     let onVoiceRecordingStop: (String) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
-    @StateObject private var voiceService = VoiceRecordingService()
-    @Namespace private var actionButtonNamespace
 
     var body: some View {
 
@@ -58,7 +60,6 @@ struct InputAreaView: View {
             HStack(alignment: .bottom, spacing: 4) {
                 VStack {
                     if voiceService.isShowingRecordingPlaceholder {
-                        // Waveform with frozen bars that spawn from the right and travel left
                         WaveformPlaceholderView(
                             currentLevel: voiceService.spawnLevel,
                             barWidth: 3,
@@ -70,7 +71,6 @@ struct InputAreaView: View {
                         .padding(.horizontal, 4)
                         .padding(.vertical, 10)
                     } else {
-                        // Actual text field
                         TextField("Share what's on your mind", text: $inputText, axis: .vertical)
                             .lineLimit(1...5)
                             .lineSpacing(2)
@@ -85,7 +85,6 @@ struct InputAreaView: View {
                 }
                 .frame(minHeight: 36)
 
-                // Trailing action: single persistent button with stable background; icons swap with mirrored transitions
                 Button(action: {
                     Haptics.impact(.light)
                     if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -101,7 +100,6 @@ struct InputAreaView: View {
                     }
                 }) {
                     ZStack {
-                        // Stable background circle (no matchedGeometryEffect to avoid jumpiness)
                         Circle()
                             .fill(
                                 LinearGradient(
@@ -113,7 +111,6 @@ struct InputAreaView: View {
                             .frame(width: sendSize, height: sendSize)
                             .shadow(color: Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.3), radius: 4, x: 0, y: 2)
 
-                        // Icon layers
                         ZStack {
                             if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                                 Image(systemName: voiceService.isRecording ? "stop.fill" : "mic.fill")

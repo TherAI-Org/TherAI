@@ -1,5 +1,4 @@
 import SwiftUI
-import Supabase
 
 class ChatSessionsViewModel: ObservableObject {
 
@@ -20,19 +19,15 @@ class ChatSessionsViewModel: ObservableObject {
     @Published var myAvatarURL: String? = nil
     @Published var partnerAvatarURL: String? = nil
     @Published var partnerInfo: BackendService.PartnerInfo? = nil
-    @Published var avatarsLoaded: Bool = false
     @Published var isBootstrapping: Bool = false
     @Published var isBootstrapComplete: Bool = false
     @Published private(set) var unreadPartnerSessionIds: Set<UUID> = []
 
     private var suppressUnreadSessionIds: Set<UUID> = []
-
-    var onRefreshPendingRequests: (() -> Void)?
-
     private var observers: [NSObjectProtocol] = []
-    private let avatarCacheManager = AvatarCacheManager.shared
     private var handlingPartnerRequestIds: Set<UUID> = []
     private var hasStartedObserving: Bool = false
+    private let avatarCacheManager = AvatarCacheManager.shared
     private weak var navigationViewModel: SidebarNavigationViewModel?
     private weak var linkViewModel: LinkViewModel?
     weak var chatViewModel: ChatViewModel?
@@ -99,7 +94,6 @@ class ChatSessionsViewModel: ObservableObject {
         myAvatarURL = nil
         partnerAvatarURL = nil
         partnerInfo = nil
-        avatarsLoaded = false
         unreadPartnerSessionIds.removeAll()
         suppressUnreadSessionIds.removeAll()
         for observer in observers {
@@ -148,11 +142,8 @@ class ChatSessionsViewModel: ObservableObject {
             await MainActor.run { self.isLoadingSessions = self.sessions.isEmpty }
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
-            // Store user ID for cache file naming
             self.currentUserId = session.user.id.uuidString
-            print("🔑 Got access token, fetching sessions...")
             let dtos = try await BackendService.shared.fetchSessions(accessToken: accessToken)
-            print("📋 Fetched \(dtos.count) sessions from backend")
             let mapped = dtos.map { dto in
                 return ChatSession(
                     id: dto.id,
@@ -181,17 +172,11 @@ class ChatSessionsViewModel: ObservableObject {
                 for session in mapped {
                     if let lastMessage = session.lastMessageContent, !lastMessage.isEmpty {
                         let previousSession = previousSessions.first { $0.id == session.id }
-                        // Only mark unread if:
-                        // 1. Message content changed (or session is new)
-                        // 2. Not the active session
-                        // 3. Not suppressed (recently sent by us)
-                        // 4. Not already marked unread
                         let isNewOrChanged = previousSession == nil || previousSession?.lastMessageContent != lastMessage
                         if isNewOrChanged &&
                            session.id != self.activeSessionId &&
                            !self.suppressUnreadSessionIds.contains(session.id) &&
                            !self.unreadPartnerSessionIds.contains(session.id) {
-                            // This is likely a partner message received while offline or on another account
                             self.unreadPartnerSessionIds.insert(session.id)
                             print("[SessionsVM] ✅ Detected new/changed message in session \(session.id) - was: \(previousSession?.lastMessageContent ?? "nil"), now: \(lastMessage)")
                         }
@@ -282,7 +267,6 @@ class ChatSessionsViewModel: ObservableObject {
         chatViewKey = UUID()
 
         Task {
-            // Store current user ID for cache file naming
             if let session = try? await AuthService.shared.client.auth.session {
                 self.currentUserId = session.user.id.uuidString
             }
@@ -294,7 +278,6 @@ class ChatSessionsViewModel: ObservableObject {
             print("[SessionsVM] Initial data loaded. PartnerLinked=\(self.partnerInfo?.linked ?? false)")
         }
 
-        // Session created
         let created = NotificationCenter.default.addObserver(forName: .chatSessionCreated, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             if let sid = note.userInfo?["sessionId"] as? UUID {
@@ -313,7 +296,6 @@ class ChatSessionsViewModel: ObservableObject {
         }
         observers.append(created)
 
-        // Message sent
         let sent = NotificationCenter.default.addObserver(forName: .chatMessageSent, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             if let sid = note.userInfo?["sessionId"] as? UUID,
@@ -322,7 +304,6 @@ class ChatSessionsViewModel: ObservableObject {
                 var item = self.sessions.remove(at: idx)
                 item.lastMessageContent = messageContent
                 self.sessions.insert(item, at: 0)
-                // We authored a message in this session; do not mark unread from upcoming refresh
                 self.suppressUnreadSessionIds.insert(sid)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
                     self?.suppressUnreadSessionIds.remove(sid)
@@ -332,14 +313,12 @@ class ChatSessionsViewModel: ObservableObject {
         }
         observers.append(sent)
 
-        // Sessions need refresh (e.g., after title generation)
         let needRefresh = NotificationCenter.default.addObserver(forName: .chatSessionsNeedRefresh, object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
             Task { await self.refreshSessions() }
         }
         observers.append(needRefresh)
 
-        // Avatar changed - reload avatar URLs and preload new avatars
         let avatarChanged = NotificationCenter.default.addObserver(forName: .avatarChanged, object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
             Task {
@@ -349,7 +328,6 @@ class ChatSessionsViewModel: ObservableObject {
         }
         observers.append(avatarChanged)
 
-        // Partner message received: mark session as unread unless it's currently open
         let partnerReceived = NotificationCenter.default.addObserver(forName: .partnerMessageReceived, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             guard let sid = note.userInfo?["sessionId"] as? UUID else {
@@ -360,31 +338,24 @@ class ChatSessionsViewModel: ObservableObject {
             let sessionExists = self.sessions.contains(where: { $0.id == sid })
             if !sessionExists {
                 print("[SessionsVM] ⚠️ Session \(sid) not in local list - likely for other account on same device")
-                // Store this as a pending unread for when the right account logs in
-                // For now, just ignore it
                 return
             }
 
-            // Session exists - proceed with normal handling
-            // Refresh LinkViewModel state when partner message arrives to ensure UI sync
             Task { @MainActor in
                 if let linkVM = self.findLinkViewModel() {
                     try? await linkVM.refreshStatus()
                 }
             }
 
-            // Only mark if not the active session AND we're actually linked to a partner
             if self.activeSessionId != sid && self.partnerInfo?.linked == true {
                 self.unreadPartnerSessionIds.insert(sid)
                 print("[SessionsVM] ✅ Marked session \(sid) as unread, total unread: \(self.unreadPartnerSessionIds.count)")
                 self.saveCachedUnread()
-                // Force UI update
                 self.objectWillChange.send()
             } else {
                 print("[SessionsVM] ❌ Not marking unread: isActive=\(self.activeSessionId == sid), linked=\(self.partnerInfo?.linked ?? false)")
             }
 
-            // Lift this session to top and update preview if provided
             if let idx = self.sessions.firstIndex(where: { $0.id == sid }) {
                 var item = self.sessions.remove(at: idx)
                 if let preview = note.userInfo?["messagePreview"] as? String {
@@ -396,19 +367,15 @@ class ChatSessionsViewModel: ObservableObject {
         }
         observers.append(partnerReceived)
 
-        // Push tapped: open partner request by accepting it and navigating to chat
         let pushTapped = NotificationCenter.default.addObserver(forName: .partnerRequestOpen, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             guard let requestId = note.userInfo?["requestId"] as? UUID else { return }
-            // Ensure we're authenticated before processing
             guard AuthService.shared.isAuthenticated else { return }
-            // Prevent duplicate processing
             if self.handlingPartnerRequestIds.contains(requestId) { return }
             self.handlingPartnerRequestIds.insert(requestId)
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 do {
-                    // Get the message content first
                     if self.pendingRequests.isEmpty {
                         await self.loadPendingRequests()
                     }
@@ -416,38 +383,28 @@ class ChatSessionsViewModel: ObservableObject {
 
                     let session = try await AuthService.shared.client.auth.session
                     let accessToken = session.accessToken
-                    // Accept the partner request (backend is idempotent)
                     let partnerSessionId = try await BackendService.shared.acceptPartnerRequest(requestId: requestId, accessToken: accessToken)
-                    // Reload sessions before navigating to ensure the session exists in the list
                     await self.loadSessions()
-
-                    // Pre-cache the partner message BEFORE navigating
                     if !messageContent.isEmpty {
-                        ChatViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: messageContent)
+                        ChatMessagesViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: messageContent)
                     }
-
-                    // Navigate to the chat and close sidebar
                     self.activeSessionId = partnerSessionId
                     self.chatViewKey = UUID()
-                    // Close the sidebar to show the chat
                     if let navVM = self.findNavigationViewModel() {
                         navVM.closeSidebar()
                     }
                     await self.loadPendingRequests()
                 } catch {
                     print("Failed to accept partner request: \(error)")
-                    // If the request was already accepted, try to find and open the session
                     await self.loadSessions()
                     if let existingSession = self.sessions.first {
                         self.activeSessionId = existingSession.id
                         self.chatViewKey = UUID()
-                        // Close the sidebar to show the chat
                         if let navVM = self.findNavigationViewModel() {
                             navVM.closeSidebar()
                         }
                     }
                 }
-                // Allow future taps after brief window to avoid rapid duplicates
                 DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
                     self?.handlingPartnerRequestIds.remove(requestId)
                 }
@@ -455,19 +412,15 @@ class ChatSessionsViewModel: ObservableObject {
         }
         observers.append(pushTapped)
 
-        // Push tapped: open partner session directly on partner message notification
         let partnerMessageTapped = NotificationCenter.default.addObserver(forName: .partnerMessageOpen, object: nil, queue: .main) { [weak self] note in
             guard let self = self else { return }
             guard let sessionId = note.userInfo?["sessionId"] as? UUID else { return }
-            // Ensure authenticated
             guard AuthService.shared.isAuthenticated else { return }
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                // First mark as unread if linked (before loading sessions)
                 if self.partnerInfo?.linked == true && sessionId != self.activeSessionId {
                     self.unreadPartnerSessionIds.insert(sessionId)
                 }
-                // Make sure sessions list includes this session, then navigate
                 await self.loadSessions()
                 self.activeSessionId = sessionId
                 self.chatViewKey = UUID()
@@ -479,33 +432,24 @@ class ChatSessionsViewModel: ObservableObject {
         observers.append(partnerMessageTapped)
     }
 
-    // MARK: - Initial App Bootstrap
     func bootstrapInitialData() async {
         if isBootstrapComplete { return }
         await MainActor.run { self.isBootstrapping = true }
 
         await withTaskGroup(of: Void.self) { group in
-            // Load sessions
             group.addTask { await self.loadSessions() }
-            // Load pending partner requests
             group.addTask { await self.loadPendingRequests() }
-            // Load partner info
             group.addTask { await self.loadPartnerInfo() }
-            // Fetch profile info and cache full name for sidebar and settings
             group.addTask { await self.fetchAndCacheProfileName() }
         }
 
-        // Load avatars then preload images to cache (including partner avatar for instant capsule display)
         await loadPairedAvatars()
         await preloadAvatars()
-        // Additionally, if partner avatar URL was provided via partner info but not in paired avatars yet, warm it
         if let cachedPartnerURL = UserDefaults.standard.string(forKey: PreferenceKeys.partnerAvatarURL),
            !cachedPartnerURL.isEmpty,
            (partnerAvatarURL == nil || partnerAvatarURL?.isEmpty == true) {
             await avatarCacheManager.preloadAvatars(urls: [cachedPartnerURL])
         }
-
-        // Do not auto-select a previous session; allow a fresh chat by default
 
         await MainActor.run {
             self.isBootstrapping = false
@@ -523,7 +467,6 @@ class ChatSessionsViewModel: ObservableObject {
                 NotificationCenter.default.post(name: .profileChanged, object: nil)
             }
         } catch {
-            // No-op: keep any previously cached value
             print("Failed to fetch profile name during bootstrap: \(error)")
         }
     }
@@ -542,29 +485,19 @@ class ChatSessionsViewModel: ObservableObject {
         }
     }
 
-    /// Preload avatar images into cache for immediate access
     func preloadAvatars() async {
         var avatarURLs: [String] = []
-
-        // Collect all avatar URLs
         if let myAvatar = myAvatarURL, !myAvatar.isEmpty {
             avatarURLs.append(myAvatar)
         }
         if let partnerAvatar = partnerAvatarURL, !partnerAvatar.isEmpty {
             avatarURLs.append(partnerAvatar)
         }
-
-        // Preload all avatars
         if !avatarURLs.isEmpty {
             await avatarCacheManager.preloadAvatars(urls: avatarURLs)
         }
-
-        await MainActor.run {
-            self.avatarsLoaded = true
-        }
     }
 
-    /// Get cached avatar image
     func getCachedAvatar(urlString: String?) async -> UIImage? {
         guard let urlString = urlString, !urlString.isEmpty else { return nil }
         return await avatarCacheManager.getCachedImage(urlString: urlString)
@@ -577,7 +510,6 @@ class ChatSessionsViewModel: ObservableObject {
             let res = try await BackendService.shared.fetchPartnerInfo(accessToken: accessToken)
             await MainActor.run {
                 self.partnerInfo = res
-                // Persist partner connection details for instant UI on next open
                 UserDefaults.standard.set(res.linked, forKey: PreferenceKeys.partnerConnected)
                 if res.linked, let partner = res.partner {
                     UserDefaults.standard.set(partner.name, forKey: PreferenceKeys.partnerName)
@@ -588,14 +520,12 @@ class ChatSessionsViewModel: ObservableObject {
                     UserDefaults.standard.removeObject(forKey: PreferenceKeys.partnerName)
                     UserDefaults.standard.removeObject(forKey: PreferenceKeys.partnerAvatarURL)
                 }
-                // Sync LinkViewModel state when partner info shows linked status
                 if res.linked, let linkVM = self.findLinkViewModel() {
                     Task {
                         try? await linkVM.refreshStatus()
                     }
                 }
             }
-            // Warm partner avatar cache immediately upon fetch
             if res.linked, let url = res.partner?.avatar_url, !url.isEmpty {
                 await avatarCacheManager.preloadAvatars(urls: [url])
             }
@@ -611,24 +541,16 @@ class ChatSessionsViewModel: ObservableObject {
 
             if let currentUserId = AuthService.shared.currentUser?.id,
                request.sender_user_id != currentUserId {
-                // Accept and navigate immediately using returned session id
                 let partnerSessionId = try await BackendService.shared.acceptPartnerRequest(requestId: request.id, accessToken: accessToken)
 
                 await MainActor.run {
                     self.pendingRequests.removeAll { $0.id == request.id }
-
-                    // Pre-cache the partner message BEFORE navigating
-                    ChatViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: request.content)
-
-                    // Navigate to the session
+                    ChatMessagesViewModel.preCachePartnerMessage(sessionId: partnerSessionId, text: request.content)
                     self.activeSessionId = partnerSessionId
                     self.chatViewKey = UUID()
-
-                    // Notify profile to recompute relationship totals immediately
                     NotificationCenter.default.post(name: .relationshipTotalsChanged, object: nil)
                 }
 
-                // Kick off a quick async refresh shortly after to pull in message metadata
                 Task.detached { [weak self] in
                     try? await Task.sleep(nanoseconds: 300_000_000)
                     await self?.loadSessions()
@@ -644,7 +566,6 @@ class ChatSessionsViewModel: ObservableObject {
 extension ChatSessionsViewModel {
     private var cacheURL: URL {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        // Make cache file user-specific for proper unread detection across account switches
         if let userId = currentUserId {
             return dir.appendingPathComponent("chat_sessions_cache_\(userId).json")
         }
@@ -652,7 +573,6 @@ extension ChatSessionsViewModel {
     }
     private var unreadCacheURL: URL {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        // Make cache file user-specific
         if let userId = currentUserId {
             return dir.appendingPathComponent("chat_unread_cache_\(userId).json")
         }
@@ -704,11 +624,6 @@ extension ChatSessionsViewModel {
         } catch {
             print("⚠️ Failed to save unread cache: \(error)")
         }
-    }
-
-    private func clearCachedUnread() {
-        try? FileManager.default.removeItem(at: unreadCacheURL)
-        print("[SessionsVM] Cleared unread cache")
     }
 }
 

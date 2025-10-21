@@ -121,29 +121,24 @@ struct MarkdownRendererView: View {
         s = stripFullSentenceItalics(s)
         s = s.replacingOccurrences(of: "->", with: " → ")
         s = s.replacingOccurrences(of: "<-", with: " ← ")
-        // Normalize common hyphen patterns to em‑dash for readability
         s = s.replacingOccurrences(of: " --- ", with: " — ")
         s = s.replacingOccurrences(of: " -- ", with: " — ")
         s = s.replacingOccurrences(of: " - ", with: " — ")
-        // Ensure spacing around em‑dash and arrows
         s = s.replacingOccurrences(of: "—", with: " — ")
         s = s.replacingOccurrences(of: "→", with: " → ")
         s = s.replacingOccurrences(of: "←", with: " ← ")
-        // Collapse duplicate spaces introduced by replacements
         while s.contains("  ") { s = s.replacingOccurrences(of: "  ", with: " ") }
         return s
     }
 
     private func stripFullSentenceItalics(_ input: String) -> String {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
-        // Remove outer single-asterisk italics if it wraps the entire string (no other asterisks inside)
         if trimmed.hasPrefix("*") && trimmed.hasSuffix("*") {
             let inner = String(trimmed.dropFirst().dropLast())
             if !inner.contains("*") && !inner.contains("**") {
                 return inner
             }
         }
-        // Also handle underscore italics wrapper
         if trimmed.hasPrefix("_") && trimmed.hasSuffix("_") {
             let inner = String(trimmed.dropFirst().dropLast())
             if !inner.contains("_") && !inner.contains("__") {
@@ -154,17 +149,16 @@ struct MarkdownRendererView: View {
     }
 
     private func topPadding(previous: Block?, current: Block, currentIndex: Int, firstHeadingIndex: Int?) -> CGFloat {
-        if currentIndex == 0 { return 0 }  // No top padding for the very first block
+        if currentIndex == 0 { return 0 }
         if case .rule = current { return dividerTopSpacing }
         if case .rule? = previous { return dividerBottomSpacing }
 
-        // First heading -> next paragraph: 22; other headings -> paragraph: 16
         if case .heading = previous, case .paragraph = current {
             if let first = firstHeadingIndex, currentIndex - 1 == first { return 22 }
             return 30
         }
 
-        return 30  // Default for other transitions
+        return 30
     }
 
     private func shouldInsertDivider(beforeHeadingAt index: Int, previous: Block?, firstHeadingIndex: Int?) -> Bool {
@@ -182,7 +176,6 @@ struct MarkdownRendererView: View {
         var ulBuffer: [String] = []
         var olBuffer: [String] = []
         var quoteBuffer: [String] = []
-        // Note: we intentionally allow ordered lists to continue across single blank lines
 
         func flushParagraph() {
             if !paragraphBuffer.isEmpty {
@@ -197,7 +190,6 @@ struct MarkdownRendererView: View {
                    let last = items.last,
                    case .heading = last.block,
                    !ulBuffer[0].trimmingCharacters(in: .whitespaces).hasSuffix("?") {
-                    // Single bullet immediately under a title and not a question → treat as a paragraph
                     items.append(BlockItem(block: .paragraph(ulBuffer[0])))
                 } else {
                     items.append(BlockItem(block: .unorderedList(items: ulBuffer)))
@@ -225,7 +217,6 @@ struct MarkdownRendererView: View {
             let line = raw.trimmingCharacters(in: CharacterSet.whitespaces)
 
             if line.isEmpty {
-                // Do not flush ordered list on a blank line; allow continued numbering across soft breaks
                 flushParagraph(); flushUL(); flushQuote()
                 idx += 1
                 continue
@@ -233,7 +224,6 @@ struct MarkdownRendererView: View {
 
             let isOrdered = line.range(of: "^\\d+\\.\\s+", options: .regularExpression) != nil
             if !olBuffer.isEmpty && !isOrdered {
-                // We were in an ordered list and now a non-ordered line begins → close the list
                 flushOL()
             }
 
@@ -263,7 +253,6 @@ struct MarkdownRendererView: View {
             }
 
             if let range = line.range(of: "^\\d+\\.\\s+", options: .regularExpression) {
-                // Continue same ordered list across single blank lines
                 flushParagraph(); flushUL(); flushQuote()
                 let item = String(line[range.upperBound...]).trimmingCharacters(in: CharacterSet.whitespaces)
                 olBuffer.append(item)
@@ -288,5 +277,3 @@ struct MarkdownRendererView: View {
         return items
     }
 }
-
-

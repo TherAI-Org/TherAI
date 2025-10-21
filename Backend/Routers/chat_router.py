@@ -178,17 +178,18 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                 segments = state.get("segments") or []
                 if segments:
                     try:
-                        has_partner = any((isinstance(s, dict) and s.get("type") == "partner_draft") for s in segments)
-                        if has_partner:
-                            annotation_obj = {"_therai": {"type": "segments", "segments": segments}}
-                            annotation = json.dumps(annotation_obj, ensure_ascii=False)
-                            await save_message(user_id=user_uuid, session_id=session_uuid, role="assistant", content=annotation)
-                            return
+                        annotation_obj = {"_therai": {"type": "segments", "segments": segments}}
+                        annotation = json.dumps(annotation_obj, ensure_ascii=False)
+                        await save_message(user_id=user_uuid, session_id=session_uuid, role="assistant", content=annotation)
+                        return
                     except Exception:
                         pass
+                # Fallback: persist plain text as a single text segment
                 if final_text:
                     try:
-                        await save_message(user_id=user_uuid, session_id=session_uuid, role="assistant", content=final_text)
+                        annotation_obj = {"_therai": {"type": "segments", "segments": [{"type": "text", "content": final_text}]}}
+                        annotation = json.dumps(annotation_obj, ensure_ascii=False)
+                        await save_message(user_id=user_uuid, session_id=session_uuid, role="assistant", content=annotation)
                     except Exception:
                         pass
             except Exception as e:
@@ -276,6 +277,11 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                     segments_list.append({"type": "partner_draft", "text": content})
 
                     pos = close_idx + len(end_marker)
+
+                # Flush any trailing text segment captured during streaming
+                if current_text_segment:
+                    segments_list.append({"type": "text", "content": current_text_segment})
+                    current_text_segment = ""
 
                 final_text = "".join(full_text_parts)
                 state["final_text"] = final_text or ""

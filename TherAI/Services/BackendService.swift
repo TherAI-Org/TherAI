@@ -4,10 +4,10 @@ struct BackendService {
 
     static let shared = BackendService()
 
-    let baseURL: URL
     private let urlSession: URLSession = .shared
     private let jsonEncoder = JSONEncoder()
     private let jsonDecoder = JSONDecoder()
+    let baseURL: URL
 
     private init() {
         guard let backendURLString = BackendService.getSecretsPlistValue(for: "BACKEND_BASE_URL") as? String,
@@ -18,14 +18,12 @@ struct BackendService {
         print("🌐 BackendService: Initialized with base URL: \(url)")
     }
 
-    // MARK: - Streaming (SSE)
-
     enum StreamEvent: Equatable {
         case session(UUID)
         case token(String)
         case partnerMessage(String)
-        case toolStart(String)    // tool name
-        case toolArgs(String)     // arg delta (optional)
+        case toolStart(String)
+        case toolArgs(String)
         case toolDone
         case responseId(String)
         case done
@@ -48,11 +46,6 @@ struct BackendService {
         return SSEService.shared.stream(request: request)
     }
 
-
-
-
-    // MARK: - Partner Requests (new)
-
     struct PartnerRequestBody: Codable { let message: String; let session_id: UUID }
     struct PartnerRequestResponse: Codable { let success: Bool; let request_id: UUID }
     struct PartnerPendingRequest: Codable {
@@ -64,7 +57,6 @@ struct BackendService {
         let status: String
     }
 
-    // MARK: - Push token registration
     func registerPushToken(token: String, platform: String, bundleId: String, accessToken: String) async throws {
         var request = URLRequest(url: baseURL
             .appendingPathComponent("notifications")
@@ -96,6 +88,7 @@ struct BackendService {
             throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
     }
+
     struct PartnerPendingRequestsResponse: Codable { let requests: [PartnerPendingRequest] }
 
     func streamPartnerRequest(_ body: PartnerRequestBody, accessToken: String) -> AsyncStream<StreamEvent> {
@@ -111,22 +104,6 @@ struct BackendService {
         return SSEService.shared.stream(request: request)
     }
 
-    func createPartnerRequest(_ body: PartnerRequestBody, accessToken: String) async throws -> PartnerRequestResponse {
-        var request = URLRequest(url: baseURL
-            .appendingPathComponent("partner")
-            .appendingPathComponent("request"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try jsonEncoder.encode(body)
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
-        return try jsonDecoder.decode(PartnerRequestResponse.self, from: data)
-    }
-
     func getPartnerPendingRequests(accessToken: String) async throws -> PartnerPendingRequestsResponse {
         var request = URLRequest(url: baseURL
             .appendingPathComponent("partner")
@@ -139,21 +116,6 @@ struct BackendService {
             throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
         return try jsonDecoder.decode(PartnerPendingRequestsResponse.self, from: data)
-    }
-
-    func markPartnerDelivered(requestId: UUID, accessToken: String) async throws {
-        var request = URLRequest(url: baseURL
-            .appendingPathComponent("partner")
-            .appendingPathComponent("requests")
-            .appendingPathComponent(requestId.uuidString)
-            .appendingPathComponent("delivered"))
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
-        }
     }
 
     func acceptPartnerRequest(requestId: UUID, accessToken: String) async throws -> UUID {
@@ -257,7 +219,6 @@ struct BackendService {
         return try jsonDecoder.decode(ChatSessionDTO.self, from: data)
     }
 
-    // Rename a session (nil or empty string clears the title)
     func renameSession(sessionId: UUID, title: String?, accessToken: String) async throws {
         func makeRequest(at base: URL) throws -> URLRequest {
             let url = base
@@ -276,7 +237,7 @@ struct BackendService {
         var request = try makeRequest(at: baseURL)
         var (data, response) = try await urlSession.data(for: request)
         var http = response as? HTTPURLResponse
-        if let h = http, h.statusCode == 404 { // try /api fallback
+        if let h = http, h.statusCode == 404 {
             request = try makeRequest(at: baseURL.appendingPathComponent("api"))
             (data, response) = try await urlSession.data(for: request)
             http = response as? HTTPURLResponse
@@ -290,7 +251,6 @@ struct BackendService {
         }
     }
 
-    // Delete a session and its messages
     func deleteSession(sessionId: UUID, accessToken: String) async throws {
         func makeRequest(at base: URL) -> URLRequest {
             let url = base
@@ -303,24 +263,20 @@ struct BackendService {
             return req
         }
 
-        // Try PUT base
         var request = makeRequest(at: baseURL)
         var (data, response) = try await urlSession.data(for: request)
         var http = response as? HTTPURLResponse
-        // Try POST base if PUT not found
         if let h = http, h.statusCode == 404 {
             var postRequest = makeRequest(at: baseURL)
             postRequest.httpMethod = "POST"
             (data, response) = try await urlSession.data(for: postRequest)
             http = response as? HTTPURLResponse
         }
-        // Try PUT /api if still not found
         if let h = http, h.statusCode == 404 {
             request = makeRequest(at: baseURL.appendingPathComponent("api"))
             (data, response) = try await urlSession.data(for: request)
             http = response as? HTTPURLResponse
         }
-        // Try POST /api as final fallback
         if let h = http, h.statusCode == 404 {
             var postRequest = makeRequest(at: baseURL.appendingPathComponent("api"))
             postRequest.httpMethod = "POST"
@@ -391,7 +347,6 @@ struct ChatSessionDTO: Codable {
     let last_message_content: String?
 }
 
-// MARK: - Profile Avatar API
 extension BackendService {
     func uploadAvatar(imageData: Data, contentType: String, accessToken: String) async throws -> (path: String, url: String?) {
         let url = baseURL
@@ -445,7 +400,6 @@ extension BackendService {
         return try jsonDecoder.decode(PairedAvatars.self, from: data)
     }
 
-    // Profile information structures
     struct ProfileInfo: Codable {
         let full_name: String
         let bio: String
@@ -456,7 +410,6 @@ extension BackendService {
         let message: String
     }
 
-    // Get user profile information
     func fetchProfileInfo(accessToken: String) async throws -> ProfileInfo {
         func makeRequest(at base: URL) -> URLRequest {
             let url = base
@@ -486,7 +439,6 @@ extension BackendService {
         return try jsonDecoder.decode(ProfileInfo.self, from: data)
     }
 
-    // Update user profile information
     func updateProfile(accessToken: String, fullName: String?, bio: String?) async throws -> ProfileUpdateResponse {
         func makeRequest(at base: URL, method: String) -> URLRequest {
             let url = base
@@ -511,7 +463,6 @@ extension BackendService {
             return request
         }
 
-        // Try PUT on base and /api, then retry with POST mirror if blocked
         let attempts: [(URL, String)] = [
             (baseURL, "PUT"),
             (baseURL.appendingPathComponent("api"), "PUT"),
@@ -527,7 +478,6 @@ extension BackendService {
                     return try jsonDecoder.decode(ProfileUpdateResponse.self, from: data)
                 }
             } catch {
-                // Try next attempt
                 continue
             }
         }
@@ -569,7 +519,6 @@ private struct SessionsResponseBody: Codable {
     let sessions: [ChatSessionDTO]
 }
 
-// Link Invites
 private struct CreateLinkInviteResponseBody: Codable {
     let invite_token: String
     let share_url: String

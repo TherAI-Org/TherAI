@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MinimalButtonView: View {
+
     let title: String
     let systemImage: String
     let role: ButtonRole?

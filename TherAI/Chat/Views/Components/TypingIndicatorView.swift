@@ -1,10 +1,11 @@
 import SwiftUI
 
 struct TypingIndicatorView: View {
-    let showAfter: Double
 
     @State private var isVisible: Bool = false
     @State private var animate: Bool = false
+
+    let showAfter: Double
 
     var body: some View {
         HStack(spacing: 6) {

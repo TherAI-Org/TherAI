@@ -4,6 +4,7 @@ struct ChatHeaderView: View {
 
     @EnvironmentObject private var navigationViewModel: SidebarNavigationViewModel
     @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
+
     var showDivider: Bool = true
 
     var body: some View {
@@ -30,7 +31,6 @@ struct ChatHeaderView: View {
                                 .lineLimit(1)
                         }
                         .frame(width: 16, height: 16)
-                        // Pull further inside so it doesn't exceed the circular button bounds
                         .offset(x: -5, y: 5)
                         .transition(.scale.combined(with: .opacity))
                     }

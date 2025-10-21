@@ -15,8 +15,8 @@ class AuthService: ObservableObject {
 
     private let redirectURL: URL
 
-    private let appleService = AppleSignInService()
-    private let googleService = GoogleSignInService()
+    private let appleService = AppleSignIn()
+    private let googleService = GoogleSignIn()
 
     private init() {
         guard let supabaseURL = AuthService.getInfoPlistValue(for: "SUPABASE_URL") as? String,

@@ -20,14 +20,13 @@ struct ChatView: View {
             let textToSend = latestPartnerText ?? (inputTextTrimmed.isEmpty ? nil : inputTextTrimmed)
             guard let text = textToSend, !text.isEmpty else { return }
             if latestPartnerText == nil { viewModel.inputText = "" }
-            Task { await ChatCoordinator.shared.sendToPartner(chatViewModel: viewModel, sessionsViewModel: sessionsViewModel, customMessage: text) }
+            Task { await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text) }
         }
 
         return ChatScreenView(
-            isInputFocused: $isInputFocused,
             chatViewModel: viewModel,
-            onDoubleTapPartnerMessage: { _ in },
-            onSendToPartner: handleSendToPartner
+            onSendToPartner: handleSendToPartner,
+            isInputFocused: $isInputFocused
         )
         .contentShape(Rectangle())
         .onTapGesture { isInputFocused = false }
@@ -43,37 +42,25 @@ struct ChatView: View {
                 }
             }
         }
-        .onChange(of: navigationViewModel.dragOffset) { _, newValue in if abs(newValue) > 10 { isInputFocused = false } }
-        .onChange(of: navigationViewModel.isOpen) { _, newValue in if newValue { isInputFocused = false } }
+        .onChange(of: navigationViewModel.dragOffset) { _, newValue in ChatSidebarViewModel.shared.handleSidebarDragChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
+        .onChange(of: navigationViewModel.isOpen) { _, newValue in ChatSidebarViewModel.shared.handleSidebarIsOpenChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
         .onAppear {
             Task { await sessionsViewModel.loadPendingRequests() }
             // Register this ChatViewModel with SessionsViewModel so it can preload cache
             sessionsViewModel.chatViewModel = viewModel
         }
-        .onReceive(NotificationCenter.default.publisher(for: .init("AskTherAISelectedSnippet"))) { note in
-            if let snippet = note.userInfo?["snippet"] as? String {
-                ChatCoordinator.shared.handleAskTherAISelectedSnippet(
-                    snippet: snippet,
-                    navigationViewModel: navigationViewModel,
-                    setFocusSnippet: { viewModel.focusSnippet = $0 },
-                    setInputFocused: { isInputFocused = $0 }
-                )
-            }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .init("SendPartnerMessageFromBubble"))) { note in
             if let text = note.userInfo?["content"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Task {
-                    await ChatCoordinator.shared.sendToPartner(chatViewModel: viewModel, sessionsViewModel: sessionsViewModel, customMessage: text)
-                }
+                Task { await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text) }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .init("SkipPartnerDraftRequested"))) { _ in
-            viewModel.requestNewPartnerDraft()
-        }
+        // SkipPartnerDraftRequested no-op removed; feature not in use
         .onChange(of: sessionsViewModel.chatViewKey) { _, _ in
             if sessionsViewModel.activeSessionId == nil {
                 viewModel.sessionId = nil
                 Task { await viewModel.loadHistory() }
+            } else {
+                ChatSidebarViewModel.shared.handleActiveSessionChanged(sessionsViewModel.activeSessionId, viewModel: viewModel)
             }
         }
     }

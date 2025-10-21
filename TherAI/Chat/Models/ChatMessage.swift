@@ -2,78 +2,64 @@ import Foundation
 
 struct ChatMessage: Identifiable {
     let id: UUID
-    let content: String  // Keep for backward compatibility
-    let segments: [MessageSegment]  // New: segmented content
+    let segments: [MessageSegment]
     let isFromUser: Bool
     let isFromPartnerUser: Bool
     let timestamp: Date
-    let isPartnerMessage: Bool
-    let partnerMessageContent: String?
-    let partnerDrafts: [String]
     let isToolLoading: Bool
 
-    // Initializes a chat message locally
-    init(id: UUID = UUID(), content: String, isFromUser: Bool, timestamp: Date = Date()) {
-        self.id = id
-        self.content = content
-        self.segments = [.text(content)]  // Simple text segment
-        self.isFromUser = isFromUser
-        self.isFromPartnerUser = false
-        self.timestamp = timestamp
-        let parsed = Self.parsePartnerMessage(content)
-        self.isPartnerMessage = parsed.isPartner
-        self.partnerMessageContent = parsed.content
-        self.partnerDrafts = []
-        self.isToolLoading = false
+    var partnerDrafts: [String] {
+        return segments.compactMap { segment in
+            if case .partnerMessage(let text) = segment { return text }
+            return nil
+        }
     }
 
-    // Initializes a partner message coming from SSE event
-    static func partnerDraft(_ text: String) -> ChatMessage {
-        // Render partner draft within assistant bubble and explicitly mark as partner message
+    var partnerMessageContent: String? {
+        if let draft = partnerDrafts.first { return draft }
+        for segment in segments {
+            if case .partnerReceived(let text) = segment { return text }
+        }
+        return nil
+    }
+
+    var isPartnerMessage: Bool {
+        if !partnerDrafts.isEmpty { return true }
+        return segments.contains { seg in
+            if case .partnerReceived(_) = seg { return true }
+            return false
+        }
+    }
+
+    static func text(_ text: String, isFromUser: Bool, timestamp: Date = Date()) -> ChatMessage {
         return ChatMessage(
-            id: UUID(),
-            content: text,
-            segments: [.partnerMessage(text)],
-            isFromUser: false,
+            segments: text.isEmpty ? [] : [.text(text)],
+            isFromUser: isFromUser,
             isFromPartnerUser: false,
-            timestamp: Date(),
-            isPartnerMessage: true,
-            partnerMessageContent: text,
-            partnerDrafts: [text],
+            timestamp: timestamp,
             isToolLoading: false
         )
     }
 
-    // Explicit initializer to construct a message with partner flags and segments
-    init(id: UUID = UUID(), content: String, segments: [MessageSegment]? = nil, isFromUser: Bool, isFromPartnerUser: Bool = false, timestamp: Date = Date(), isPartnerMessage: Bool, partnerMessageContent: String?, partnerDrafts: [String] = [], isToolLoading: Bool = false) {
+    init(id: UUID = UUID(), segments: [MessageSegment], isFromUser: Bool, isFromPartnerUser: Bool = false, timestamp: Date = Date(), isToolLoading: Bool = false) {
         self.id = id
-        self.content = content
-        self.segments = segments ?? [.text(content)]
+        self.segments = segments
         self.isFromUser = isFromUser
         self.isFromPartnerUser = isFromPartnerUser
         self.timestamp = timestamp
-        self.isPartnerMessage = isPartnerMessage
-        self.partnerMessageContent = partnerMessageContent
-        self.partnerDrafts = partnerDrafts
         self.isToolLoading = isToolLoading
     }
 
-    // Convenience for an already-delivered partner message (no draft/Send button)
     static func partnerReceived(_ text: String) -> ChatMessage {
         return ChatMessage(
-            content: "",
             segments: [.partnerReceived(text)],
             isFromUser: false,
             isFromPartnerUser: false,
             timestamp: Date(),
-            isPartnerMessage: true,
-            partnerMessageContent: text,
-            partnerDrafts: [text],
             isToolLoading: false
         )
     }
 
-    // Initializes a chat message from a backend DTO
     init(dto: ChatMessageDTO, currentUserId: UUID) {
         self.id = dto.id
         let isOwnUserRole = (dto.user_id == currentUserId) && dto.role == "user"
@@ -81,17 +67,10 @@ struct ChatMessage: Identifiable {
         self.isFromPartnerUser = (dto.user_id != currentUserId) && dto.role == "user"
         self.timestamp = Date()
 
-        // Debug logging
-        if dto.content.contains("partner_received") {
-            print("[ChatMessage] Found partner_received in content: \(dto.content.prefix(200))")
-        }
-
-        // Try to parse structured annotations. Handle both direct JSON and double-encoded JSON strings.
         if let obj = ChatMessage.tryDecodeJSONDictionary(from: dto.content) {
             let therai = (obj["_therai"] as? [String: Any]) ?? ChatMessage.tryDecodeJSONDictionary(from: obj["_therai"]) ?? [:]
             let type = therai["type"] as? String
             if type == "segments" {
-                // Ordered segments persistence
                 let segmentsArr = (therai["segments"] as? [Any]) ?? (obj["segments"] as? [Any]) ?? []
                 var segs: [MessageSegment] = []
                 var partnerTexts: [String] = []
@@ -114,39 +93,12 @@ struct ChatMessage: Identifiable {
                         }
                     }
                 }
-                self.content = segs.compactMap { if case .text(let s) = $0 { return s } else { return nil } }.joined()
                 self.segments = segs.isEmpty ? [.text("")] : segs
-                self.partnerDrafts = partnerTexts
-                self.isPartnerMessage = !partnerTexts.isEmpty
-                self.partnerMessageContent = partnerTexts.first
                 self.isToolLoading = false
                 return
-            } else if type == "partner_draft" {
-                // Backward compatibility: single draft annotation; no body
-                if let text = therai["text"] as? String {
-                    let body = obj["body"] as? String ?? ""
-                    self.content = body
-                    var segs: [MessageSegment] = []
-                    if !body.isEmpty {
-                        segs.append(.text(body))
-                    }
-                    if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        segs.append(.partnerMessage(text))
-                    }
-                    self.segments = segs.isEmpty ? [.text("")] : segs
-                    self.partnerDrafts = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [text]
-                    self.isPartnerMessage = !self.partnerDrafts.isEmpty
-                    self.partnerMessageContent = self.partnerDrafts.first
-                    self.isToolLoading = false
-                    return
-                }
             } else if type == "partner_received" {
-                // Received partner message annotation; render as dedicated block
-                print("[ChatMessage] Parsing partner_received type")
                 if let text = therai["text"] as? String {
-                    print("[ChatMessage] Creating partnerReceived segment with text: \(text.prefix(100))")
                     let body = obj["body"] as? String ?? ""
-                    self.content = body
                     var segs: [MessageSegment] = []
                     if !body.isEmpty {
                         segs.append(.text(body))
@@ -155,30 +107,15 @@ struct ChatMessage: Identifiable {
                         segs.append(.partnerReceived(text))
                     }
                     self.segments = segs.isEmpty ? [.text("")] : segs
-                    self.partnerDrafts = []
-                    self.isPartnerMessage = false
-                    self.partnerMessageContent = nil
                     self.isToolLoading = false
                     return
                 }
             }
         }
-
-        // Default path: plain text content
-        // Handle legacy <partner_message>...</partner_message> tags to populate segments
-        let legacy = Self.extractPartnerTagsAndBody(from: dto.content)
-        self.content = legacy.body
-        var segs: [MessageSegment] = []
-        if !legacy.body.isEmpty { segs.append(.text(legacy.body)) }
-        if let first = legacy.drafts.first { segs.append(.partnerMessage(first)) }
-        self.segments = segs.isEmpty ? [.text(dto.content)] : segs
-        self.isPartnerMessage = !legacy.drafts.isEmpty
-        self.partnerMessageContent = legacy.drafts.first
-        self.partnerDrafts = legacy.drafts
+        self.segments = dto.content.isEmpty ? [] : [.text(dto.content)]
         self.isToolLoading = false
     }
 
-    // Liberal JSON dictionary decoding: accepts a dictionary or a JSON string containing one
     private static func tryDecodeJSONDictionary(from value: Any?) -> [String: Any]? {
         if let dict = value as? [String: Any] { return dict }
         if let str = value as? String, let data = str.data(using: .utf8) {
@@ -187,42 +124,5 @@ struct ChatMessage: Identifiable {
             }
         }
         return nil
-    }
-
-    // Extracts a partner-ready message from assistant content.
-    // Detection is STRICT: only honors structured annotation JSON persisted by backend.
-    // Live streams set partner flags via events; history relies on annotation only.
-    static func parsePartnerMessage(_ content: String) -> (isPartner: Bool, content: String?) {
-        // Structured annotation: {"_therai": {"type": "partner_draft", "text": "..."}}
-        if let data = content.data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let therai = obj["_therai"] as? [String: Any],
-           let type = therai["type"] as? String,
-           type == "partner_draft",
-           let text = therai["text"] as? String {
-            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.isEmpty ? (false, nil) : (true, cleaned)
-        }
-        // Legacy tag format: <partner_message>...</partner_message>
-        let legacy = extractPartnerTagsAndBody(from: content)
-        if let first = legacy.drafts.first, !first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return (true, first)
-        }
-        return (false, nil)
-    }
-
-    // Extracts partner message(s) from legacy tag markup and returns body without tags
-    private static func extractPartnerTagsAndBody(from content: String) -> (body: String, drafts: [String]) {
-        let openTag = "<partner_message>"
-        let closeTag = "</partner_message>"
-        var drafts: [String] = []
-        var remaining = content
-        while let openRange = remaining.range(of: openTag), let closeRange = remaining.range(of: closeTag, range: openRange.upperBound..<remaining.endIndex) {
-            let draft = String(remaining[openRange.upperBound..<closeRange.lowerBound])
-            drafts.append(draft.trimmingCharacters(in: .whitespacesAndNewlines))
-            remaining.removeSubrange(openRange.lowerBound..<closeRange.upperBound)
-        }
-        let body = remaining.trimmingCharacters(in: .whitespacesAndNewlines)
-        return (body, drafts)
     }
 }

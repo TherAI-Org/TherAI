@@ -3,7 +3,8 @@ import AuthenticationServices
 import CryptoKit
 import Supabase
 
-final class AppleSignInService: NSObject {
+final class AppleSignIn: NSObject {
+
     private var appleAuthDelegate: AppleAuthDelegate?
 
     func signIn(presentationAnchor anchor: ASPresentationAnchor, client: SupabaseClient) async throws -> Session {

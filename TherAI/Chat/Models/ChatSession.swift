@@ -1,13 +1,12 @@
 import Foundation
 
 struct ChatSession: Identifiable, Hashable, Equatable, Codable {
-    static let defaultTitle = "New Chat"
 
+    static let defaultTitle = "New Chat"
     let id: UUID
     var title: String
     var lastUsedISO8601: String?
     var lastMessageContent: String?
-
     var displayTitle: String { title }
 
     enum CodingKeys: String, CodingKey {
