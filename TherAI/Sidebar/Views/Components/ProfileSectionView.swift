@@ -29,93 +29,98 @@ struct ProfileSectionView: View {
     }
 
     var body: some View {
-        Button(action: {
-            Haptics.impact(.medium)
-            showSettingsSheet = true
-        }) {
-            HStack(spacing: 8) {
-                // Profile Picture
-                AvatarCacheManager.shared.cachedAsyncImage(
-                    urlString: sessionsViewModel.myAvatarURL,
-                    placeholder: {
-                        AnyView(
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.26, green: 0.58, blue: 1.00),
-                                            Color(red: 0.63, green: 0.32, blue: 0.98)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+        HStack(spacing: 8) {
+            // Profile Picture (non-interactive)
+            AvatarCacheManager.shared.cachedAsyncImage(
+                urlString: sessionsViewModel.myAvatarURL,
+                placeholder: {
+                    AnyView(
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.26, green: 0.58, blue: 1.00),
+                                        Color(red: 0.63, green: 0.32, blue: 0.98)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
-                                .overlay(
-                                    Image(systemName: "person.fill")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.white)
+                            )
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.white)
+                            )
+                    )
+                },
+                fallback: {
+                    AnyView(
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 0.26, green: 0.58, blue: 1.00),
+                                        Color(red: 0.63, green: 0.32, blue: 0.98)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
                                 )
-                        )
-                    },
-                    fallback: {
-                        AnyView(
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.26, green: 0.58, blue: 1.00),
-                                            Color(red: 0.63, green: 0.32, blue: 0.98)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .overlay(
-                                    Image(systemName: "person.fill")
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(.white)
-                                )
-                        )
-                    }
-                )
-                .frame(width: 50, height: 50)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
-                .id(avatarRefreshKey)
-
-                // User Name
-                Text(userName)
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-                    .lineLimit(1)
-
-                Spacer(minLength: 20)
-
-                // Settings Icon with glass effect
-                Group {
-                    if #available(iOS 18.0, *) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(colorScheme == .dark ? .white : .black)
-                            .frame(width: 36, height: 36)
-                            .glassEffect()
-                            .matchedTransitionSource(id: "settingsGearIcon", in: profileNamespace)
-                    } else {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(colorScheme == .dark ? .white : .black)
-                            .frame(width: 36, height: 36)
-                            .glassEffect()
-                    }
+                            )
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundColor(.white)
+                            )
+                    )
                 }
+            )
+            .frame(width: 44, height: 44)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            )
+            .id(avatarRefreshKey)
+            .offset(x: -4, y: -12)
+            Text(userName)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundColor(colorScheme == .dark ? .white : .black)
+                .lineLimit(1)
+                .offset(y: -10)
+
+            Spacer(minLength: 20)
+
+            if #available(iOS 26.0, *) {
+                Button {
+                    showSettingsSheet = true
+                } label: {
+                    Image(systemName: "gear")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        .frame(width: 52, height: 52)
+                }
+                .glassEffect(.regular.interactive())
+                .contentShape(Circle())
+                .matchedTransitionSource(id: "settingsGearIcon", in: profileNamespace)
+                .id(colorScheme)
+                .offset(x: 6, y: -6)
+            } else {
+                Button {
+                    showSettingsSheet = true
+                } label: {
+                    Image(systemName: "gear")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                        .frame(width: 52, height: 52)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .clipShape(Circle())
+                .contentShape(Circle())
+                .offset(x: 6, y: -6)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
         .sheet(isPresented: $showSettingsSheet) {
             if #available(iOS 18.0, *) {
                 SettingsView(
@@ -133,11 +138,9 @@ struct ProfileSectionView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
-            // Always trigger a view refresh so name falls back to auth metadata if cache is cleared
             avatarRefreshKey = UUID()
         }
         .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
-            // Force refresh of the avatar display by changing the ID
             avatarRefreshKey = UUID()
         }
     }
