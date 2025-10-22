@@ -9,7 +9,7 @@ load_dotenv(dotenv_path = Path(__file__).resolve().parent.parent / ".env")
 class ChatAgent:
     def __init__(self):
         self.client = OpenAI(api_key = os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-5-mini"
+        self.model = "gpt-4o-mini"
 
         prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "chat_prompt.txt"
         with open(prompt_path, "r", encoding = "utf-8") as f:

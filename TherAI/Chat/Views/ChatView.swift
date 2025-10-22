@@ -33,6 +33,7 @@ struct ChatView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
                         Haptics.impact(.medium)
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                         navigationViewModel.openSidebar()
                     }) {
                         ZStack(alignment: .topTrailing) {
