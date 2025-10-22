@@ -31,7 +31,7 @@ struct SplashOverlayView: View {
                 }
         }
         .opacity(opacity)
-        .onChange(of: isVisible) { _, visible in
+        .onChange(of: isVisible) { visible in
             if visible {
                 withAnimation(.easeInOut(duration: 0.2)) { opacity = 1.0 }
             } else {
