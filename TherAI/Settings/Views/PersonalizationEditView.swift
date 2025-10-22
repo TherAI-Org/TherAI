@@ -7,6 +7,7 @@ struct PersonalizationEditView: View {
 
     @StateObject private var viewModel = SettingsViewModel()
     @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var showingAvatarSelection = false
     @State private var previewEmoji: String? = nil
@@ -167,12 +168,12 @@ struct PersonalizationEditView: View {
                                     .padding(.vertical, 12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white)
+                                            .fill(colorScheme == .dark ? Color(.systemGray6) : Color.white)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                                    .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.gray.opacity(0.1), lineWidth: 1)
                                             )
-                                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                            .shadow(color: colorScheme == .dark ? .black.opacity(0.2) : .black.opacity(0.05), radius: 2, x: 0, y: 1)
                                     )
                                     .onChange(of: fullName) { _, newValue in
                                         let limit = 22
@@ -203,12 +204,12 @@ struct PersonalizationEditView: View {
                                     .padding(.vertical, 12)
                                     .background(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white)
+                                            .fill(colorScheme == .dark ? Color(.systemGray6) : Color.white)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                                                    .stroke(colorScheme == .dark ? Color.white.opacity(0.1) : Color.gray.opacity(0.1), lineWidth: 1)
                                             )
-                                            .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                            .shadow(color: colorScheme == .dark ? .black.opacity(0.2) : .black.opacity(0.05), radius: 2, x: 0, y: 1)
                                     )
                                     .lineLimit(3...6)
 
