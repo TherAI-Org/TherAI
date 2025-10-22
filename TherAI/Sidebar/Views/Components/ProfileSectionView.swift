@@ -99,7 +99,10 @@ struct ProfileSectionView: View {
                         .foregroundColor(colorScheme == .dark ? .white : .black)
                         .frame(width: 52, height: 52)
                 }
-                .glassEffect(.regular.interactive())
+				.glassEffect(.regular.interactive())
+				.clipShape(Circle())
+				.compositingGroup()
+				.zIndex(100)
                 .contentShape(Circle())
                 .matchedTransitionSource(id: "settingsGearIcon", in: profileNamespace)
                 .id(colorScheme)
