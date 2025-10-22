@@ -144,7 +144,7 @@ struct CompactAvatarPickerView: View {
             }
             .buttonStyle(ScaleButtonStyle())
             .padding(.horizontal, 4)
-            .onChange(of: selection) { _, item in
+            .onChange(of: selection) { item in
                 guard let item else { return }
                 Task {
                     // Load as raw data to preserve original quality
