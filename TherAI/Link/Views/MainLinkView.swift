@@ -129,7 +129,7 @@ struct MainLinkView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(0)
     }
 }
 

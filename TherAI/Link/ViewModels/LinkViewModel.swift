@@ -43,6 +43,22 @@ final class LinkViewModel: ObservableObject {
             let token = try await accessTokenProvider()
             try await BackendService.shared.acceptLinkInvite(inviteToken: inviteToken, accessToken: token)
             try await refreshStatus()
+            if case .linked = state {
+                // Eagerly fetch partner info and cache to drive immediate UI updates
+                do {
+                    let info = try await BackendService.shared.fetchPartnerInfo(accessToken: token)
+                    UserDefaults.standard.set(info.linked, forKey: PreferenceKeys.partnerConnected)
+                    if info.linked, let partner = info.partner {
+                        UserDefaults.standard.set(partner.name, forKey: PreferenceKeys.partnerName)
+                        if let avatar = partner.avatar_url {
+                            UserDefaults.standard.set(avatar, forKey: PreferenceKeys.partnerAvatarURL)
+                        }
+                    }
+                    self.objectWillChange.send()
+                } catch {
+                    // Ignore; backend refresh will still update shortly
+                }
+            }
         } catch {
             state = .error(message: error.localizedDescription)
         }

@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsCardView: View {
 
     @EnvironmentObject private var linkVM: LinkViewModel
+    @AppStorage(PreferenceKeys.appearancePreference) private var appearance: String = "System"
 
     let section: SettingsSection
     let onToggle: (Int) -> Void
@@ -48,7 +49,7 @@ struct SettingsCardView: View {
                         case .linkPartner:
                             LinkPartnerInlineRow(linkViewModel: linkVM)
 
-                        case .picker:
+                        case .picker(let options):
                             HStack(spacing: 12) {
                                 Image(systemName: setting.icon)
                                     .font(.system(size: 16, weight: .medium))
@@ -63,7 +64,22 @@ struct SettingsCardView: View {
                                 }
 
                                 Spacer()
-                                EmptyView()
+
+                                // Segmented control for appearance selection
+                                Picker("", selection: Binding(
+                                    get: { appearance },
+                                    set: { newValue in
+                                        appearance = newValue
+                                        onPickerSelect?(index, newValue)
+                                    }
+                                )) {
+                                    ForEach(options, id: \.self) { option in
+                                        Text(option).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                                .frame(maxWidth: 220)
+                                .labelsHidden()
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)

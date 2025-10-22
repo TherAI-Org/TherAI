@@ -50,7 +50,11 @@ struct TherAIApp: App {
                            let token = components.queryItems?.first(where: { $0.name == "code" })?.value,
                            !token.isEmpty {
                             if auth.isAuthenticated {
-                                Task { await linkVM.acceptInvite(using: token) }
+                                Task {
+                                    await linkVM.acceptInvite(using: token)
+                                    await sessionsViewModel.loadPartnerInfo()
+                                    await sessionsViewModel.loadPairedAvatars()
+                                }
                             } else {
                                 linkVM.captureIncomingInviteToken(token)
                             }

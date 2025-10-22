@@ -54,6 +54,7 @@ class SettingsViewModel: ObservableObject {
                 icon: "gear",
                 gradient: [Color.blue, Color.purple],
                 settings: [
+                    SettingItem(title: "Appearance", subtitle: nil, type: .picker(["Light", "Dark", "System"]), icon: "circle.lefthalf.filled"),
                     SettingItem(title: "Notifications", subtitle: nil, type: .toggle(PushNotificationManager.shared.isPushEnabled), icon: "bell"),
                     SettingItem(title: "Haptics", subtitle: nil, type: .toggle(settingsData.hapticFeedbackEnabled), icon: "iphone.radiowaves.left.and.right")
                 ]

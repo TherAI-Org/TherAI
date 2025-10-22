@@ -7,6 +7,8 @@ struct SettingsView: View {
 
     @EnvironmentObject private var linkVM: LinkViewModel
     @EnvironmentObject private var sessionsVM: ChatSessionsViewModel
+    @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(PreferenceKeys.appearancePreference) private var appearance: String = "System"
 
     @StateObject private var viewModel = SettingsViewModel()
 
@@ -113,8 +115,6 @@ struct SettingsView: View {
         }
     }
 
-    // Removed header accessory for Link Your Partner as per new design
-
     var body: some View {
         ZStack {
             NavigationStack {
@@ -194,8 +194,10 @@ struct SettingsView: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        // No view-level appearance logic anymore (follows app)
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .preferredColorScheme(
+            appearance == "Light" ? .light : appearance == "Dark" ? .dark : nil
+        )
         .animation(.spring(response: 0.45, dampingFraction: 0.9, blendDuration: 0), value: isPresented)
         .onAppear {
             showCards = false
@@ -234,6 +236,8 @@ struct SettingsView: View {
             // If linked, refresh from backend; otherwise clear immediately so capsule hides live
             if case .linked = newState {
                 viewModel.loadPartnerConnectionStatus()
+                // Also request sessions VM to refresh partner info so cached AppStorage updates
+                Task { await sessionsVM.loadPartnerInfo() }
             } else {
                 viewModel.applyPartnerInfo(nil)
             }
