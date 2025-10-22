@@ -34,9 +34,6 @@ struct ChatScreenView: View {
         let canShowSuggestions = isNewChatReadyForSuggestions && showSuggestionsDelayed
 
         VStack(spacing: 0) {
-            ChatHeaderView(
-                showDivider: !chatViewModel.messages.isEmpty
-            )
 
             MessagesListView(
                 messages: chatViewModel.messages,
