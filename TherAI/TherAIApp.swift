@@ -57,7 +57,7 @@ struct TherAIApp: App {
                         }
                     }
                 }
-                .onChange(of: auth.isAuthenticated) { _, isAuthed in
+                .onChange(of: auth.isAuthenticated) { isAuthed in
                     if !isAuthed {
                         // User logged out - reset session view model for fresh login
                         sessionsViewModel.resetForLogout()
@@ -105,7 +105,7 @@ struct TherAIApp: App {
                     }
                     PushNotificationManager.shared.requestAuthorizationAndRegister()
                 }
-                .onChange(of: scenePhase) { _, phase in
+                .onChange(of: scenePhase) { phase in
                     if phase == .active {
                         DispatchQueue.main.async {
                             PushNotificationManager.shared.consumePendingIfReady()
