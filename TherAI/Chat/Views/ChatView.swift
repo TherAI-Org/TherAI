@@ -89,8 +89,8 @@ struct ChatView: View {
                 }
             }
         }
-        .onChange(of: navigationViewModel.dragOffset) { newValue in ChatSidebarViewModel.shared.handleSidebarDragChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
-        .onChange(of: navigationViewModel.isOpen) { newValue in ChatSidebarViewModel.shared.handleSidebarIsOpenChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
+        .onChange(of: navigationViewModel.dragOffset, initial: false) { _, newValue in ChatSidebarViewModel.shared.handleSidebarDragChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
+        .onChange(of: navigationViewModel.isOpen, initial: false) { _, newValue in ChatSidebarViewModel.shared.handleSidebarIsOpenChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
         .onAppear {
             Task { await sessionsViewModel.loadPendingRequests() }
             // Register this ChatViewModel with SessionsViewModel so it can preload cache
@@ -102,7 +102,7 @@ struct ChatView: View {
             }
         }
         // SkipPartnerDraftRequested no-op removed; feature not in use
-        .onChange(of: sessionsViewModel.chatViewKey) { _ in
+        .onChange(of: sessionsViewModel.chatViewKey, initial: false) { _, _ in
             if sessionsViewModel.activeSessionId == nil {
                 viewModel.sessionId = nil
                 Task { await viewModel.loadHistory() }

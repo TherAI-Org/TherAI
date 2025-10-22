@@ -128,7 +128,7 @@ struct ChatScreenView: View {
                 showSuggestionsDelayed = false
             }
         }
-        .onChange(of: isNewChatReadyForSuggestions) { _, ready in
+        .onChange(of: isNewChatReadyForSuggestions, initial: false) { _, ready in
             if ready {
                 suggestionsDelayWorkItem?.cancel()
                 let work = DispatchWorkItem {
@@ -145,7 +145,7 @@ struct ChatScreenView: View {
                 }
             }
         }
-        .onChange(of: isInputFocused.wrappedValue) { _, isFocused in
+        .onChange(of: isInputFocused.wrappedValue, initial: false) { _, isFocused in
             if isFocused && !chatViewModel.messages.isEmpty {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     keyboardScrollToken &+= 1

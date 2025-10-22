@@ -174,7 +174,7 @@ struct PersonalizationEditView: View {
                                             )
                                             .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                                     )
-                                    .onChange(of: fullName) { newValue in
+                                    .onChange(of: fullName) { _, newValue in
                                         let limit = 22
                                         if newValue.count > limit {
                                             fullName = String(newValue.prefix(limit))
@@ -245,7 +245,7 @@ struct PersonalizationEditView: View {
                         viewModel.loadProfileInfo()
                     }
                 }
-                .onChange(of: viewModel.isProfileLoaded) { loaded in
+                .onChange(of: viewModel.isProfileLoaded, initial: false) { _, loaded in
                     if loaded { loadProfileData() }
                 }
             }

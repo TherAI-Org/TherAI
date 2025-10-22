@@ -103,7 +103,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
             sessionsViewModel.startObserving()
             navigationViewModel.dragOffset = 0
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase, initial: false) { _, newPhase in
             switch newPhase {
             case .inactive, .background:
                 withAnimation(nil) { navigationViewModel.dragOffset = 0 }
@@ -115,7 +115,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
             }
         }
         // If the sidebar is open, ensure the chat input isn't focused to prevent the keyboard from appearing underneath
-        .onChange(of: navigationViewModel.isOpen) { open in
+        .onChange(of: navigationViewModel.isOpen, initial: false) { _, open in
             if open {
                 // Broadcast a notification to clear any chat input focus if needed
                 NotificationCenter.default.post(name: .init("TherAI_ClearChatInputFocus"), object: nil)

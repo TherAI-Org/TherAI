@@ -50,12 +50,12 @@ struct MessagesListView: View {
             }
             .scrollBounceBehavior(.always)
             .scrollIndicators(.visible)
-            .onChange(of: initialJumpToken) { token in
+            .onChange(of: initialJumpToken, initial: false) { _, token in
                 guard token > 0 else { return }
                 guard let lastId = messages.last?.id else { return }
                 withAnimation(nil) { proxy.scrollTo(lastId, anchor: .bottom) }
             }
-            .onChange(of: isInputFocused) { newValue in
+            .onChange(of: isInputFocused, initial: false) { _, newValue in
                 if newValue {
                     guard let lastId = messages.last?.id else { return }
 

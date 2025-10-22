@@ -22,7 +22,7 @@ struct CompactAvatarPickerView: View {
     let onSaveAvatar: () -> Void
 
     let emojiAvatars = ["🐻", "🦊", "🐨", "🦁", "🐼", "🦄"]
-    
+
     private var selectedGradient: LinearGradient {
         LinearGradient(
             colors: [
@@ -33,7 +33,7 @@ struct CompactAvatarPickerView: View {
             endPoint: .bottomTrailing
         )
     }
-    
+
     private var defaultGradient: LinearGradient {
         LinearGradient(
             colors: [Color(.systemGray5), Color(.systemGray5)],
@@ -41,11 +41,11 @@ struct CompactAvatarPickerView: View {
             endPoint: .bottomTrailing
         )
     }
-    
+
     private var selectedShadowColor: Color {
         Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.2)
     }
-    
+
     private var defaultShadowColor: Color {
         Color.black.opacity(0.04)
     }
@@ -61,7 +61,7 @@ struct CompactAvatarPickerView: View {
             GridItem(.flexible(), spacing: 12)
         ]
     }
-    
+
     private var emojiGrid: some View {
         LazyVGrid(columns: emojiGridColumns, spacing: 12) {
             ForEach(emojiAvatars, id: \.self) { emoji in
@@ -70,7 +70,7 @@ struct CompactAvatarPickerView: View {
         }
         .padding(.horizontal, 4)
     }
-    
+
     private func emojiButton(for emoji: String) -> some View {
         Button(action: {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -105,7 +105,7 @@ struct CompactAvatarPickerView: View {
         }
         .buttonStyle(ScaleButtonStyle())
     }
-    
+
     var body: some View {
         VStack(spacing: 20) {
             emojiGrid
@@ -144,7 +144,7 @@ struct CompactAvatarPickerView: View {
             }
             .buttonStyle(ScaleButtonStyle())
             .padding(.horizontal, 4)
-            .onChange(of: selection) { item in
+            .onChange(of: selection, initial: false) { _, item in
                 guard let item else { return }
                 Task {
                     // Load as raw data to preserve original quality
@@ -159,7 +159,7 @@ struct CompactAvatarPickerView: View {
                     }
                 }
             }
-            
+
             // Save button for avatar changes
             if showSaveButton || avatarSaved || isSavingAvatar {
                 Button(action: {

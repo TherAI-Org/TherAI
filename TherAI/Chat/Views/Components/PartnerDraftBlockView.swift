@@ -143,12 +143,12 @@ struct PartnerDraftBlockView: View {
             isConfirmingNormalSend = false
             showSentLocally = false
         }
-        .onChange(of: initialText) { newValue in
+        .onChange(of: initialText) { _, newValue in
             self.text = newValue
             isConfirmingNormalSend = false
             showSentLocally = false
         }
-        .onChange(of: isSent) { _ in
+        .onChange(of: isSent) { _, _ in
             isConfirmingNormalSend = false
             if isSent { showSentLocally = false }
         }

@@ -186,10 +186,10 @@ struct SlidebarView: View {
             .padding(.trailing, 20)
             .padding(.vertical, 8)
             .padding(.top, 8)
-            .onChange(of: isSearchFocused) { newVal in
+            .onChange(of: isSearchFocused, initial: false) { _, newVal in
                 isSearching = newVal
             }
-            .onChange(of: isOpen) { open in
+            .onChange(of: isOpen, initial: false) { _, open in
                 if open {
                     // Ensure the sidebar search field does not auto-focus on open
                     isSearchFocused = false
