@@ -230,7 +230,7 @@ struct SettingsView: View {
             avatarRefreshKey = UUID()
         }
         // Keep connection capsule synced with linking state changes
-        .onChange(of: linkVM.state) { _, newState in
+        .onChange(of: linkVM.state) { newState in
             // If linked, refresh from backend; otherwise clear immediately so capsule hides live
             if case .linked = newState {
                 viewModel.loadPartnerConnectionStatus()
