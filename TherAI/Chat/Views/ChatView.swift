@@ -23,14 +23,62 @@ struct ChatView: View {
             Task { await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text) }
         }
 
-        return ChatScreenView(
-            chatViewModel: viewModel,
-            onSendToPartner: handleSendToPartner,
-            isInputFocused: $isInputFocused
-        )
+        return NavigationStack {
+            ChatScreenView(
+                chatViewModel: viewModel,
+                onSendToPartner: handleSendToPartner,
+                isInputFocused: $isInputFocused
+            )
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(action: {
+                        Haptics.impact(.medium)
+                        navigationViewModel.openSidebar()
+                    }) {
+                        ZStack(alignment: .topTrailing) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                .frame(width: 44, height: 44)
+
+                            let unreadCount = sessionsViewModel.unreadPartnerSessionIds.count + sessionsViewModel.pendingRequests.count
+                            if unreadCount > 0 {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                    Text("\(min(unreadCount, 99))")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .minimumScaleFactor(0.7)
+                                        .lineLimit(1)
+                                }
+                                .frame(width: 16, height: 16)
+                                .offset(x: -5, y: 5)
+                                .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        Haptics.impact(.light)
+                        sessionsViewModel.startNewChat()
+                    }) {
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                            .frame(width: 44, height: 44)
+                            .offset(y: -1.5)
+                    }
+                }
+            }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+        }
         .contentShape(Rectangle())
         .onTapGesture { isInputFocused = false }
         .onAppear {
+            // Do not focus input when sidebar is open
             if navigationViewModel.isOpen {
                 isInputFocused = false
             } else {
@@ -41,10 +89,11 @@ struct ChatView: View {
                 }
             }
         }
-        .onChange(of: navigationViewModel.dragOffset) { _, newValue in ChatSidebarViewModel.shared.handleSidebarDragChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
-        .onChange(of: navigationViewModel.isOpen) { _, newValue in ChatSidebarViewModel.shared.handleSidebarIsOpenChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
+        .onChange(of: navigationViewModel.dragOffset) { newValue in ChatSidebarViewModel.shared.handleSidebarDragChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
+        .onChange(of: navigationViewModel.isOpen) { newValue in ChatSidebarViewModel.shared.handleSidebarIsOpenChanged(newValue, setInputFocused: { isInputFocused = $0 }) }
         .onAppear {
             Task { await sessionsViewModel.loadPendingRequests() }
+            // Register this ChatViewModel with SessionsViewModel so it can preload cache
             sessionsViewModel.chatViewModel = viewModel
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("SendPartnerMessageFromBubble"))) { note in
@@ -52,7 +101,8 @@ struct ChatView: View {
                 Task { await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text) }
             }
         }
-        .onChange(of: sessionsViewModel.chatViewKey) { _, _ in
+        // SkipPartnerDraftRequested no-op removed; feature not in use
+        .onChange(of: sessionsViewModel.chatViewKey) { _ in
             if sessionsViewModel.activeSessionId == nil {
                 viewModel.sessionId = nil
                 Task { await viewModel.loadHistory() }
