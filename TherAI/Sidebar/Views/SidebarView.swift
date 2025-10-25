@@ -7,18 +7,16 @@ struct SlidebarView: View {
     @EnvironmentObject private var linkVM: LinkViewModel
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isSearching) private var isSearching
 
     @Binding var isOpen: Bool
 
-    @State private var isSearching: Bool = false
     @State private var searchText: String = ""
 
     // Rename sheet state
     @State private var showRenameSheet: Bool = false
     @State private var renameText: String = ""
     @State private var renameTargetId: UUID? = nil
-
-    @FocusState private var isSearchFocused: Bool
 
     let profileNamespace: Namespace.ID
 
@@ -62,230 +60,99 @@ struct SlidebarView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                HStack(spacing: 8) {
-                    let searchTint: Color = {
-                        if colorScheme == .dark {
-                            return Color.white.opacity(0.85)
-                        } else {
-                            return Color.black.opacity(0.7)
-                        }
-                    }()
-                    if !isSearching {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 17, weight: .regular))
-                            .foregroundColor(searchTint)
-                            .transition(.move(edge: .leading).combined(with: .opacity))
-                    }
-                    ZStack(alignment: .leading) {
-                        if searchText.isEmpty {
-                            Text("Search")
-                                .font(.system(size: 17, weight: .regular))
-                                .foregroundColor(searchTint)
-                        }
-                        TextField("", text: $searchText)
-                            .font(.system(size: 17, weight: .regular))
-                            .disableAutocorrection(true)
-                            .textInputAutocapitalization(.never)
-                            .focused($isSearchFocused)
-                            .onTapGesture { isSearching = true }
-                    }
-                    if !searchText.isEmpty {
-                        Button(action: { searchText = ""; isSearchFocused = true }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .animation(.spring(response: 0.28, dampingFraction: 0.95), value: isSearching)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    Group {
-                        if #available(iOS 26.0, *) {
-                            // iOS 26+ Liquid Glass effect using .glassEffect()
-                            Color.clear
-                                .glassEffect()
-                                .clipShape(Capsule())
-                        } else {
-                            // Fallback for older iOS versions
-                            LinearGradient(
-                                colors: [
-                                    Color(white: colorScheme == .dark ? 0.14 : 0.945),
-                                    Color(white: colorScheme == .dark ? 0.17 : 0.965)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        }
-                    }
-                )
+        NavigationStack {
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
 
-                .clipShape(Capsule())
-                .frame(minWidth: 120, maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isSearching = true
-                    isSearchFocused = true
-                }
-                .offset(y: -2)
-                Spacer().frame(width: 18)
+                ScrollView {
+                    VStack(spacing: 10) {
+                        if !isSearching {
+                            let hasPending = !sessionsViewModel.pendingRequests.isEmpty
 
-                if isSearching {
-                    Button("Cancel") {
-                        Haptics.impact(.medium)
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                            isSearching = false
-                            isSearchFocused = false
-                        }
-                        searchText = ""
-                    }
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                    .buttonStyle(PlainButtonStyle())
-                } else {
-                    Button(action: {
-                        Haptics.impact(.medium)
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
-                            if sessionsViewModel.activeSessionId != nil {
-                                navigationViewModel.selectedTab = .chat
-                                isOpen = false
-                            } else {
-                                sessionsViewModel.startNewChat()
-                                navigationViewModel.selectedTab = .chat
-                                isOpen = false
-                            }
-                        }
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                            .frame(width: 44, height: 44)
-                    }
-                    .background(
-                        Group {
-                            if #available(iOS 26.0, *) {
-                                Color.clear
-                                    .glassEffect(.regular)
-                            } else {
-                                Color(.systemGray6)
-                                    .opacity(0.8)
-                            }
-                        }
-                    )
-                    .clipShape(Circle())
-                    .buttonStyle(.plain)
-                    .contentShape(Circle())
-                    .offset(y: -2)
-                }
-            }
-            .padding(.leading, 20)
-            .padding(.trailing, 20)
-            .padding(.vertical, 8)
-            .padding(.top, 8)
-            .onChange(of: isSearchFocused, initial: false) { _, newVal in
-                isSearching = newVal
-            }
-            .onChange(of: isOpen, initial: false) { _, open in
-                if open {
-                    // Ensure the sidebar search field does not auto-focus on open
-                    isSearchFocused = false
-                    isSearching = false
-                }
-            }
-
-            ScrollView {
-                VStack(spacing: 10) {
-                    if !isSearching {
-                        let hasPending = !sessionsViewModel.pendingRequests.isEmpty
-
-                        if hasPending {
-                            VStack(alignment: .leading, spacing: 12) {
-                                ForEach(sessionsViewModel.pendingRequests, id: \.id) { request in
-                                    Button(action: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                                            sessionsViewModel.openPendingRequest(request)
-                                            isOpen = false
-                                        }
-                                    }) {
-                                        HStack(alignment: .top, spacing: 12) {
-                                            Image(systemName: "person.crop.circle.badge.plus")
-                                                .font(.system(size: 18, weight: .medium))
-                                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text("Partner Request")
-                                                    .font(.system(size: 14, weight: .medium))
-                                                    .foregroundColor(.primary)
-                                                Text(request.content)
-                                                    .font(.system(size: 13))
-                                                    .foregroundColor(.secondary)
-                                                    .lineLimit(2)
+                            if hasPending {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ForEach(sessionsViewModel.pendingRequests, id: \.id) { request in
+                                        Button(action: {
+                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                                                sessionsViewModel.openPendingRequest(request)
+                                                isOpen = false
                                             }
-                                            Spacer()
+                                        }) {
+                                            HStack(alignment: .top, spacing: 12) {
+                                                Image(systemName: "person.crop.circle.badge.plus")
+                                                    .font(.system(size: 18, weight: .medium))
+                                                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text("Partner Request")
+                                                        .font(.system(size: 14, weight: .medium))
+                                                        .foregroundColor(.primary)
+                                                    Text(request.content)
+                                                        .font(.system(size: 13))
+                                                        .foregroundColor(.secondary)
+                                                        .lineLimit(2)
+                                                }
+                                                Spacer()
+                                            }
+                                            .padding(12)
+                                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+                                            )
                                         }
-                                        .padding(12)
-                                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
-                                        )
+                                        .buttonStyle(PlainButtonStyle())
                                     }
-                                    .buttonStyle(PlainButtonStyle())
                                 }
+                                .padding(12)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .fill(Color(.systemGray6))
+                                )
+                                .padding(.horizontal, 16)
                             }
-                            .padding(12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color(.systemGray6))
-                            )
-                            .padding(.horizontal, 16)
-                        }
 
-                        VStack(spacing: 0) {
-                            Button(action: {
-                                Haptics.impact(.medium)
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
-                                    sessionsViewModel.startNewChat()
-                                    navigationViewModel.selectedTab = .chat
-                                    isOpen = false
+                            VStack(spacing: 0) {
+                                Button(action: {
+                                    Haptics.impact(.medium)
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
+                                        sessionsViewModel.startNewChat()
+                                        navigationViewModel.selectedTab = .chat
+                                        isOpen = false
+                                    }
+                                }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "square.and.pencil")
+                                            .font(.system(size: 20, weight: .medium))
+                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                        Text("New Conversation")
+                                            .font(.system(size: 18, weight: .medium))
+                                            .foregroundColor(.primary)
+                                            .offset(y: 2)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
                                 }
-                            }) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "square.and.pencil")
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                    Text("New Conversation")
-                                        .font(.system(size: 18, weight: .medium))
-                                        .foregroundColor(.primary)
-                                        .offset(y: 2)
+
+                                Divider()
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 4)
+
+                                // Conversations header
+                                HStack(spacing: 12) {
+                                    Text("Conversations")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.secondary)
                                     Spacer()
                                 }
                                 .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
+                                .padding(.top, 12)
                             }
-
-                            Divider()
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 8)
-                                .padding(.bottom, 4)
-
-                            // Conversations header
-                            HStack(spacing: 12) {
-                                Text("Conversations")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 12)
+                            .offset(y: isSearching ? -120 : 0)
+                            .opacity(isSearching ? 0 : 1)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
                         }
-                        .offset(y: isSearching ? -120 : 0)
-                        .opacity(isSearching ? 0 : 1)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
-                    }
 
                     let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
                     let lower = term.lowercased()
@@ -328,10 +195,6 @@ struct SlidebarView: View {
                                             sessionsViewModel.openSession(session.id)
                                             navigationViewModel.selectedTab = .chat
                                             isOpen = false
-                                            if isSearching {
-                                                isSearching = false
-                                                isSearchFocused = false
-                                            }
                                         }
                                     }) {
                                         VStack(alignment: .leading, spacing: 12) {
@@ -393,101 +256,116 @@ struct SlidebarView: View {
                         .padding(.bottom, 20)
                         .offset(y: isSearching ? -8 : 0)
                         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 80)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .refreshable {
-                await sessionsViewModel.refreshSessions()
-            }
-            .scrollIndicators(.hidden)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                if isSearching {
-                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                        isSearching = false
-                        isSearchFocused = false
                     }
+                    .padding(.top, 8)
+                    .padding(.bottom, 80)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .refreshable {
+                    await sessionsViewModel.refreshSessions()
+                }
+                .scrollIndicators(.hidden)
+                }
+                .overlay(alignment: .bottom) {
+                    VStack(spacing: 0) {
+                        // Extended gradient area that starts much higher
+                        Spacer()
+                            .frame(height: 100) // This creates space for the gradient to start earlier
+
+                        // Partner Invite Banner (only when not linked and no pending requests)
+                        if shouldShowPartnerBanner {
+                            PartnerInviteBannerView()
+                                .padding(.horizontal, 20)
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
+                        }
+
+                        // Profile Section
+                        ProfileSectionView()
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+                        .padding(.bottom, 34) // More bottom padding to bring profile section further up
+                    }
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(.systemBackground).opacity(0.3),
+                                Color(.systemBackground).opacity(0.98),
+                                Color(.systemBackground)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .ignoresSafeArea(.keyboard, edges: .bottom)    // Opt out of keyboard avoidance
+                    .ignoresSafeArea(.container, edges: .bottom)   // Ignore container safe area
+                    .zIndex(10)  // Higher z-index to ensure it stays on top
+                    .allowsHitTesting(true)  // Ensure buttons remain interactive
+                    .offset(y: isSearching ? 100 : 0)  // Smoothly hide when searching
+                    .opacity(isSearching ? 0 : 1)      // Fade out when searching
+                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearching)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Search conversations")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: {
+                        Haptics.impact(.medium)
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
+                            if sessionsViewModel.activeSessionId != nil {
+                                navigationViewModel.selectedTab = .chat
+                                isOpen = false
+                            } else {
+                                sessionsViewModel.startNewChat()
+                                navigationViewModel.selectedTab = .chat
+                                isOpen = false
+                            }
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                            .frame(width: 44, height: 44)
+                    }
+                }
+            }
+            .onChange(of: isOpen) { _, open in
+                if !open {
+                    // Clear search when sidebar closes
                     searchText = ""
                 }
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
-        .onAppear {
-            // Defensive: avoid any lingering focus when the sidebar view first appears
-            isSearchFocused = false
-            isSearching = false
-        }
-        .sheet(isPresented: $showRenameSheet) {
-            VStack(spacing: 16) {
-                Text("Rename Conversation")
-                    .font(.system(size: 20, weight: .semibold))
-                TextField("Title", text: $renameText)
-                    .textInputAutocapitalization(.sentences)
-                    .disableAutocorrection(true)
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                HStack {
-                    Button("Cancel") { showRenameSheet = false }
-                    Spacer()
-                    Button("Save") {
-                        let target = renameTargetId
-                        let text = renameText
-                        showRenameSheet = false
-                        if let id = target {
-                            Task { await sessionsViewModel.renameSession(id, to: text) }
+            .sheet(isPresented: $showRenameSheet) {
+                VStack(spacing: 16) {
+                    Text("Rename Conversation")
+                        .font(.system(size: 20, weight: .semibold))
+                    TextField("Title", text: $renameText)
+                        .textInputAutocapitalization(.sentences)
+                        .disableAutocorrection(true)
+                        .padding(12)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    HStack {
+                        Button("Cancel") { showRenameSheet = false }
+                        Spacer()
+                        Button("Save") {
+                            let target = renameTargetId
+                            let text = renameText
+                            showRenameSheet = false
+                            if let id = target {
+                                Task { await sessionsViewModel.renameSession(id, to: text) }
+                            }
                         }
+                        .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .padding(.top, 6)
                 }
-                .padding(.top, 6)
+                .padding(20)
+                .presentationDetents([.medium])
             }
-            .padding(20)
-            .presentationDetents([.medium])
-        }
-        .overlay(alignment: .bottom) {
-            VStack(spacing: 0) {
-                // Extended gradient area that starts much higher
-                Spacer()
-                    .frame(height: 100) // This creates space for the gradient to start earlier
-
-                // Partner Invite Banner (only when not linked and no pending requests)
-                if shouldShowPartnerBanner {
-                    PartnerInviteBannerView()
-                        .padding(.horizontal, 20)
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
-                }
-
-                // Profile Section
-                ProfileSectionView()
-                .padding(.horizontal, 20)
-                .padding(.top, 6)
-                .padding(.bottom, 34) // More bottom padding to bring profile section further up
-            }
-            .background(
-                LinearGradient(
-                    colors: [
-                        Color(.systemBackground).opacity(0.3),
-                        Color(.systemBackground).opacity(0.98),
-                        Color(.systemBackground)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .ignoresSafeArea(.keyboard, edges: .bottom)    // Opt out of keyboard avoidance
-            .ignoresSafeArea(.container, edges: .bottom)   // Ignore container safe area
-            .padding(.bottom, -geometry.safeAreaInsets.bottom)      // Cancel the keyboard's bottom inset so it won't rise
-            .zIndex(10)  // Higher z-index to ensure it stays on top
-            .allowsHitTesting(true)  // Ensure buttons remain interactive
-            .offset(y: isSearching ? 100 : 0)  // Smoothly hide when searching
-            .opacity(isSearching ? 0 : 1)      // Fade out when searching
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearching)
-        }
         }
     }
 }

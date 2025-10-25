@@ -5,6 +5,7 @@ struct ProfileSectionView: View {
     @EnvironmentObject private var sessionsViewModel: ChatSessionsViewModel
     @Environment(\.colorScheme) private var colorScheme
 
+    // Settings gear moved to sidebar toolbar; keep local state for compatibility but unused
     @State private var showSettingsSheet = false
     @State private var avatarRefreshKey = UUID()
     @Namespace private var profileNamespace
@@ -90,56 +91,11 @@ struct ProfileSectionView: View {
 
             Spacer(minLength: 20)
 
-            if #available(iOS 26.0, *) {
-                Button {
-                    showSettingsSheet = true
-                } label: {
-                    Image(systemName: "gear")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(colorScheme == .dark ? .white : .black)
-                        .frame(width: 52, height: 52)
-                }
-				.glassEffect(.regular.interactive())
-				.clipShape(Circle())
-				.compositingGroup()
-				.zIndex(100)
-                .contentShape(Circle())
-                .matchedTransitionSource(id: "settingsGearIcon", in: profileNamespace)
-                .id(colorScheme)
-                .offset(x: 6, y: -6)
-            } else {
-                Button {
-                    showSettingsSheet = true
-                } label: {
-                    Image(systemName: "gear")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(colorScheme == .dark ? .white : .black)
-                        .frame(width: 52, height: 52)
-                }
-                .buttonStyle(PlainButtonStyle())
-                .clipShape(Circle())
-                .contentShape(Circle())
-                .offset(x: 6, y: -6)
-            }
+            // Settings icon removed from profile row; now lives in sidebar top bar
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
-        .sheet(isPresented: $showSettingsSheet) {
-            if #available(iOS 18.0, *) {
-                SettingsView(
-                    profileNamespace: profileNamespace,
-                    isPresented: $showSettingsSheet
-                )
-                .environmentObject(sessionsViewModel)
-                .navigationTransition(.zoom(sourceID: "settingsGearIcon", in: profileNamespace))
-            } else {
-                SettingsView(
-                    profileNamespace: profileNamespace,
-                    isPresented: $showSettingsSheet
-                )
-                .environmentObject(sessionsViewModel)
-            }
-        }
+        // Settings sheet presentation now handled by `SidebarView`
         .onReceive(NotificationCenter.default.publisher(for: .profileChanged)) { _ in
             avatarRefreshKey = UUID()
         }
