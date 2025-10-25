@@ -215,68 +215,216 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                 print(f"[SSE] /chat stream start (Responses API) model={chat_agent.model}")
                 print(f"[SSE] Number of messages: {len(input_messages)}")
 
-                resp = chat_agent.create_response(messages=input_messages, previous_response_id=request.previous_response_id)
-
-                # Emit response_id so client can continue chain
-                try:
-                    rid = getattr(resp, "id", None)
-                    if rid:
-                        yield f"event: response_id\ndata: {json.dumps({'response_id': rid})}\n\n".encode()
-                except Exception:
-                    pass
-
-                text = getattr(resp, "output_text", None)
-                if not text:
-                    parts = []
-                    for block in getattr(resp, "output", []) or []:
-                        if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
-                            parts.append(block.text)
-                    text = "".join(parts)
-                text = (text or "")
-
-                import re
+                import re, time, threading
+                from queue import Queue, Empty
                 open_pat = re.compile(r"<partner_message(?:\s+[^>]*)?>")
                 end_marker = "</partner_message>"
-                pos = 0
+                tag_start = "<partner_message"
 
-                def stream_tokens(chunk: str):
-                    nonlocal current_text_segment
-                    if not chunk:
-                        return
-                    step = 120
-                    for i in range(0, len(chunk), step):
-                        part = chunk[i:i+step]
-                        full_text_parts.append(part)
-                        yield f"event: token\ndata: {json.dumps(part)}\n\n".encode()
-                        current_text_segment += part
+                buffer = ""
+                in_partner = False
+
+                from contextlib import suppress
+
+                q: Queue = Queue()
+                done = {"flag": False}
+
+                def producer():
+                    try:
+                        with chat_agent.stream_response(
+                            messages = input_messages,
+                            previous_response_id = request.previous_response_id,
+                        ) as stream:
+                            for event in stream:
+                                etype = getattr(event, "type", "")
+                                if etype == "response.created":
+                                    rid = None
+                                    with suppress(Exception):
+                                        rid = getattr(getattr(event, "response", None), "id", None)
+                                    if rid:
+                                        q.put(("response_id", json.dumps({"response_id": rid})))
+                                    continue
+                                if etype == "response.output_text.delta":
+                                    delta = getattr(event, "delta", "") or ""
+                                    if not isinstance(delta, str):
+                                        with suppress(Exception):
+                                            delta = str(delta)
+                                    if delta:
+                                        q.put(("delta", delta))
+                                    continue
+                                if etype == "response.error":
+                                    err_msg = "Streaming error"
+                                    with suppress(Exception):
+                                        err_obj = getattr(event, "error", None)
+                                        if err_obj is not None:
+                                            err_msg = str(err_obj)
+                                    q.put(("error", err_msg))
+                                    return
+                                if etype == "response.completed":
+                                    break
+                    finally:
+                        done["flag"] = True
+
+                t = threading.Thread(target=producer, daemon=True)
+                t.start()
+
+                heartbeat_interval = 0.1
 
                 while True:
-                    m = open_pat.search(text, pos)
-                    if not m:
-                        remaining = text[pos:]
-                        for ev in stream_tokens(remaining):
-                            yield ev
-                        break
-                    before = text[pos:m.start()]
-                    for ev in stream_tokens(before):
-                        yield ev
-                    close_idx = text.find(end_marker, m.end())
-                    if close_idx == -1:
-                        remainder = text[m.start():]
-                        for ev in stream_tokens(remainder):
-                            yield ev
-                        break
-                    content = text[m.end():close_idx]
-                    yield f"event: tool_start\ndata: {json.dumps({'name': 'emit_partner_message'})}\n\n".encode()
-                    yield f"event: partner_message\ndata: {json.dumps(content)}\n\n".encode()
-                    yield b"event: tool_done\ndata: {}\n\n"
+                    try:
+                        kind, payload = q.get(timeout=heartbeat_interval)
+                    except Empty:
+                        if done["flag"] and q.empty():
+                            break
+                        # On heartbeat, flush any safe plain text to reduce tail lag
+                        if not in_partner and buffer:
+                            # Compute longest overlap of buffer suffix with tag_start prefix
+                            max_k = min(len(buffer), len(tag_start))
+                            overlap = 0
+                            for k in range(max_k, -1, -1):
+                                if buffer.endswith(tag_start[:k]):
+                                    overlap = k
+                                    break
+                            flush_len = len(buffer) - overlap
+                            if flush_len > 0:
+                                flushable = buffer[:flush_len]
+                                full_text_parts.append(flushable)
+                                yield f"event: token\ndata: {json.dumps(flushable)}\n\n".encode()
+                                current_text_segment += flushable
+                                buffer = buffer[flush_len:]
+                        # Heartbeat to avoid intermediary buffering
+                        yield b":\n\n"
+                        continue
 
-                    if current_text_segment:
-                        segments_list.append({"type": "text", "content": current_text_segment})
-                        current_text_segment = ""
-                    segments_list.append({"type": "partner_draft", "text": content})
+                    if kind == "response_id":
+                        yield f"event: response_id\ndata: {payload}\n\n".encode()
+                        continue
 
-                    pos = close_idx + len(end_marker)
+                    if kind == "completed":
+                        # Producer signaled completion; exit loop promptly
+                        break
+
+                    if kind == "error":
+                        err_msg = payload
+                        print(f"[SSE] OpenAI streaming error: {err_msg}")
+                        try:
+                            resp_fallback = chat_agent.create_response(
+                                messages = input_messages,
+                                previous_response_id = request.previous_response_id,
+                            )
+                            with suppress(Exception):
+                                rid_fb = getattr(resp_fallback, "id", None)
+                                if rid_fb:
+                                    yield f"event: response_id\ndata: {json.dumps({'response_id': rid_fb})}\n\n".encode()
+                            text_fb = getattr(resp_fallback, "output_text", None)
+                            if not text_fb:
+                                parts_fb = []
+                                for block in getattr(resp_fallback, "output", []) or []:
+                                    if getattr(block, "type", None) == "output_text" and getattr(block, "text", None):
+                                        parts_fb.append(block.text)
+                                text_fb = "".join(parts_fb)
+                            text_fb = (text_fb or "")
+
+                            pos_fb = 0
+                            while True:
+                                m_fb = open_pat.search(text_fb, pos_fb)
+                                if not m_fb:
+                                    remaining_fb = text_fb[pos_fb:]
+                                    if remaining_fb:
+                                        full_text_parts.append(remaining_fb)
+                                        yield f"event: token\ndata: {json.dumps(remaining_fb)}\n\n".encode()
+                                        current_text_segment += remaining_fb
+                                    break
+                                before_fb = text_fb[pos_fb:m_fb.start()]
+                                if before_fb:
+                                    full_text_parts.append(before_fb)
+                                    yield f"event: token\ndata: {json.dumps(before_fb)}\n\n".encode()
+                                    current_text_segment += before_fb
+                                close_idx_fb = text_fb.find(end_marker, m_fb.end())
+                                if close_idx_fb == -1:
+                                    remainder_fb = text_fb[m_fb.start():]
+                                    if remainder_fb:
+                                        full_text_parts.append(remainder_fb)
+                                        yield f"event: token\ndata: {json.dumps(remainder_fb)}\n\n".encode()
+                                        current_text_segment += remainder_fb
+                                    break
+                                content_fb = text_fb[m_fb.end():close_idx_fb]
+                                yield f"event: tool_start\ndata: {json.dumps({'name': 'emit_partner_message'})}\n\n".encode()
+                                yield f"event: partner_message\ndata: {json.dumps(content_fb)}\n\n".encode()
+                                yield b"event: tool_done\ndata: {}\n\n"
+
+                                if current_text_segment:
+                                    segments_list.append({"type": "text", "content": current_text_segment})
+                                    current_text_segment = ""
+                                segments_list.append({"type": "partner_draft", "text": content_fb})
+
+                                pos_fb = close_idx_fb + len(end_marker)
+
+                        except Exception as fe:
+                            print(f"[SSE] Fallback non-streaming failed: {fe}")
+                            yield f"event: error\ndata: {json.dumps(err_msg)}\n\n".encode()
+                            break
+                        continue
+
+                    if kind == "delta":
+                        delta = payload
+                        buffer += delta
+
+                        # Process buffer for partner tags and plain text
+                        while True:
+                            if not in_partner:
+                                m = open_pat.search(buffer)
+                                if m:
+                                    before = buffer[:m.start()]
+                                    if before:
+                                        full_text_parts.append(before)
+                                        yield f"event: token\ndata: {json.dumps(before)}\n\n".encode()
+                                        current_text_segment += before
+                                    buffer = buffer[m.end():]
+                                    in_partner = True
+                                    continue
+                                # No open tag; flush all except any suffix that matches the start of a tag
+                                if buffer:
+                                    max_k = min(len(buffer), len(tag_start))
+                                    overlap = 0
+                                    for k in range(max_k, -1, -1):
+                                        if buffer.endswith(tag_start[:k]):
+                                            overlap = k
+                                            break
+                                    flush_len = len(buffer) - overlap
+                                    if flush_len > 0:
+                                        flushable = buffer[:flush_len]
+                                        full_text_parts.append(flushable)
+                                        yield f"event: token\ndata: {json.dumps(flushable)}\n\n".encode()
+                                        current_text_segment += flushable
+                                        buffer = buffer[flush_len:]
+                                break
+                            else:
+                                close_idx = buffer.find(end_marker)
+                                if close_idx == -1:
+                                    # still inside partner block, wait for more data
+                                    break
+                                content = buffer[:close_idx]
+                                yield f"event: tool_start\ndata: {json.dumps({'name': 'emit_partner_message'})}\n\n".encode()
+                                yield f"event: partner_message\ndata: {json.dumps(content)}\n\n".encode()
+                                yield b"event: tool_done\ndata: {}\n\n"
+
+                                if current_text_segment:
+                                    segments_list.append({"type": "text", "content": current_text_segment})
+                                    current_text_segment = ""
+                                segments_list.append({"type": "partner_draft", "text": content})
+
+                                buffer = buffer[close_idx + len(end_marker):]
+                                in_partner = False
+                                continue
+
+                # Flush any pending buffered text (including partial tags) before finalizing
+                if buffer:
+                    # If we're mid-partner block and never saw a close tag, treat remainder as plain text
+                    full_text_parts.append(buffer)
+                    yield f"event: token\ndata: {json.dumps(buffer)}\n\n".encode()
+                    current_text_segment += buffer
+                    buffer = ""
 
                 # Flush any trailing text segment captured during streaming
                 if current_text_segment:
@@ -287,9 +435,6 @@ async def chat_message_stream(request: ChatRequest, current_user: dict = Depends
                 state["final_text"] = final_text or ""
                 if segments_list:
                     state["segments"] = segments_list
-
-                if not full_text_parts and final_text:
-                    yield f"event: token\ndata: {json.dumps(final_text)}\n\n".encode()
 
                 yield b"event: done\ndata: {}\n\n"
             except Exception as e:

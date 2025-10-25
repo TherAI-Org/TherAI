@@ -9,7 +9,7 @@ load_dotenv(dotenv_path = Path(__file__).resolve().parent.parent / ".env")
 class ChatAgent:
     def __init__(self):
         self.client = OpenAI(api_key = os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4o-mini"
+        self.model = "gpt-5-mini"
 
         prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "chat_prompt.txt"
         with open(prompt_path, "r", encoding = "utf-8") as f:
@@ -31,6 +31,17 @@ class ChatAgent:
         return self.client.responses.create(
             model = self.model,
             input = messages,
+            text = {"verbosity": "medium"},
+            reasoning = {"effort": "minimal"},
+            previous_response_id = previous_response_id,
+        )
+
+    def stream_response(self, *, messages: List[dict], previous_response_id: Optional[str] = None):
+        return self.client.responses.stream(
+            model = self.model,
+            input = messages,
+            text = {"verbosity": "medium"},
+            reasoning = {"effort": "minimal"},
             previous_response_id = previous_response_id,
         )
 

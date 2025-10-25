@@ -8,7 +8,7 @@ load_dotenv(dotenv_path = Path(__file__).resolve().parent.parent / ".env")
 class ChatTitleAgent:
     def __init__(self):
         self.client = OpenAI(api_key = os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4o-mini"
+        self.model = "gpt-5-mini"
 
         title_generation_prompt_path = Path(__file__).resolve().parent.parent / "Prompts" / "chat_title_generation_prompt.txt"
         with open(title_generation_prompt_path, "r", encoding = "utf-8") as f:
