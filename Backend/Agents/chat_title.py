@@ -28,7 +28,6 @@ class ChatTitleAgent:
             resp = self.client.responses.create(
                 model = self.model,
                 input = input_messages,
-                temperature = 0.8,
             )
 
             text = getattr(resp, "output_text", None) or "".join(
