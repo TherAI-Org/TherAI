@@ -17,6 +17,9 @@ struct TherAIApp: App {
 
     @StateObject private var auth = AuthService.shared
     @StateObject private var linkVM = LinkViewModel(accessTokenProvider: {
+        
+        
+        
         let session = try await AuthService.shared.client.auth.session
         return session.accessToken
     })
