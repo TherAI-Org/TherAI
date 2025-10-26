@@ -37,15 +37,16 @@ struct SlideOutSidebarContainerView<Content: View>: View {
         GeometryReader { proxy in
             let width: CGFloat = proxy.size.width
             let blurIntensity: CGFloat = {
-                let widthD = Double(width)
+                let maxBlur: CGFloat = 6
+                let w = max(width, 1)
                 if navigationViewModel.isOpen {
-                    let dragProgress = abs(Double(navigationViewModel.dragOffset)) / max(widthD, 1.0)
-                    let value = max(0.0, 10.0 - (dragProgress * 20.0))
-                    return CGFloat(value)
+                    // Fully open => 1, closing (dragging left) reduces toward 0 as content returns
+                    let progress = 1 - min(1, max(0, abs(navigationViewModel.dragOffset) / w))
+                    return maxBlur * progress
                 } else {
-                    let dragProgress = Double(navigationViewModel.dragOffset) / max(widthD, 1.0)
-                    let value = min(abs(dragProgress) * 20.0, 10.0)
-                    return CGFloat(value)
+                    // Closed => 0, opening (dragging right) increases toward 1 as content departs
+                    let progress = min(1, max(0, navigationViewModel.dragOffset / w))
+                    return maxBlur * progress
                 }
             }()
 
@@ -54,7 +55,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .offset(x: navigationViewModel.isOpen ? width + navigationViewModel.dragOffset : max(0, navigationViewModel.dragOffset))
-                    .blur(radius: min(blurIntensity, 6))
+                    .blur(radius: blurIntensity)
                     // Faster response when toggling open/close, and tighter interactive spring while dragging
                     .animation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.isOpen)
                     .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
@@ -83,17 +84,30 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 }
             }
             .contentShape(Rectangle())
-            .gesture(
-                DragGesture()
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 5)
                     .onChanged { value in
                         guard !navigationViewModel.showSettingsOverlay else { return }
+                        let dx = value.translation.width
+                        let dy = value.translation.height
+                        // Only react to predominantly horizontal drags
+                        guard abs(dx) > abs(dy) else { return }
                         // Clamp to reduce layout thrash on rapid drags
-                        let clamped = max(min(value.translation.width, width), -width)
+                        let clamped = max(min(dx, width), -width)
                         navigationViewModel.handleDragGesture(clamped, width: width)
                     }
                     .onEnded { value in
                         guard !navigationViewModel.showSettingsOverlay else { return }
-                        navigationViewModel.handleSwipeGesture(value.translation.width, velocity: value.velocity.width, width: width)
+                        let dx = value.translation.width
+                        let dy = value.translation.height
+                        // If the drag was vertical-dominant, just reset any temporary offset
+                        guard abs(dx) > abs(dy) else {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0)) {
+                                navigationViewModel.dragOffset = 0
+                            }
+                            return
+                        }
+                        navigationViewModel.handleSwipeGesture(dx, velocity: value.velocity.width, width: width)
                     }
             )
         }
