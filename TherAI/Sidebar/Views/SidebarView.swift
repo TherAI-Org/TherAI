@@ -12,6 +12,7 @@ struct SlidebarView: View {
     @Binding var isOpen: Bool
 
     @State private var searchText: String = ""
+    @State private var isSearchPresented: Bool = false
 
     // Rename sheet state
     @State private var showRenameSheet: Bool = false
@@ -20,8 +21,14 @@ struct SlidebarView: View {
 
     let profileNamespace: Namespace.ID
 
+    private var isSearchActive: Bool {
+        if isSearching { return true }
+        if isSearchPresented { return true }
+        return !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private var shouldShowPartnerBanner: Bool {
-        if isSearching { return false }
+        if isSearchActive { return false }
         if !sessionsViewModel.pendingRequests.isEmpty { return false }
         if sessionsViewModel.partnerInfo?.linked == true { return false }
         if case .linked = linkVM.state { return false }
@@ -66,7 +73,7 @@ struct SlidebarView: View {
 
                 ScrollView {
                     VStack(spacing: 10) {
-                        if !isSearching {
+                        if !isSearchActive {
                             let hasPending = !sessionsViewModel.pendingRequests.isEmpty
 
                             if hasPending {
@@ -149,9 +156,9 @@ struct SlidebarView: View {
                                 .padding(.horizontal, 20)
                                 .padding(.top, 12)
                             }
-                            .offset(y: isSearching ? -120 : 0)
-                            .opacity(isSearching ? 0 : 1)
-                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
+                            .offset(y: isSearchActive ? -120 : 0)
+                            .opacity(isSearchActive ? 0 : 1)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchActive)
                         }
 
                     let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -161,24 +168,7 @@ struct SlidebarView: View {
                         return session.displayTitle.lowercased().contains(lower)
                     }
 
-                    // Search feedback - only show when searching and has search term
-                    if isSearching && !lower.isEmpty {
-                        HStack(spacing: 12) {
-                            if !filteredSessions.isEmpty {
-                                Text("\(filteredSessions.count) results for \"\(term)\"")
-                                    .font(.system(size: 17, weight: .regular))
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("No results for \"\(term)\"")
-                                    .font(.system(size: 17, weight: .regular))
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                    
 
                     LazyVStack(spacing: 6) {
                             if sessionsViewModel.isLoadingSessions {
@@ -254,8 +244,8 @@ struct SlidebarView: View {
                         .padding(.top, 4)
                         .padding(.horizontal, 20)
                         .padding(.bottom, 20)
-                        .offset(y: isSearching ? -8 : 0)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearching)
+                        .offset(y: isSearchActive ? -8 : 0)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchActive)
                     }
                     .padding(.top, 8)
                     .padding(.bottom, 80)
@@ -267,49 +257,47 @@ struct SlidebarView: View {
                 .scrollIndicators(.hidden)
                 }
                 .overlay(alignment: .bottom) {
-                    VStack(spacing: 0) {
-                        // Extended gradient area that starts much higher
-                        Spacer()
-                            .frame(height: 100) // This creates space for the gradient to start earlier
+                    if !isSearchActive {
+                        VStack(spacing: 0) {
+                            // Extended gradient area that starts much higher
+                            Spacer()
+                                .frame(height: 100) // This creates space for the gradient to start earlier
 
-                        // Partner Invite Banner (only when not linked and no pending requests)
-                        if shouldShowPartnerBanner {
-                            PartnerInviteBannerView()
-                                .padding(.horizontal, 20)
-                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
+                            // Partner Invite Banner (only when not linked and no pending requests)
+                            if shouldShowPartnerBanner {
+                                PartnerInviteBannerView()
+                                    .padding(.horizontal, 20)
+                                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
+                            }
+
+                            // Profile Section
+                            ProfileSectionView()
+                            .padding(.horizontal, 20)
+                            .padding(.top, 6)
+                            .padding(.bottom, 34) // More bottom padding to bring profile section further up
                         }
-
-                        // Profile Section
-                        ProfileSectionView()
-                        .padding(.horizontal, 20)
-                        .padding(.top, 6)
-                        .padding(.bottom, 34) // More bottom padding to bring profile section further up
-                    }
-                    .background(
-                        LinearGradient(
-                            colors: [
-                                Color(.systemBackground).opacity(0.3),
-                                Color(.systemBackground).opacity(0.98),
-                                Color(.systemBackground)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(.systemBackground).opacity(0.3),
+                                    Color(.systemBackground).opacity(0.98),
+                                    Color(.systemBackground)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
                         )
-                    )
-                    .ignoresSafeArea(.keyboard, edges: .bottom)    // Opt out of keyboard avoidance
-                    .ignoresSafeArea(.container, edges: .bottom)   // Ignore container safe area
-                    .zIndex(10)  // Higher z-index to ensure it stays on top
-                    .allowsHitTesting(true)  // Ensure buttons remain interactive
-                    .offset(y: isSearching ? 100 : 0)  // Smoothly hide when searching
-                    .opacity(isSearching ? 0 : 1)      // Fade out when searching
-                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearching)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)    // Opt out of keyboard avoidance
+                        .ignoresSafeArea(.container, edges: .bottom)   // Ignore container safe area
+                        .zIndex(10)  // Higher z-index to ensure it stays on top
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemBackground))
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $searchText, prompt: "Search conversations")
+            .searchable(text: $searchText, isPresented: $isSearchPresented, prompt: "Search conversations")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {
