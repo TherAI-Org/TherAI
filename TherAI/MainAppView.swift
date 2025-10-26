@@ -13,16 +13,12 @@ struct MainAppView: View {
 
     var body: some View {
         Group {
-            if navigationViewModel.isOpen {
-                Color.clear
-            } else {
-                let viewId: String = {
-                    if let sid = sessionsViewModel.activeSessionId { return "session_\(sid.uuidString)" }
-                    return "new_\(sessionsViewModel.chatViewKey.uuidString)"
-                }()
-                ChatView(sessionId: sessionsViewModel.activeSessionId)
-                    .id(viewId)
-            }
+            let viewId: String = {
+                if let sid = sessionsViewModel.activeSessionId { return "session_\(sid.uuidString)" }
+                return "new_\(sessionsViewModel.chatViewKey.uuidString)"
+            }()
+            ChatView(sessionId: sessionsViewModel.activeSessionId)
+                .id(viewId)
         }
     }
 }
