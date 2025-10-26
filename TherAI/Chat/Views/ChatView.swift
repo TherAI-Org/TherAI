@@ -60,16 +60,18 @@ struct ChatView: View {
                         }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
-                        Haptics.impact(.light)
-                        sessionsViewModel.startNewChat()
-                    }) {
-                        Image(systemName: "square.and.pencil")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                            .frame(width: 44, height: 44)
-                            .offset(y: -1.5)
+                if !viewModel.messages.isEmpty {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button(action: {
+                            Haptics.impact(.light)
+                            sessionsViewModel.startNewChat()
+                        }) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                .frame(width: 44, height: 44)
+                                .offset(y: -1.5)
+                        }
                     }
                 }
             }
