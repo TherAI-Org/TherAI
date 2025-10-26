@@ -22,7 +22,7 @@ class SidebarNavigationViewModel: ObservableObject {
 
     func openSidebar() {
         Haptics.impact(.light)
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.7, blendDuration: 0)) {
             isOpen = true
             dragOffset = 0
         }
@@ -30,21 +30,21 @@ class SidebarNavigationViewModel: ObservableObject {
 
     func closeSidebar() {
         Haptics.impact(.light)
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.7, blendDuration: 0)) {
             isOpen = false
             dragOffset = 0
         }
     }
 
     func toggleSidebar() {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.7, blendDuration: 0)) {
             isOpen.toggle()
             dragOffset = 0
         }
     }
 
     func selectTab(_ tab: SidebarTab) {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8, blendDuration: 0)) {
+        withAnimation(.spring(response: 0.46, dampingFraction: 0.7, blendDuration: 0)) {
             selectedTab = tab
             isOpen = false
             dragOffset = 0
@@ -73,7 +73,7 @@ class SidebarNavigationViewModel: ObservableObject {
             if translation < -threshold || velocity < -velocityThreshold {
                 closeSidebar()
             } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0)) {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.74, blendDuration: 0)) {
                     dragOffset = 0
                 }
             }
@@ -82,7 +82,7 @@ class SidebarNavigationViewModel: ObservableObject {
             if translation > threshold || velocity > velocityThreshold {
                 openSidebar()
             } else {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0)) {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.74, blendDuration: 0)) {
                     dragOffset = 0
                 }
             }
