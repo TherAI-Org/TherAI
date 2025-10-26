@@ -118,29 +118,14 @@ struct SlidebarView: View {
                                 .padding(.horizontal, 16)
                             }
 
-                            VStack(spacing: 0) {
-                                Button(action: {
-                                    Haptics.impact(.medium)
-                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
-                                        sessionsViewModel.startNewChat()
-                                        navigationViewModel.selectedTab = .chat
-                                        isOpen = false
-                                    }
-                                }) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "square.and.pencil")
-                                            .font(.system(size: 20, weight: .medium))
-                                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                        Text("New Conversation")
-                                            .font(.system(size: 18, weight: .medium))
-                                            .foregroundColor(.primary)
-                                            .offset(y: 2)
-                                        Spacer()
-                                    }
+                            // Partner Invite Banner (only when not linked and no pending requests)
+                            if shouldShowPartnerBanner {
+                                PartnerInviteBannerView()
                                     .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                }
+                                    .padding(.top, 8)
+                            }
 
+                            VStack(spacing: 0) {
                                 Divider()
                                     .frame(maxWidth: .infinity)
                                     .padding(.top, 8)
@@ -256,67 +241,106 @@ struct SlidebarView: View {
                 }
                 .scrollIndicators(.hidden)
                 }
-                .overlay(alignment: .bottom) {
-                    if !isSearchActive {
-                        VStack(spacing: 0) {
-                            // Extended gradient area that starts much higher
-                            Spacer()
-                                .frame(height: 100) // This creates space for the gradient to start earlier
-
-                            // Partner Invite Banner (only when not linked and no pending requests)
-                            if shouldShowPartnerBanner {
-                                PartnerInviteBannerView()
-                                    .padding(.horizontal, 20)
-                                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
-                            }
-
-                            // Profile Section
-                            ProfileSectionView()
-                            .padding(.horizontal, 20)
-                            .padding(.top, 6)
-                            .padding(.bottom, 34) // More bottom padding to bring profile section further up
-                        }
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color(.systemBackground).opacity(0.3),
-                                    Color(.systemBackground).opacity(0.98),
-                                    Color(.systemBackground)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .ignoresSafeArea(.keyboard, edges: .bottom)    // Opt out of keyboard avoidance
-                        .ignoresSafeArea(.container, edges: .bottom)   // Ignore container safe area
-                        .zIndex(10)  // Higher z-index to ensure it stays on top
-                    }
-                }
+                
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemBackground))
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, isPresented: $isSearchPresented, prompt: "Search conversations")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    HStack(spacing: 10) {
+                        // Compact avatar only (no name) - opens profile/settings overlay
+                        Button(action: {
+                            Haptics.impact(.light)
+                            withAnimation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0)) {
+                                navigationViewModel.showSettingsOverlay = true
+                            }
+                        }) {
+                            AvatarCacheManager.shared.cachedAsyncImage(
+                                urlString: sessionsViewModel.myAvatarURL,
+                                placeholder: {
+                                    AnyView(
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [
+                                                        Color(red: 0.26, green: 0.58, blue: 1.00),
+                                                        Color(red: 0.63, green: 0.32, blue: 0.98)
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .overlay(
+                                                Image(systemName: "person.fill")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                    .foregroundColor(.white)
+                                            )
+                                    )
+                                },
+                                fallback: {
+                                    AnyView(
+                                        Circle()
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [
+                                                        Color(red: 0.26, green: 0.58, blue: 1.00),
+                                                        Color(red: 0.63, green: 0.32, blue: 0.98)
+                                                    ],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                            .overlay(
+                                                Image(systemName: "person.fill")
+                                                    .font(.system(size: 16, weight: .medium))
+                                                    .foregroundColor(.white)
+                                            )
+                                    )
+                                }
+                            )
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                            .padding(.vertical, 2)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // Settings gear button
+                        Button(action: {
+                            Haptics.impact(.medium)
+                            withAnimation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0)) {
+                                navigationViewModel.showSettingsOverlay = true
+                            }
+                        }) {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                .frame(width: 40, height: 40)
+                                .matchedGeometryEffect(id: "settingsGearIcon", in: profileNamespace)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.leading, 4)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: {
-                        Haptics.impact(.medium)
+                        Haptics.impact(.light)
                         withAnimation(.spring(response: 0.28, dampingFraction: 0.92, blendDuration: 0)) {
-                            if sessionsViewModel.activeSessionId != nil {
-                                navigationViewModel.selectedTab = .chat
-                                isOpen = false
-                            } else {
-                                sessionsViewModel.startNewChat()
-                                navigationViewModel.selectedTab = .chat
-                                isOpen = false
-                            }
+                            sessionsViewModel.startNewChat()
+                            navigationViewModel.selectedTab = .chat
+                            isOpen = false
                         }
                     }) {
-                        Image(systemName: "xmark")
+                        Image(systemName: "square.and.pencil")
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                             .frame(width: 44, height: 44)
+                            .offset(y: -1.5)
                     }
                 }
             }
