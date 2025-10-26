@@ -56,9 +56,9 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .offset(x: navigationViewModel.isOpen ? width + navigationViewModel.dragOffset : max(0, navigationViewModel.dragOffset))
                     .blur(radius: blurIntensity)
-                    // Faster response when toggling open/close, and tighter interactive spring while dragging
-                    .animation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.isOpen)
-                    .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
+                    // Bouncier response when toggling open/close, and lively interactive spring while dragging
+                    .animation(.spring(response: 0.34, dampingFraction: 0.72, blendDuration: 0), value: navigationViewModel.isOpen)
+                    .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.78, blendDuration: 0), value: navigationViewModel.dragOffset)
 
                 // Slide-out Sidebar - slides in from left to fully replace main content
                 // Compute sidebar offset once so we can position the edge blur exactly at the visible edge
@@ -70,8 +70,8 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 )
                 .offset(x: sidebarOffsetX)
                 .blur(radius: navigationViewModel.showSettingsOverlay ? 8 : 0)
-                .animation(.spring(response: 0.28, dampingFraction: 0.9, blendDuration: 0), value: navigationViewModel.isOpen)
-                .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.88, blendDuration: 0), value: navigationViewModel.dragOffset)
+                .animation(.spring(response: 0.34, dampingFraction: 0.72, blendDuration: 0), value: navigationViewModel.isOpen)
+                .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.78, blendDuration: 0), value: navigationViewModel.dragOffset)
 
                 if navigationViewModel.showSettingsOverlay {
                     SettingsView(
@@ -80,7 +80,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     )
                     .environmentObject(sessionsViewModel)
                     .zIndex(2)
-                    .animation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0), value: navigationViewModel.showSettingsOverlay)
+                    .animation(.spring(response: 0.46, dampingFraction: 0.82, blendDuration: 0), value: navigationViewModel.showSettingsOverlay)
                 }
             }
             .contentShape(Rectangle())
@@ -102,7 +102,7 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                         let dy = value.translation.height
                         // If the drag was vertical-dominant, just reset any temporary offset
                         guard abs(dx) > abs(dy) else {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.88, blendDuration: 0)) {
+                            withAnimation(.spring(response: 0.34, dampingFraction: 0.76, blendDuration: 0)) {
                                 navigationViewModel.dragOffset = 0
                             }
                             return
