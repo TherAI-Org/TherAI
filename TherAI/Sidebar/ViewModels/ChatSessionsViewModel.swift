@@ -475,6 +475,7 @@ class ChatSessionsViewModel: ObservableObject {
 
         await loadPairedAvatars()
         await preloadAvatars()
+        await ensureProfilePictureCached()
         if let cachedPartnerURL = UserDefaults.standard.string(forKey: PreferenceKeys.partnerAvatarURL),
            !cachedPartnerURL.isEmpty,
            (partnerAvatarURL == nil || partnerAvatarURL?.isEmpty == true) {
@@ -525,6 +526,14 @@ class ChatSessionsViewModel: ObservableObject {
         }
         if !avatarURLs.isEmpty {
             await avatarCacheManager.preloadAvatars(urls: avatarURLs)
+        }
+    }
+    
+    func ensureProfilePictureCached() async {
+        // Ensure the profile picture is always cached for immediate display in sidebar
+        if let myAvatar = myAvatarURL, !myAvatar.isEmpty {
+            // Force load and cache the profile picture
+            _ = await avatarCacheManager.getCachedImage(urlString: myAvatar)
         }
     }
 
