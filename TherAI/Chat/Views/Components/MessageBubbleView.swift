@@ -43,7 +43,7 @@ struct MessageBubbleView: View {
                                 print("[MessageBubble] Found partnerReceived segment: \(text.prefix(50))")
                             }
                         }
-                        ForEach(message.segments, id: \.id) { segment in
+                        ForEach(Array(message.segments.enumerated()), id: \.offset) { _, segment in
                             switch segment {
                             case .text(let text):
                                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
