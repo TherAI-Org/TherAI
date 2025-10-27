@@ -528,6 +528,9 @@ struct PersonalizationEditView: View {
                 sessionsVM.myAvatarURL = newURL
             }
 
+            // Force refresh the sidebar avatar immediately
+            sessionsVM.objectWillChange.send()
+
             // Send notification to update all UI components immediately
             NotificationCenter.default.post(name: .avatarChanged, object: nil)
         }
@@ -546,8 +549,9 @@ struct PersonalizationEditView: View {
         // Force refresh all avatar displays across the entire app
         await AvatarCacheManager.shared.forceRefreshAllAvatars()
 
-        // Preload new avatar immediately
+        // Preload new avatar immediately and ensure it's cached
         await sessionsVM.preloadAvatars()
+        await sessionsVM.ensureProfilePictureCached()
 
         // Force UI refresh by updating the sessionsVM state
         await MainActor.run {
