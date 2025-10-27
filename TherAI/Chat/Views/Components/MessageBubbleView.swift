@@ -57,10 +57,10 @@ struct MessageBubbleView: View {
                                 if !text.isEmpty {
                                     let isSent = chatViewModel.partnerDrafts.isPartnerDraftSent(sessionId: chatViewModel.sessionId, messageContent: text)
 
-                                    PartnerDraftBlockView(initialText: text, isSent: isSent) { action in
+                                    let isLinked = (UserDefaults.standard.bool(forKey: PreferenceKeys.partnerConnected) == true)
+                                    PartnerDraftBlockView(initialText: text, isSent: isSent, isLinked: isLinked) { action in
                                         switch action {
                                         case .send(let edited):
-                                            chatViewModel.partnerDrafts.markPartnerDraftAsSent(sessionId: chatViewModel.sessionId, messageContent: text)
                                             onSendToPartner?(edited)
                                         }
                                     }
