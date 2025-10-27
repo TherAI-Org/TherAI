@@ -69,25 +69,23 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                     profileNamespace: profileNamespace
                 )
                 .offset(x: sidebarOffsetX)
-                .blur(radius: navigationViewModel.showSettingsOverlay ? 8 : 0)
                 .animation(.spring(response: 0.34, dampingFraction: 0.72, blendDuration: 0), value: navigationViewModel.isOpen)
                 .animation(.interactiveSpring(response: 0.26, dampingFraction: 0.78, blendDuration: 0), value: navigationViewModel.dragOffset)
-
-                if navigationViewModel.showSettingsOverlay {
-                    SettingsView(
-                        profileNamespace: profileNamespace,
-                        isPresented: $navigationViewModel.showSettingsOverlay
-                    )
-                    .environmentObject(sessionsViewModel)
-                    .zIndex(2)
-                    .animation(.spring(response: 0.46, dampingFraction: 0.82, blendDuration: 0), value: navigationViewModel.showSettingsOverlay)
-                }
+            }
+            .sheet(isPresented: $navigationViewModel.showSettingsSheet) {
+                SettingsView(
+                    profileNamespace: profileNamespace,
+                    isPresented: $navigationViewModel.showSettingsSheet
+                )
+                .environmentObject(sessionsViewModel)
+                .environmentObject(linkVM)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
             .contentShape(Rectangle())
             .simultaneousGesture(
                 DragGesture(minimumDistance: 5)
                     .onChanged { value in
-                        guard !navigationViewModel.showSettingsOverlay else { return }
                         let dx = value.translation.width
                         let dy = value.translation.height
                         // Only react to predominantly horizontal drags
@@ -97,7 +95,6 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                         navigationViewModel.handleDragGesture(clamped, width: width)
                     }
                     .onEnded { value in
-                        guard !navigationViewModel.showSettingsOverlay else { return }
                         let dx = value.translation.width
                         let dy = value.translation.height
                         // If the drag was vertical-dominant, just reset any temporary offset
