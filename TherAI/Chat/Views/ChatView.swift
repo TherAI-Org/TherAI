@@ -8,6 +8,7 @@ struct ChatView: View {
     @StateObject private var viewModel: ChatViewModel
 
     @FocusState private var isInputFocused: Bool
+    @State private var showNotLinkedAlert: Bool = false
 
     init(sessionId: UUID? = nil) {
         _viewModel = StateObject(wrappedValue: ChatViewModel(sessionId: sessionId))
@@ -15,12 +16,23 @@ struct ChatView: View {
 
     var body: some View {
         let handleSendToPartner: () -> Void = {
+            guard sessionsViewModel.partnerInfo?.linked == true || UserDefaults.standard.bool(forKey: PreferenceKeys.partnerConnected) == true else {
+                Haptics.notification(.error)
+                showNotLinkedAlert = true
+                return
+            }
             let latestPartnerText = findLatestPartnerMessage()
             let inputTextTrimmed = viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
             let textToSend = latestPartnerText ?? (inputTextTrimmed.isEmpty ? nil : inputTextTrimmed)
             guard let text = textToSend, !text.isEmpty else { return }
             if latestPartnerText == nil { viewModel.inputText = "" }
-            Task { await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text) }
+            Task {
+                await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text)
+                // Only mark as sent after successful dispatch attempt (guarded inside sendToPartner)
+                if sessionsViewModel.partnerInfo?.linked == true || UserDefaults.standard.bool(forKey: PreferenceKeys.partnerConnected) == true {
+                    viewModel.partnerDrafts.markPartnerDraftAsSent(sessionId: viewModel.sessionId, messageContent: text)
+                }
+            }
         }
 
         return NavigationStack {
@@ -103,7 +115,15 @@ struct ChatView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .init("SendPartnerMessageFromBubble"))) { note in
             if let text = note.userInfo?["content"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Task { await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text) }
+                if sessionsViewModel.partnerInfo?.linked == true || UserDefaults.standard.bool(forKey: PreferenceKeys.partnerConnected) == true {
+                    Task {
+                        await viewModel.sendToPartner(sessionsViewModel: sessionsViewModel, customMessage: text)
+                        viewModel.partnerDrafts.markPartnerDraftAsSent(sessionId: viewModel.sessionId, messageContent: text)
+                    }
+                } else {
+                    Haptics.notification(.error)
+                    showNotLinkedAlert = true
+                }
             }
         }
         // SkipPartnerDraftRequested no-op removed; feature not in use
@@ -117,6 +137,11 @@ struct ChatView: View {
         }
         // Disable implicit animations related to this state change
         .animation(nil, value: viewModel.messages.isEmpty)
+        .alert("Not connected", isPresented: $showNotLinkedAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your account is not connected to a partner.")
+        }
     }
 
     private func findLatestPartnerMessage() -> String? {
