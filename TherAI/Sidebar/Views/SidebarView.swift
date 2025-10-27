@@ -118,19 +118,7 @@ struct SlidebarView: View {
                                 .padding(.horizontal, 16)
                             }
 
-                            // Partner Invite Banner (only when not linked and no pending requests)
-                            if shouldShowPartnerBanner {
-                                PartnerInviteBannerView()
-                                    .padding(.horizontal, 20)
-                                    .padding(.top, 8)
-                            }
-
                             VStack(spacing: 0) {
-                                Divider()
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.top, 8)
-                                    .padding(.bottom, 4)
-
                                 // Conversations header
                                 HStack(spacing: 12) {
                                     Text("Conversations")
@@ -241,7 +229,18 @@ struct SlidebarView: View {
                 }
                 .scrollIndicators(.hidden)
                 }
-                
+                .overlay(alignment: .bottom) {
+                    if !isSearchActive && shouldShowPartnerBanner {
+                        PartnerInviteBannerView()
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
+                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
+                            .ignoresSafeArea(.keyboard, edges: .bottom)
+                            .ignoresSafeArea(.container, edges: .bottom)
+                            .zIndex(10)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemBackground))
@@ -250,72 +249,26 @@ struct SlidebarView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     HStack(spacing: 10) {
-                        // Compact avatar only (no name) - opens profile/settings overlay
+                        // Compact avatar only (no name) - opens profile/settings sheet
                         Button(action: {
                             Haptics.impact(.light)
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0)) {
-                                navigationViewModel.showSettingsOverlay = true
-                            }
+                            navigationViewModel.showSettingsSheet = true
                         }) {
-                            AvatarCacheManager.shared.cachedAsyncImage(
-                                urlString: sessionsViewModel.myAvatarURL,
-                                placeholder: {
-                                    AnyView(
-                                        Circle()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [
-                                                        Color(red: 0.26, green: 0.58, blue: 1.00),
-                                                        Color(red: 0.63, green: 0.32, blue: 0.98)
-                                                    ],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                            .overlay(
-                                                Image(systemName: "person.fill")
-                                                    .font(.system(size: 14, weight: .medium))
-                                                    .foregroundColor(.white)
-                                            )
-                                    )
-                                },
-                                fallback: {
-                                    AnyView(
-                                        Circle()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [
-                                                        Color(red: 0.26, green: 0.58, blue: 1.00),
-                                                        Color(red: 0.63, green: 0.32, blue: 0.98)
-                                                    ],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                            .overlay(
-                                                Image(systemName: "person.fill")
-                                                    .font(.system(size: 16, weight: .medium))
-                                                    .foregroundColor(.white)
-                                            )
-                                    )
-                                }
-                            )
-                            .frame(width: 36, height: 36)
-                            .clipShape(Circle())
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                            )
-                            .padding(.vertical, 2)
+                            SidebarAvatarView(avatarURL: sessionsViewModel.myAvatarURL)
+                                .frame(width: 36, height: 36)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                                .padding(.vertical, 2)
                         }
                         .buttonStyle(PlainButtonStyle())
 
                         // Settings gear button
                         Button(action: {
                             Haptics.impact(.medium)
-                            withAnimation(.spring(response: 0.42, dampingFraction: 0.92, blendDuration: 0)) {
-                                navigationViewModel.showSettingsOverlay = true
-                            }
+                            navigationViewModel.showSettingsSheet = true
                         }) {
                             Image(systemName: "gearshape")
                                 .font(.system(size: 22, weight: .semibold))
@@ -348,6 +301,16 @@ struct SlidebarView: View {
                 if !open {
                     // Clear search when sidebar closes
                     searchText = ""
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .avatarChanged)) { _ in
+                // Force refresh when avatar changes
+                sessionsViewModel.objectWillChange.send()
+            }
+            .onAppear {
+                // Ensure profile picture is cached when sidebar appears
+                Task {
+                    await sessionsViewModel.ensureProfilePictureCached()
                 }
             }
             .sheet(isPresented: $showRenameSheet) {
