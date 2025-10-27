@@ -72,6 +72,8 @@ struct ChatView: View {
                                 .frame(width: 44, height: 44)
                                 .offset(y: -1.5)
                         }
+                        .transaction { txn in txn.animation = nil }
+                        .animation(nil, value: viewModel.messages.isEmpty)
                     }
                 }
             }
@@ -113,6 +115,8 @@ struct ChatView: View {
                 ChatSidebarViewModel.shared.handleActiveSessionChanged(sessionsViewModel.activeSessionId, viewModel: viewModel)
             }
         }
+        // Disable implicit animations related to this state change
+        .animation(nil, value: viewModel.messages.isEmpty)
     }
 
     private func findLatestPartnerMessage() -> String? {
