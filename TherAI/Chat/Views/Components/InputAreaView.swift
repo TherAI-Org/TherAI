@@ -86,16 +86,18 @@ struct InputAreaView: View {
                 .frame(minHeight: 36)
 
                 Button(action: {
-                    Haptics.impact(.light)
                     if inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         if voiceService.isRecording {
+                            Haptics.impact(.medium)
                             voiceService.stopRecording()
                             inputText = voiceService.transcribedText
                         } else {
+                            Haptics.impact(.medium)
                             onVoiceRecordingStart()
                             Task { await voiceService.startRecording() }
                         }
                     } else {
+                        Haptics.impact(.light)
                         if isLoading { stop() } else { isInputFocused.wrappedValue = false; send() }
                     }
                 }) {
