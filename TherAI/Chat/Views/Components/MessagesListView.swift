@@ -50,10 +50,29 @@ struct MessagesListView: View {
             }
             .scrollBounceBehavior(.always)
             .scrollIndicators(.visible)
+            .onChange(of: chatViewModel.streamingScrollToken, initial: false) { _, _ in
+                // Keep view pinned to the assistant's streaming message as tokens arrive
+                let targetId = chatViewModel.assistantScrollTargetId ?? messages.last?.id
+                if let targetId = targetId {
+                    withAnimation(nil) { proxy.scrollTo(targetId, anchor: .bottom) }
+                }
+            }
+            .onChange(of: chatViewModel.assistantScrollTargetId, initial: false) { _, newId in
+                // When a new assistant placeholder appears, jump to it immediately
+                if let id = newId {
+                    withAnimation(nil) { proxy.scrollTo(id, anchor: .bottom) }
+                }
+            }
             .onChange(of: initialJumpToken, initial: false) { _, token in
                 guard token > 0 else { return }
                 guard let lastId = messages.last?.id else { return }
                 withAnimation(nil) { proxy.scrollTo(lastId, anchor: .bottom) }
+            }
+            .onChange(of: isAssistantTyping, initial: false) { _, typing in
+                // If typing indicator appears before any tokens, make sure it's visible
+                if typing {
+                    withAnimation(nil) { proxy.scrollTo("typing-indicator", anchor: .bottom) }
+                }
             }
             .onChange(of: isInputFocused, initial: false) { _, newValue in
                 if newValue {
