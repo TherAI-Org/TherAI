@@ -104,6 +104,19 @@ struct ChatScreenView: View {
                     ProgressView().progressViewStyle(.circular)
                 }
                 .transition(.opacity)
+            } else if chatViewModel.messages.isEmpty && !chatViewModel.isLoadingHistory && !chatViewModel.isLoading {
+                VStack {
+                    Text("Hey, I'm here to listen\nand help you write a message\nto your partner. What happened?")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(Color.gray)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 28)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .padding(.bottom, inputBarHeight + ((isNewChatReadyForSuggestions && showSuggestionsDelayed) ? suggestionsHeight : 0) + bottomSafeInset + 36)
+                .transition(.opacity)
             }
         }
         .background(Color(.systemBackground))

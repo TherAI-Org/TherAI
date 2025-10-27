@@ -528,7 +528,7 @@ class ChatSessionsViewModel: ObservableObject {
             await avatarCacheManager.preloadAvatars(urls: avatarURLs)
         }
     }
-    
+
     func ensureProfilePictureCached() async {
         // Ensure the profile picture is always cached for immediate display in sidebar
         if let myAvatar = myAvatarURL, !myAvatar.isEmpty {
