@@ -172,6 +172,7 @@ class ChatViewModel: ObservableObject {
         currentAssistantMessageId = placeholderMessage.id
         assistantScrollTargetId = placeholderMessage.id
         streamingScrollToken = 0
+        Haptics.streamBegin()
         if let sid = self.sessionId {
             assistantMessageIdBySession[sid] = placeholderMessage.id
         }
@@ -386,6 +387,8 @@ class ChatViewModel: ObservableObject {
                                 self.typingDelayTask?.cancel()
                                 self.isAssistantTyping = false
                             }
+                            // Subtle, throttled haptic for streaming progress
+                            Haptics.streamTick()
                             accumulated += token
                             if !currentSegments.isEmpty, case .text(let existingText) = currentSegments[currentSegments.count - 1] {
                                 currentSegments[currentSegments.count - 1] = .text(existingText + token)
@@ -506,6 +509,7 @@ class ChatViewModel: ObservableObject {
                         }
                     case .done:
                         print("[ChatVM] stream done (manager); sawToolStart=\(sawToolStart) sawPartnerMessage=\(sawPartnerMessage) events=\(eventCounter)")
+                        Haptics.streamEnd()
                         let targetSid = streamSessionId ?? self.sessionId
                         if let sid = targetSid, sid != self.sessionId {
                             Task { @MainActor in
@@ -534,6 +538,7 @@ class ChatViewModel: ObservableObject {
                         }
                     case .error(let message):
                         Task { @MainActor in
+                            Haptics.streamEnd()
                             let targetSid = streamSessionId ?? self.sessionId
                             if let sid = targetSid, sid != self.sessionId {
                                 var newMessages = self.chatMessagesVM.getCachedMessages(for: sid) ?? []
@@ -560,6 +565,7 @@ class ChatViewModel: ObservableObject {
                 },
                 onFinish: { [weak self] in
                     Task { @MainActor in
+                        Haptics.streamEnd()
                         self?.isLoading = false
                         self?.isAssistantTyping = false
                         self?.isStreaming = false
@@ -597,6 +603,14 @@ class ChatViewModel: ObservableObject {
     }
 
     func sendToPartner(sessionsViewModel: ChatSessionsViewModel, customMessage: String? = nil) async {
+        // Guard: must be linked to a partner
+        let isLinked = (sessionsViewModel.partnerInfo?.linked == true) || UserDefaults.standard.bool(forKey: PreferenceKeys.partnerConnected) == true
+        guard isLinked else {
+            await MainActor.run {
+                Haptics.notification(.error)
+            }
+            return
+        }
         let resolved = await ensureSessionId()
         let sessionId = resolved ?? sessionsViewModel.activeSessionId
         guard let sid = sessionId else { return }
