@@ -12,11 +12,13 @@ struct PartnerDraftBlockView: View {
 
     let initialText: String
     let isSent: Bool
+    let isLinked: Bool
     let onAction: (Action) -> Void
 
-    init(initialText: String, isSent: Bool = false, onAction: @escaping (Action) -> Void) {
+    init(initialText: String, isSent: Bool = false, isLinked: Bool = true, onAction: @escaping (Action) -> Void) {
         self.initialText = initialText
         self.isSent = isSent
+        self.isLinked = isLinked
         self._text = State(initialValue: initialText)
         self.onAction = onAction
     }
@@ -85,12 +87,19 @@ struct PartnerDraftBlockView: View {
                         Haptics.impact(.light)
 
                         if isConfirmingNormalSend {
-                            isSending = true
-                            withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
-                                showSentLocally = true
-                                isConfirmingNormalSend = false
+                            if isLinked {
+                                isSending = true
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                                    showSentLocally = true
+                                    isConfirmingNormalSend = false
+                                }
+                                onAction(.send(trimmed))
+                            } else {
+                                withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
+                                    isConfirmingNormalSend = false
+                                }
+                                onAction(.send(trimmed))
                             }
-                            onAction(.send(trimmed))
                         } else {
                             withAnimation(.spring(response: 0.22, dampingFraction: 0.9)) {
                                 isConfirmingNormalSend = true
@@ -98,7 +107,7 @@ struct PartnerDraftBlockView: View {
                         }
                     }) {
                         ZStack {
-                            if (isSent || showSentLocally) {
+                            if isLinked && (isSent || showSentLocally) {
                                 HStack(spacing: 6) {
                                     Text("Sent")
                                         .font(.subheadline)
@@ -124,7 +133,7 @@ struct PartnerDraftBlockView: View {
                             }
                         }
                     }
-                    .disabled(isSent || isSending)
+                    .disabled((isLinked && (isSent || isSending)))
                 }
             }
         }
