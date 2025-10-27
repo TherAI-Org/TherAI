@@ -27,8 +27,8 @@ struct PartnerInviteBannerView: View {
                         if #available(iOS 26.0, *) {
                             ZStack {
                                 Color.clear
-                                    .glassEffect(.regular.interactive(), in: Circle())
-                                    .opacity(0.82)
+                                    .glassEffect(.regular, in: Circle())
+                                    .opacity(0.98)
                                 Circle()
                                     .fill(
                                         LinearGradient(
@@ -40,7 +40,7 @@ struct PartnerInviteBannerView: View {
                                             endPoint: .bottomTrailing
                                         )
                                     )
-                                    .opacity(0.22)
+                                    .opacity(0.35)
                                     .allowsHitTesting(false)
                             }
                         } else {
@@ -74,8 +74,8 @@ struct PartnerInviteBannerView: View {
                 if #available(iOS 26.0, *) {
                     ZStack {
                         Color.clear
-                            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .opacity(0.80)
+                            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .opacity(0.95)
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .fill(
                                 LinearGradient(
@@ -87,7 +87,7 @@ struct PartnerInviteBannerView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .opacity(0.16)
+                            .opacity(0.25)
                             .allowsHitTesting(false)
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .stroke(
@@ -197,8 +197,8 @@ struct PartnerInviteBannerView: View {
                     if #available(iOS 26.0, *) {
                         ZStack {
                             Color.clear
-                                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .opacity(0.80)
+                                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .opacity(0.93)
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .fill(
                                     LinearGradient(
@@ -210,7 +210,7 @@ struct PartnerInviteBannerView: View {
                                         endPoint: .bottomTrailing
                                     )
                                 )
-                                .opacity(0.14)
+                                .opacity(0.22)
                                 .allowsHitTesting(false)
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(
