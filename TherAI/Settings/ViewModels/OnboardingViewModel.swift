@@ -12,6 +12,33 @@ final class OnboardingViewModel: ObservableObject {
     @Published var isLinked: Bool = false
     @Published var errorMessage: String? = nil
 
+    private var didForceCompleteFromLink: Bool = false
+    private var observers: [NSObjectProtocol] = []
+
+    init() {
+        // As soon as a partner link is opened, hide onboarding immediately and persist completion.
+        let obs = NotificationCenter.default.addObserver(forName: .partnerLinkOpened, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self else { return }
+            self.didForceCompleteFromLink = true
+            self.step = .completed
+            self.isLoading = false
+            Task {
+                if let token = try? await AuthService.shared.client.auth.session.accessToken {
+                    _ = try? await BackendService.shared.updateOnboarding(
+                        accessToken: token,
+                        update: .init(partner_display_name: nil, onboarding_step: Step.completed.rawValue)
+                    )
+                }
+            }
+        }
+        observers.append(obs)
+    }
+
+    deinit {
+        for o in observers { NotificationCenter.default.removeObserver(o) }
+        observers.removeAll()
+    }
+
     func load() async {
         guard let token = try? await AuthService.shared.client.auth.session.accessToken else { return }
         await MainActor.run { self.isLoading = true }
@@ -22,8 +49,8 @@ final class OnboardingViewModel: ObservableObject {
                 self.partnerName = info.partner_display_name ?? ""
                 let fetchedStep = Step(rawValue: info.onboarding_step) ?? .none
                 self.isLinked = info.linked
-                // If the user is linked via invite, auto-complete onboarding and persist it
-                if info.linked && fetchedStep != .completed {
+                // If a link was opened this session OR user is already linked, force completion and persist it
+                if self.didForceCompleteFromLink || (info.linked && fetchedStep != .completed) {
                     self.step = .completed
                     Task { _ = try? await BackendService.shared.updateOnboarding(accessToken: token, update: .init(partner_display_name: nil, onboarding_step: Step.completed.rawValue)) }
                 } else {
@@ -38,52 +65,48 @@ final class OnboardingViewModel: ObservableObject {
 
     func setFullName(_ name: String?) async {
         guard let token = try? await AuthService.shared.client.auth.session.accessToken else { return }
-        do {
-            let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                await MainActor.run { self.errorMessage = "Please enter your name or tap Skip." }
-                return
-            }
-            // Optimistically update UI and advance immediately
-            await MainActor.run {
-                self.fullName = trimmed
-                self.errorMessage = nil
-                self.step = .asked_partner
-            }
-            // Persist in background; do not block UI flow
-            Task { _ = try? await BackendService.shared.updateProfile(accessToken: token, fullName: trimmed, bio: nil) }
-            Task { try? await self.advance(to: .asked_partner) }
-        } catch { }
+        let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            await MainActor.run { self.errorMessage = "Please enter your name or tap Skip." }
+            return
+        }
+        // Optimistically update UI and advance immediately
+        await MainActor.run {
+            self.fullName = trimmed
+            self.errorMessage = nil
+            self.step = .asked_partner
+        }
+        // Persist in background; do not block UI flow
+        Task { _ = try? await BackendService.shared.updateProfile(accessToken: token, fullName: trimmed, bio: nil) }
+        Task { try? await self.advance(to: .asked_partner) }
     }
 
     func setPartnerName(_ name: String?) async {
         guard let token = try? await AuthService.shared.client.auth.session.accessToken else { return }
-        do {
-            let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                await MainActor.run { self.errorMessage = "Please enter partner name or tap Skip." }
-                return
+        let trimmed = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            await MainActor.run { self.errorMessage = "Please enter partner name or tap Skip." }
+            return
+        }
+        // Optimistically advance and store locally
+        await MainActor.run {
+            self.partnerName = trimmed
+            self.errorMessage = nil
+            self.step = .suggested_link
+        }
+        // Persist via onboarding endpoint so fetchOnboarding reflects the change
+        Task {
+            do {
+                _ = try await BackendService.shared.updateOnboarding(
+                    accessToken: token,
+                    update: .init(partner_display_name: trimmed, onboarding_step: Step.suggested_link.rawValue)
+                )
+            } catch {
+                // Fallback: try profile update for partner name; keep UI advanced
+                _ = try? await BackendService.shared.updateProfile(accessToken: token, fullName: nil, bio: nil, partnerDisplayName: trimmed)
+                await MainActor.run { self.errorMessage = nil }
             }
-            // Optimistically advance and store locally
-            await MainActor.run {
-                self.partnerName = trimmed
-                self.errorMessage = nil
-                self.step = .suggested_link
-            }
-            // Persist via onboarding endpoint so fetchOnboarding reflects the change
-            Task {
-                do {
-                    _ = try await BackendService.shared.updateOnboarding(
-                        accessToken: token,
-                        update: .init(partner_display_name: trimmed, onboarding_step: Step.suggested_link.rawValue)
-                    )
-                } catch {
-                    // Fallback: try profile update for partner name; keep UI advanced
-                    _ = try? await BackendService.shared.updateProfile(accessToken: token, fullName: nil, bio: nil, partnerDisplayName: trimmed)
-                    await MainActor.run { self.errorMessage = nil }
-                }
-            }
-        } catch { }
+        }
     }
 
     func skipCurrent() async {

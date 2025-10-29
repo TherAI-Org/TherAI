@@ -61,6 +61,13 @@ struct TherAIApp: App {
                             NotificationCenter.default.post(name: .partnerLinkOpened, object: nil, userInfo: ["partnerName": partnerName])
                             if auth.isAuthenticated {
                                 Task {
+                                    // Immediately mark onboarding as completed in backend to suppress the overlay
+                                    if let access = try? await AuthService.shared.client.auth.session.accessToken {
+                                        _ = try? await BackendService.shared.updateOnboarding(
+                                            accessToken: access,
+                                            update: .init(partner_display_name: nil, onboarding_step: "completed")
+                                        )
+                                    }
                                     await linkVM.acceptInvite(using: token)
                                     await sessionsViewModel.loadPartnerInfo()
                                     await sessionsViewModel.loadPairedAvatars()
