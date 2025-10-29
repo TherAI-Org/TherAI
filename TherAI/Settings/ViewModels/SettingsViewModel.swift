@@ -31,7 +31,6 @@ class SettingsViewModel: ObservableObject {
         }
         setupSettingsSections()
         loadCachedPartnerConnection()
-        loadPartnerConnectionStatus()
     }
 
     private func loadSettings() {

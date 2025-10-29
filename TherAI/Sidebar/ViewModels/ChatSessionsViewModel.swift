@@ -27,6 +27,8 @@ class ChatSessionsViewModel: ObservableObject {
     private var observers: [NSObjectProtocol] = []
     private var handlingPartnerRequestIds: Set<UUID> = []
     private var hasStartedObserving: Bool = false
+    private var linkStatusPollingTask: Task<Void, Never>? = nil
+    private var unlinkStatusPollingTask: Task<Void, Never>? = nil
     private let avatarCacheManager = AvatarCacheManager.shared
     private weak var navigationViewModel: SidebarNavigationViewModel?
     private weak var linkViewModel: LinkViewModel?
@@ -88,6 +90,10 @@ class ChatSessionsViewModel: ObservableObject {
         hasStartedObserving = false
         isBootstrapComplete = false
         isBootstrapping = false
+        linkStatusPollingTask?.cancel()
+        unlinkStatusPollingTask?.cancel()
+        linkStatusPollingTask = nil
+        unlinkStatusPollingTask = nil
         sessions = []
         pendingRequests = []
         activeSessionId = nil
@@ -386,11 +392,7 @@ class ChatSessionsViewModel: ObservableObject {
                 return
             }
 
-            Task { @MainActor in
-                if let linkVM = self.findLinkViewModel() {
-                    try? await linkVM.refreshStatus()
-                }
-            }
+            // No longer refreshing LinkViewModel here to avoid clobbering prepared invite state
 
             if self.activeSessionId != sid && self.partnerInfo?.linked == true {
                 self.unreadPartnerSessionIds.insert(sid)
@@ -479,6 +481,8 @@ class ChatSessionsViewModel: ObservableObject {
             }
         }
         observers.append(partnerMessageTapped)
+
+        maybeStartLinkStatusPolling()
     }
 
     func bootstrapInitialData() async {
@@ -564,6 +568,7 @@ class ChatSessionsViewModel: ObservableObject {
             let session = try await AuthService.shared.client.auth.session
             let accessToken = session.accessToken
             let res = try await BackendService.shared.fetchPartnerInfo(accessToken: accessToken)
+            let wasLinked = self.partnerInfo?.linked ?? false
             await MainActor.run {
                 self.partnerInfo = res
                 UserDefaults.standard.set(res.linked, forKey: PreferenceKeys.partnerConnected)
@@ -581,9 +586,26 @@ class ChatSessionsViewModel: ObservableObject {
                         try? await linkVM.refreshStatus()
                     }
                 }
+                if (!res.linked) && wasLinked, let linkVM = self.findLinkViewModel() {
+                    Task {
+                        try? await linkVM.refreshStatus()
+                        await linkVM.ensureInviteReady()
+                    }
+                }
             }
             if res.linked, let url = res.partner?.avatar_url, !url.isEmpty {
                 await avatarCacheManager.preloadAvatars(urls: [url])
+            }
+            if res.linked {
+                // Stop link-acceptance polling; start unlink polling
+                linkStatusPollingTask?.cancel()
+                linkStatusPollingTask = nil
+                maybeStartUnlinkStatusPolling()
+            } else {
+                // Stop unlink polling; ensure link polling continues
+                unlinkStatusPollingTask?.cancel()
+                unlinkStatusPollingTask = nil
+                maybeStartLinkStatusPolling()
             }
         } catch {
             print("Failed to load partner info: \(error)")
@@ -679,6 +701,40 @@ extension ChatSessionsViewModel {
             print("[SessionsVM] Saved unread cache; count=\(self.unreadPartnerSessionIds.count)")
         } catch {
             print("⚠️ Failed to save unread cache: \(error)")
+        }
+    }
+
+    private func maybeStartLinkStatusPolling() {
+        // Start a lightweight poll while not linked to detect acceptance quickly
+        if linkStatusPollingTask != nil { return }
+        linkStatusPollingTask = Task { [weak self] in
+            guard let self = self else { return }
+            var attempts = 0
+            while !Task.isCancelled {
+                if self.partnerInfo?.linked == true { break }
+                attempts += 1
+                do { await self.loadPartnerInfo() }
+                // Poll every 5 seconds for up to ~2 minutes
+                if attempts >= 24 { break }
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
+        }
+    }
+
+    private func maybeStartUnlinkStatusPolling() {
+        // Start a lightweight poll while linked to detect unlink quickly
+        if unlinkStatusPollingTask != nil { return }
+        unlinkStatusPollingTask = Task { [weak self] in
+            guard let self = self else { return }
+            var attempts = 0
+            while !Task.isCancelled {
+                if self.partnerInfo?.linked != true { break }
+                attempts += 1
+                do { await self.loadPartnerInfo() }
+                // Poll every 5 seconds for up to ~2 minutes
+                if attempts >= 24 { break }
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
         }
     }
 }

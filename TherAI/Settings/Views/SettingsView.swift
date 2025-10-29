@@ -201,8 +201,6 @@ struct SettingsView: View {
         .onAppear {
             showCards = false
 
-            // Refresh connection status immediately
-            viewModel.loadPartnerConnectionStatus()
             // Preload partner avatar from cached URL for instant capsule image
             viewModel.preloadPartnerAvatarIfAvailable()
 
@@ -234,7 +232,6 @@ struct SettingsView: View {
         .onChange(of: linkVM.state, initial: false) { _, newState in
             // If linked, refresh from backend; otherwise clear immediately so capsule hides live
             if case .linked = newState {
-                viewModel.loadPartnerConnectionStatus()
                 // Also request sessions VM to refresh partner info so cached AppStorage updates
                 Task { await sessionsVM.loadPartnerInfo() }
             } else {

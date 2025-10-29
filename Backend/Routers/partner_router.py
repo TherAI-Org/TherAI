@@ -26,7 +26,10 @@ from ..Database.partner_requests_repo import (
     get_latest_pending_for_context,
 )
 from ..Database.supabase_client import supabase as _sp
-from ..APNS.apns import send_partner_request_notification_to_user, send_partner_message_notification_to_user
+from ..APNS.apns import (
+    send_partner_request_notification_to_user,
+    send_partner_message_notification_to_user,
+)
 
 from ..Models.requests import (
     PartnerRequestBody,
@@ -260,6 +263,7 @@ async def accept_request_endpoint(request_id: uuid.UUID, background_tasks: Backg
             pass
 
     background_tasks.add_task(_finalize_acceptance)
+
 
     # Return immediately with the session id so the client can navigate without delay
     return {"success": True, "recipient_session_id": str(recipient_session_id)}
