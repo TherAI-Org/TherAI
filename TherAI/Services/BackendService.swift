@@ -441,7 +441,7 @@ extension BackendService {
         return try jsonDecoder.decode(ProfileInfo.self, from: data)
     }
 
-    func updateProfile(accessToken: String, fullName: String?, bio: String?) async throws -> ProfileUpdateResponse {
+    func updateProfile(accessToken: String, fullName: String?, bio: String?, partnerDisplayName: String? = nil) async throws -> ProfileUpdateResponse {
         func makeRequest(at base: URL, method: String) -> URLRequest {
             let url = base
                 .appendingPathComponent("profile")
@@ -459,6 +459,10 @@ extension BackendService {
             if let bio = bio, !bio.isEmpty {
                 let encoded = bio.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? bio
                 formDataComponents.append("bio=\(encoded)")
+            }
+            if let partner = partnerDisplayName, !partner.isEmpty {
+                let encoded = partner.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? partner
+                formDataComponents.append("partner_display_name=\(encoded)")
             }
             let formDataString = formDataComponents.joined(separator: "&")
             request.httpBody = formDataString.data(using: .utf8)
@@ -539,6 +543,54 @@ extension BackendService {
             throw NSError(domain: "Backend", code: http.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
         return try jsonDecoder.decode(InviteInfo.self, from: data)
+    }
+
+    // MARK: - Onboarding
+
+    struct OnboardingInfo: Codable {
+        let full_name: String
+        let partner_display_name: String?
+        let onboarding_step: String
+        let linked: Bool
+    }
+
+    func fetchOnboarding(accessToken: String) async throws -> OnboardingInfo {
+        let url = baseURL
+            .appendingPathComponent("profile")
+            .appendingPathComponent("onboarding")
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return try jsonDecoder.decode(OnboardingInfo.self, from: data)
+    }
+
+    struct UpdateOnboardingRequest: Codable {
+        let partner_display_name: String?
+        let onboarding_step: String?
+    }
+
+    struct SimpleSuccess: Codable { let success: Bool }
+
+    func updateOnboarding(accessToken: String, update: UpdateOnboardingRequest) async throws -> Bool {
+        let url = baseURL
+            .appendingPathComponent("profile")
+            .appendingPathComponent("onboarding")
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try jsonEncoder.encode(update)
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
+            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+        }
+        return (try? jsonDecoder.decode(SimpleSuccess.self, from: data).success) ?? true
     }
 }
 

@@ -1,5 +1,6 @@
 import uuid
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import Body
 from ..auth import get_current_user
 from ..Database.link_repo import get_partner_user_id, get_link_status_for_user
 from ..Database.supabase_client import supabase
@@ -55,6 +56,7 @@ async def upload_avatar(file: UploadFile = File(...), current_user: dict = Depen
 async def update_profile(
     full_name: str = Form(None),
     bio: str = Form(None),
+    partner_display_name: str = Form(None),
     current_user: dict = Depends(get_current_user)
 ):
     try:
@@ -72,6 +74,10 @@ async def update_profile(
             update_data["full_name"] = full_name
         if bio is not None:
             update_data["bio"] = bio
+        if partner_display_name is not None:
+            if len(partner_display_name) > 22:
+                raise HTTPException(status_code=400, detail="Partner name must be 22 characters or fewer")
+            update_data["partner_display_name"] = partner_display_name
 
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -96,6 +102,7 @@ async def update_profile(
 async def update_profile_post(
     full_name: str = Form(None),
     bio: str = Form(None),
+    partner_display_name: str = Form(None),
     current_user: dict = Depends(get_current_user)
 ):
     try:
@@ -112,6 +119,10 @@ async def update_profile_post(
             update_data["full_name"] = full_name
         if bio is not None:
             update_data["bio"] = bio
+        if partner_display_name is not None:
+            if len(partner_display_name) > 22:
+                raise HTTPException(status_code=400, detail="Partner name must be 22 characters or fewer")
+            update_data["partner_display_name"] = partner_display_name
 
         if not update_data:
             raise HTTPException(status_code=400, detail="No fields provided for update")
@@ -327,6 +338,99 @@ async def get_partner_info(current_user: dict = Depends(get_current_user)):
             print(f"[Partner Info] Error fetching partner info for {partner_id}: {e}")
             return {"linked": True, "partner": {"name": "Unknown", "avatar_url": None}}
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# -------- Onboarding fields ---------
+
+@router.get("/onboarding")
+async def get_onboarding(current_user: dict = Depends(get_current_user)):
+    try:
+        try:
+            user_id = uuid.UUID(current_user.get("sub"))
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+        # Read current profile onboarding fields
+        sel = supabase.table("profiles").select(
+            "full_name, partner_display_name, onboarding_step"
+        ).eq("user_id", str(user_id)).limit(1).execute()
+
+        if getattr(sel, "error", None):
+            raise HTTPException(status_code=500, detail=f"Failed to load onboarding: {sel.error}")
+
+        row = sel.data[0] if sel.data else {}
+
+        # Also include linking status for client logic
+        linked, _, _ = await get_link_status_for_user(user_id=user_id)
+
+        return {
+            "full_name": row.get("full_name") or "",
+            "partner_display_name": row.get("partner_display_name"),
+            "onboarding_step": row.get("onboarding_step") or "none",
+            "linked": linked,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/onboarding")
+async def update_onboarding(
+    payload: dict = Body(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Accepts partial updates: partner_display_name, onboarding_step, last_onboarding_prompted_at.
+    Server will set onboarding_completed_at when onboarding_step becomes 'completed'.
+    """
+    try:
+        try:
+            user_id = uuid.UUID(current_user.get("sub"))
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+
+        allowed_keys = {"partner_display_name", "onboarding_step"}
+        update_data = {k: v for k, v in (payload or {}).items() if k in allowed_keys}
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No allowed fields provided")
+
+        # Clamp partner_display_name length (first-name style)
+        if "partner_display_name" in update_data and update_data["partner_display_name"] is not None:
+            name_val = str(update_data["partner_display_name"]).strip()
+            if len(name_val) > 22:
+                raise HTTPException(status_code=400, detail="Partner name must be 22 characters or fewer")
+            update_data["partner_display_name"] = name_val
+
+        # Step transitions are monotonic; prevent regression except allowing 'completed' any time
+        if "onboarding_step" in update_data:
+            new_step = update_data["onboarding_step"]
+            if new_step not in ("none", "asked_name", "asked_partner", "suggested_link", "completed"):
+                raise HTTPException(status_code=400, detail="Invalid onboarding_step")
+            # Fetch current step
+            cur = supabase.table("profiles").select("onboarding_step").eq("user_id", str(user_id)).limit(1).execute()
+            if getattr(cur, "error", None):
+                raise HTTPException(status_code=500, detail=f"Failed to load current step: {cur.error}")
+            cur_step = (cur.data[0].get("onboarding_step") if cur.data else "none") or "none"
+            order = {"none": 0, "asked_name": 1, "asked_partner": 2, "suggested_link": 3, "completed": 4}
+            if order.get(new_step, -1) < order.get(cur_step, 0) and new_step != "completed":
+                raise HTTPException(status_code=400, detail="Onboarding step cannot regress")
+
+        # Persist
+        res = supabase.table("profiles").upsert({
+            "user_id": str(user_id),
+            **update_data
+        }).execute()
+
+        if getattr(res, "error", None):
+            raise HTTPException(status_code=500, detail=f"Failed to update onboarding: {res.error}")
+
+        return {"success": True}
     except HTTPException:
         raise
     except Exception as e:
