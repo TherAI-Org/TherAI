@@ -577,18 +577,32 @@ extension BackendService {
     struct SimpleSuccess: Codable { let success: Bool }
 
     func updateOnboarding(accessToken: String, update: UpdateOnboardingRequest) async throws -> Bool {
-        let url = baseURL
-            .appendingPathComponent("profile")
-            .appendingPathComponent("onboarding")
-        var request = URLRequest(url: url)
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try jsonEncoder.encode(update)
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        func makeRequest(at base: URL) throws -> URLRequest {
+            let url = base
+                .appendingPathComponent("profile")
+                .appendingPathComponent("onboarding")
+            var request = URLRequest(url: url)
+            request.httpMethod = "PATCH"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.httpBody = try jsonEncoder.encode(update)
+            return request
+        }
+
+        var request = try makeRequest(at: baseURL)
+        var (data, response) = try await urlSession.data(for: request)
+        var http = response as? HTTPURLResponse
+        if let h = http, h.statusCode == 404 {
+            request = try makeRequest(at: baseURL.appendingPathComponent("api"))
+            (data, response) = try await urlSession.data(for: request)
+            http = response as? HTTPURLResponse
+        }
+        guard let final = http else {
+            throw NSError(domain: "Backend", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        guard (200..<300).contains(final.statusCode) else {
             let serverMessage = decodeSimpleDetail(from: data) ?? String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw NSError(domain: "Backend", code: (response as? HTTPURLResponse)?.statusCode ?? -1, userInfo: [NSLocalizedDescriptionKey: serverMessage])
+            throw NSError(domain: "Backend", code: final.statusCode, userInfo: [NSLocalizedDescriptionKey: serverMessage])
         }
         return (try? jsonDecoder.decode(SimpleSuccess.self, from: data).success) ?? true
     }
