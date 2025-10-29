@@ -20,8 +20,15 @@ final class OnboardingViewModel: ObservableObject {
             await MainActor.run {
                 self.fullName = info.full_name
                 self.partnerName = info.partner_display_name ?? ""
-                self.step = Step(rawValue: info.onboarding_step) ?? .none
+                let fetchedStep = Step(rawValue: info.onboarding_step) ?? .none
                 self.isLinked = info.linked
+                // If the user is linked via invite, auto-complete onboarding and persist it
+                if info.linked && fetchedStep != .completed {
+                    self.step = .completed
+                    Task { _ = try? await BackendService.shared.updateOnboarding(accessToken: token, update: .init(partner_display_name: nil, onboarding_step: Step.completed.rawValue)) }
+                } else {
+                    self.step = fetchedStep
+                }
                 self.isLoading = false
             }
         } catch {
