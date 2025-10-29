@@ -17,12 +17,14 @@ struct ChatScreenView: View {
 
     private var quickSuggestions: [QuickSuggestion] {
         return [
-            QuickSuggestion(title: "Talk about", subtitle: "a recent argument that's still on my mind"),
-            QuickSuggestion(title: "How can I", subtitle: "set healthier boundaries without hurting them?"),
-            QuickSuggestion(title: "We keep", subtitle: "misunderstanding each other—how do we reset?"),
-            QuickSuggestion(title: "I'm worried", subtitle: "we're growing apart—what signs should I look for?"),
-            QuickSuggestion(title: "What are", subtitle: "ways to rebuild trust after it's been broken?"),
-            QuickSuggestion(title: "Help me", subtitle: "prepare for a hard conversation tonight")
+            QuickSuggestion(title: "We argued about chores", subtitle: "I feel like I'm doing most of the housework"),
+            QuickSuggestion(title: "They were texting an ex", subtitle: "I feel uneasy and a bit betrayed"),
+            QuickSuggestion(title: "They canceled date night", subtitle: "last minute and I felt unimportant"),
+            QuickSuggestion(title: "I found hidden purchases", subtitle: "and I'm worried about money trust"),
+            QuickSuggestion(title: "They raised their voice", subtitle: "I shut down—how do we repair this?"),
+            QuickSuggestion(title: "We disagree on parenting", subtitle: "bedtime rules turned into a fight"),
+            QuickSuggestion(title: "They stayed out late", subtitle: "didn't text back and I felt anxious"),
+            QuickSuggestion(title: "I felt criticized in public", subtitle: "they made a joke at my expense")
         ]
     }
 

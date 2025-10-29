@@ -24,29 +24,27 @@ final class LinkViewModel: ObservableObject {
         self.accessTokenProvider = accessTokenProvider
     }
 
-    @MainActor
     func createInviteLink() async {
-        state = .creating
+        await MainActor.run { self.state = .creating }
         do {
             let token = try await accessTokenProvider()
             let url = try await BackendService.shared.createLinkInvite(accessToken: token)
-            state = .shareReady(url: url)
+            await MainActor.run { self.state = .shareReady(url: url) }
         } catch {
-            state = .error(message: error.localizedDescription)
+            await MainActor.run { self.state = .error(message: error.localizedDescription) }
         }
     }
 
-    @MainActor
     func acceptInvite(using inviteToken: String) async {
-        state = .accepting
+        await MainActor.run { self.state = .accepting }
         do {
             let token = try await accessTokenProvider()
             try await BackendService.shared.acceptLinkInvite(inviteToken: inviteToken, accessToken: token)
             try await refreshStatus()
-            if case .linked = state {
-                // Eagerly fetch partner info and cache to drive immediate UI updates
-                do {
-                    let info = try await BackendService.shared.fetchPartnerInfo(accessToken: token)
+            // Eagerly fetch partner info and cache to drive immediate UI updates
+            do {
+                let info = try await BackendService.shared.fetchPartnerInfo(accessToken: token)
+                await MainActor.run {
                     UserDefaults.standard.set(info.linked, forKey: PreferenceKeys.partnerConnected)
                     if info.linked, let partner = info.partner {
                         UserDefaults.standard.set(partner.name, forKey: PreferenceKeys.partnerName)
@@ -55,45 +53,46 @@ final class LinkViewModel: ObservableObject {
                         }
                     }
                     self.objectWillChange.send()
-                } catch {
-                    // Ignore; backend refresh will still update shortly
                 }
+            } catch {
+                // Ignore; backend refresh will still update shortly
             }
         } catch {
-            state = .error(message: error.localizedDescription)
+            await MainActor.run { self.state = .error(message: error.localizedDescription) }
         }
     }
 
-    @MainActor
     func unlink() async {
-        state = .unlinking
+        await MainActor.run { self.state = .unlinking }
         do {
             let token = try await accessTokenProvider()
             _ = try await BackendService.shared.unlink(accessToken: token)
             await createInviteLink()
         } catch {
-            state = .error(message: error.localizedDescription)
+            await MainActor.run { self.state = .error(message: error.localizedDescription) }
         }
     }
 
-    @MainActor
     func refreshStatus() async throws {
         let token = try await accessTokenProvider()
         let status = try await BackendService.shared.fetchLinkStatus(accessToken: token)
-        linkedAt = status.linkedAt
-        state = status.linked ? .linked : .idle
+        await MainActor.run {
+            self.linkedAt = status.linkedAt
+            self.state = status.linked ? .linked : .idle
+        }
     }
 
-    @MainActor
     func ensureInviteReady() async {
         do { try await refreshStatus() } catch {}
-        switch state {
-        case .linked, .shareReady:
-            return
-        case .creating, .accepting, .unlinking:
-            return
-        case .idle, .unlinked, .error:
-            await createInviteLink()
+        await MainActor.run {
+            switch self.state {
+            case .linked, .shareReady:
+                return
+            case .creating, .accepting, .unlinking:
+                return
+            case .idle, .unlinked, .error:
+                Task { await self.createInviteLink() }
+            }
         }
     }
 
@@ -111,5 +110,3 @@ extension LinkViewModel {
     }
 }
 #endif
-
-

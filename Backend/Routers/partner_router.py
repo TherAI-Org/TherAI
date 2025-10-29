@@ -23,6 +23,7 @@ from ..Database.partner_requests_repo import (
     get_request_by_id,
     update_content,
     attach_session_and_message_on_pending,
+    get_latest_pending_for_context,
 )
 from ..Database.supabase_client import supabase as _sp
 from ..APNS.apns import send_partner_request_notification_to_user, send_partner_message_notification_to_user
@@ -322,30 +323,53 @@ async def partner_request_stream(body: PartnerRequestBody, current_user: dict = 
     created_request_id: uuid.UUID | None = None
     if recipient_session_id is None:
         try:
-            created_req = await create_partner_request(
+            # Reuse existing pending request for this context if it exists
+            existing_req = await get_latest_pending_for_context(
                 relationship_id=relationship_id,
                 sender_user_id=user_uuid,
                 recipient_user_id=partner_user_id,
                 sender_session_id=body.session_id,
-                content=body.message.strip(),
             )
-            created_request_id = uuid.UUID(created_req["id"])  # type: ignore[index]
-            print(f"[PartnerStream] REQUEST PRE-CREATED id={created_request_id}")
-            # Best-effort APNs notify
-            try:
-                meta = current_user.get("user_metadata") or {}
-                sender_name = meta.get("full_name") or meta.get("name") or meta.get("display_name")
-                await send_partner_request_notification_to_user(
-                    recipient_user_id=partner_user_id,
-                    request_id=created_request_id,
+            if existing_req:
+                try:
+                    # If an attached recipient session already exists on the request, prefer direct mode
+                    existing_recipient_sid = existing_req.get("recipient_session_id")
+                    if existing_recipient_sid:
+                        try:
+                            recipient_session_id = uuid.UUID(existing_recipient_sid)
+                        except Exception:
+                            recipient_session_id = None
+                    # Update the request's preview content with the latest message
+                    await update_content(request_id=uuid.UUID(existing_req["id"]), content=body.message.strip())
+                except Exception:
+                    pass
+                created_request_id = uuid.UUID(existing_req["id"])  # type: ignore[index]
+                print(f"[PartnerStream] REUSING EXISTING PENDING REQUEST id={created_request_id}")
+            else:
+                created_req = await create_partner_request(
                     relationship_id=relationship_id,
-                    preview=body.message.strip(),
-                    sender_name=sender_name,
+                    sender_user_id=user_uuid,
+                    recipient_user_id=partner_user_id,
+                    sender_session_id=body.session_id,
+                    content=body.message.strip(),
                 )
-            except Exception:
-                pass
+                created_request_id = uuid.UUID(created_req["id"])  # type: ignore[index]
+                print(f"[PartnerStream] REQUEST PRE-CREATED id={created_request_id}")
+                # Best-effort APNs notify
+                try:
+                    meta = current_user.get("user_metadata") or {}
+                    sender_name = meta.get("full_name") or meta.get("name") or meta.get("display_name")
+                    await send_partner_request_notification_to_user(
+                        recipient_user_id=partner_user_id,
+                        request_id=created_request_id,
+                        relationship_id=relationship_id,
+                        preview=body.message.strip(),
+                        sender_name=sender_name,
+                    )
+                except Exception:
+                    pass
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to create partner request: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to create or reuse partner request: {e}")
     else:
         print(f"[PartnerStream] DIRECT MODE recipient_session_id={recipient_session_id}")
 

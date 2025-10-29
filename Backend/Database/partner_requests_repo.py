@@ -27,6 +27,34 @@ async def create_partner_request(*, relationship_id: uuid.UUID, sender_user_id: 
     return res.data[0]
 
 
+async def get_latest_pending_for_context(*, relationship_id: uuid.UUID, sender_user_id: uuid.UUID,
+                                         recipient_user_id: uuid.UUID, sender_session_id: uuid.UUID) -> Optional[dict]:
+    """Return the most recent pending/delivered partner request for this relationship and sender session.
+
+    We use this to avoid creating duplicate partner requests when the sender sends multiple
+    messages before the recipient accepts.
+    """
+    def _select():
+        return (
+            supabase
+            .table(TABLE)
+            .select("*")
+            .eq("relationship_id", str(relationship_id))
+            .eq("sender_user_id", str(sender_user_id))
+            .eq("recipient_user_id", str(recipient_user_id))
+            .eq("sender_session_id", str(sender_session_id))
+            .in_("status", ["pending", "delivered"])  # treat both as not yet accepted
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+    res = await run_in_threadpool(_select)
+    if getattr(res, "error", None):
+        raise RuntimeError(f"Supabase select partner_request (latest pending) failed: {res.error}")
+    rows = getattr(res, "data", []) or []
+    return rows[0] if rows else None
+
+
 async def list_pending_for_user(*, user_id: uuid.UUID, limit: int = 50) -> List[dict]:
     def _select():
         return (

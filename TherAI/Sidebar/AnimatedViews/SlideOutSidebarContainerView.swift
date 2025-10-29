@@ -83,21 +83,19 @@ struct SlideOutSidebarContainerView<Content: View>: View {
                 .presentationDragIndicator(.visible)
             }
             .contentShape(Rectangle())
-            .simultaneousGesture(
+            .gesture(
                 DragGesture(minimumDistance: 5)
                     .onChanged { value in
                         let dx = value.translation.width
                         let dy = value.translation.height
-                        // Only react to predominantly horizontal drags
+
                         guard abs(dx) > abs(dy) else { return }
-                        // Clamp to reduce layout thrash on rapid drags
                         let clamped = max(min(dx, width), -width)
                         navigationViewModel.handleDragGesture(clamped, width: width)
                     }
                     .onEnded { value in
                         let dx = value.translation.width
                         let dy = value.translation.height
-                        // If the drag was vertical-dominant, just reset any temporary offset
                         guard abs(dx) > abs(dy) else {
                             withAnimation(.spring(response: 0.34, dampingFraction: 0.76, blendDuration: 0)) {
                                 navigationViewModel.dragOffset = 0

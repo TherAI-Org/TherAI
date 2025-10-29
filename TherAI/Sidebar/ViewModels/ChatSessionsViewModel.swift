@@ -341,9 +341,28 @@ class ChatSessionsViewModel: ObservableObject {
 
         let needRefresh = NotificationCenter.default.addObserver(forName: .chatSessionsNeedRefresh, object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
-            Task { await self.refreshSessions() }
+            Task {
+                await self.refreshSessions()
+                await self.loadPartnerInfo()
+                await self.loadPairedAvatars()
+                await self.preloadAvatars()
+            }
         }
         observers.append(needRefresh)
+
+        let willEnterForeground = NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            Task {
+                await self.loadPartnerInfo()
+                await self.loadPairedAvatars()
+                await self.preloadAvatars()
+            }
+        }
+        observers.append(willEnterForeground)
 
         let avatarChanged = NotificationCenter.default.addObserver(forName: .avatarChanged, object: nil, queue: .main) { [weak self] _ in
             guard let self = self else { return }
@@ -530,9 +549,7 @@ class ChatSessionsViewModel: ObservableObject {
     }
 
     func ensureProfilePictureCached() async {
-        // Ensure the profile picture is always cached for immediate display in sidebar
         if let myAvatar = myAvatarURL, !myAvatar.isEmpty {
-            // Force load and cache the profile picture
             _ = await avatarCacheManager.getCachedImage(urlString: myAvatar)
         }
     }
@@ -665,4 +682,3 @@ extension ChatSessionsViewModel {
         }
     }
 }
-
