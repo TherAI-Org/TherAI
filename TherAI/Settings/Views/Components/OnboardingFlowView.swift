@@ -103,30 +103,79 @@ struct OnboardingFlowView: View {
                     }
                 }
             case .suggested_link:
-                VStack(spacing: 14) {
-                    Text("Almost there 🎯")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    Text("Share your invite to connect with your partner")
+                VStack(spacing: 16) {
+                    Text("Share this link to connect with your partner")
                         .font(.title2).bold()
                         .multilineTextAlignment(.center)
 
-                    // Reuse the existing share UI from the app
-                    PartnerInviteBannerView()
-                        .environmentObject(linkVM)
-                        .onAppear { Task { await linkVM.ensureInviteReady() } }
+                    Group {
+                        switch linkVM.state {
+                        case .creating:
+                            HStack { Spacer(); ProgressView("Preparing link…"); Spacer() }
+                                .padding(12)
+                        case .shareReady(let url):
+                            HStack(spacing: 10) {
+                                Image(systemName: "link")
+                                    .foregroundColor(.primary)
+                                Text(truncatedDisplay(for: url))
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer()
+                                ShareLink(item: url) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.primary)
+                                        .frame(width: 36, height: 36)
+                                        .background(
+                                            Circle()
+                                                .fill(.ultraThinMaterial)
+                                                .overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                                        )
+                                }
+                            }
+                            .padding(12)
+                        case .linked:
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                                Text("You're linked")
+                                Spacer()
+                            }.padding(12)
+                        case .accepting, .unlinking:
+                            HStack { Spacer(); ProgressView("Working…"); Spacer() }.padding(12)
+                        case .idle, .unlinked, .error:
+                            HStack { Spacer(); Button("Generate link") { Task { await linkVM.ensureInviteReady() } }.buttonStyle(.borderedProminent); Spacer() }.padding(4)
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                            )
+                    )
 
                     HStack {
-                        Button("Not now") { Task { try? await viewModel.complete(skippedLinkSuggestion: true) } }
                         Spacer()
-                        Button("Finish") { Task { try? await viewModel.complete(skippedLinkSuggestion: false) } }
+                        Button("Complete") { Task { try? await viewModel.complete(skippedLinkSuggestion: false) } }
                             .buttonStyle(.borderedProminent)
                     }
                 }
+                .onAppear { Task { await linkVM.ensureInviteReady() } }
             case .completed:
                 VStack { Text("All set!") }
             }
         }
+    }
+
+    private func truncatedDisplay(for url: URL) -> String {
+        let host = url.host ?? ""
+        let path = url.path
+        if host.isEmpty && path.isEmpty { return "Invite link" }
+        let shortPath = path.isEmpty ? "…" : "/…"
+        return host.isEmpty ? "link://\(shortPath)" : "\(host)\(shortPath)"
     }
 }
 
