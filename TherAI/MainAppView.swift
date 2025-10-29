@@ -23,12 +23,13 @@ struct MainAppView: View {
                     .id(viewId)
             }
 
-            if onboardingVM.step != .completed {
+            if onboardingVM.step != .completed && !onboardingVM.isLoading {
                 OnboardingFlowView(viewModel: onboardingVM)
                     .transition(.opacity)
                     .zIndex(10)
             }
         }
+        .task { await onboardingVM.load() }
     }
 }
 
