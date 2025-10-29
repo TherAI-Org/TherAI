@@ -2,13 +2,13 @@ import SwiftUI
 
 struct SidebarAvatarView: View {
     let avatarURL: String?
-    
+
     @State private var image: UIImage?
     @State private var isLoading = false
     @State private var refreshKey = UUID()
-    
+
     private let avatarCacheManager = AvatarCacheManager.shared
-    
+
     var body: some View {
         Group {
             if let image = image {
@@ -66,25 +66,25 @@ struct SidebarAvatarView: View {
             loadAvatar()
         }
     }
-    
+
     private func loadAvatar() {
         guard let urlString = avatarURL, !urlString.isEmpty else {
             image = nil
             isLoading = false
             return
         }
-        
+
         // First try to get cached image immediately
         if let cachedImage = avatarCacheManager.getImageIfCached(urlString: urlString) {
             image = cachedImage
             isLoading = false
             return
         }
-        
+
         // If not cached, show loading and fetch
         isLoading = true
         image = nil
-        
+
         Task {
             let fetchedImage = await avatarCacheManager.getCachedImage(urlString: urlString)
             await MainActor.run {

@@ -19,6 +19,10 @@ struct SlidebarView: View {
     @State private var renameText: String = ""
     @State private var renameTargetId: UUID? = nil
 
+    // Partner accepted banner state (shows only when app opened via partner link)
+    @State private var showPartnerAddedBanner: Bool = false
+    @State private var partnerAddedName: String = ""
+
     let profileNamespace: Namespace.ID
 
     private var isSearchActive: Bool {
@@ -72,156 +76,7 @@ struct SlidebarView: View {
                 VStack(spacing: 0) {
 
                 ScrollView {
-                    VStack(spacing: 10) {
-                        if !isSearchActive {
-                            let hasPending = !sessionsViewModel.pendingRequests.isEmpty
-
-                            if hasPending {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    ForEach(sessionsViewModel.pendingRequests, id: \.id) { request in
-                                        Button(action: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                                                sessionsViewModel.openPendingRequest(request)
-                                                isOpen = false
-                                            }
-                                        }) {
-                                            HStack(alignment: .top, spacing: 12) {
-                                                Image(systemName: "person.crop.circle.badge.plus")
-                                                    .font(.system(size: 18, weight: .medium))
-                                                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    Text("Partner Request")
-                                                        .font(.system(size: 14, weight: .medium))
-                                                        .foregroundColor(.primary)
-                                                    Text(request.content)
-                                                        .font(.system(size: 13))
-                                                        .foregroundColor(.secondary)
-                                                        .lineLimit(2)
-                                                }
-                                                Spacer()
-                                            }
-                                            .padding(12)
-                                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
-                                            )
-                                        }
-                                        .buttonStyle(PlainButtonStyle())
-                                    }
-                                }
-                                .padding(12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .fill(Color(.systemGray6))
-                                )
-                                .padding(.horizontal, 16)
-                            }
-
-                            VStack(spacing: 0) {
-                                // Conversations header
-                                HStack(spacing: 12) {
-                                    Text("Conversations")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 20)
-                                .padding(.top, 12)
-                            }
-                            .offset(y: isSearchActive ? -120 : 0)
-                            .opacity(isSearchActive ? 0 : 1)
-                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchActive)
-                        }
-
-                    let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let lower = term.lowercased()
-                    let filteredSessions = sessionsViewModel.sessions.filter { session in
-                        if lower.isEmpty { return true }
-                        return session.displayTitle.lowercased().contains(lower)
-                    }
-
-                    
-
-                    LazyVStack(spacing: 6) {
-                            if sessionsViewModel.isLoadingSessions {
-                                VStack(spacing: 16) {
-                                    ProgressView()
-                                    Text("Loading sessions…")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.secondary)
-                                }
-                            } else if !filteredSessions.isEmpty {
-                                ForEach(filteredSessions, id: \.id) { session in
-                                    Button(action: {
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
-                                            sessionsViewModel.openSession(session.id)
-                                            navigationViewModel.selectedTab = .chat
-                                            isOpen = false
-                                        }
-                                    }) {
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            HStack {
-                                                Text(session.displayTitle)
-                                                    .font(.system(size: 18, weight: .regular))
-                                                    .foregroundColor(.primary)
-                                                Spacer()
-                                                Text(sessionsViewModel.formatLastUsed(session.lastUsedISO8601))
-                                                    .font(.system(size: 12))
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            HStack(spacing: 6) {
-                                                let previewTargetWidth = geometry.size.width * 0.88
-                                                let rawPreview = shouldShowLastMessage(session.lastMessageContent) ? session.lastMessageContent! : "No messages yet"
-                                                let clippedPreview = wordBoundaryTruncated(rawPreview, previewTargetWidth)
-                                                Text(clippedPreview + (clippedPreview.count < rawPreview.count ? "…" : ""))
-                                                    .font(.system(size: 14))
-                                                    .foregroundColor(.secondary)
-                                                    .lineLimit(1)
-                                                    .truncationMode(.tail)
-                                                    .frame(maxWidth: previewTargetWidth, alignment: .leading)
-                                                Spacer()
-                                                let isLinked = (linkVM.state == .linked) || (sessionsViewModel.partnerInfo?.linked == true)
-                                                let hasUnread = sessionsViewModel.unreadPartnerSessionIds.contains(session.id)
-                                                let _ = print("[SidebarView] Session \(session.id): linked=\(isLinked), hasUnread=\(hasUnread), unreadSet=\(sessionsViewModel.unreadPartnerSessionIds)")
-                                                if isLinked && hasUnread {
-                                                    Circle()
-                                                        .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
-                                                        .frame(width: 14, height: 14)
-                                                        .onAppear {
-                                                            print("[SidebarView] Showing unread for session \(session.id)")
-                                                        }
-                                                }
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 2)
-                                        .padding(.vertical, 12)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .contextMenu {
-                                        Button("Rename", systemImage: "pencil") {
-                                            renameTargetId = session.id
-                                            renameText = (session.displayTitle == ChatSession.defaultTitle) ? "" : session.displayTitle
-                                            showRenameSheet = true
-                                        }
-                                        Button(role: .destructive) {
-                                            Task { await sessionsViewModel.deleteSession(session.id) }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding(.top, 4)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-                        .offset(y: isSearchActive ? -8 : 0)
-                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchActive)
-                    }
-                    .padding(.top, 8)
-                    .padding(.bottom, 80)
+                    sidebarContent(geometry)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .refreshable {
@@ -229,18 +84,8 @@ struct SlidebarView: View {
                 }
                 .scrollIndicators(.hidden)
                 }
-                .overlay(alignment: .bottom) {
-                    if !isSearchActive && shouldShowPartnerBanner {
-                        PartnerInviteBannerView()
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 20)
-                            .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
-                            .ignoresSafeArea(.keyboard, edges: .bottom)
-                            .ignoresSafeArea(.container, edges: .bottom)
-                            .zIndex(10)
-                    }
-                }
+                .overlay(alignment: .bottom) { partnerInviteOverlay }
+                .overlay(alignment: .top) { partnerAddedBannerOverlay }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemBackground))
@@ -341,6 +186,257 @@ struct SlidebarView: View {
                 .padding(20)
                 .presentationDetents([.medium])
             }
+            .onReceive(NotificationCenter.default.publisher(for: .partnerLinkOpened)) { note in
+                if let name = note.userInfo?["partnerName"] as? String, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    partnerAddedName = name
+                } else {
+                    partnerAddedName = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName) ?? ""
+                }
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                    showPartnerAddedBanner = true
+                }
+                // Auto-dismiss after 5 seconds if not manually dismissed
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    if showPartnerAddedBanner {
+                        withAnimation(.easeInOut(duration: 0.35)) { showPartnerAddedBanner = false }
+                    }
+                }
+            }
+            .onChange(of: sessionsViewModel.partnerInfo?.partner?.name ?? "", initial: false) { _, newName in
+                // If banner is visible and we don't have a name yet, update once name arrives
+                let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if showPartnerAddedBanner && partnerAddedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !trimmed.isEmpty {
+                    partnerAddedName = trimmed
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Extracted Content to Aid Type-Checking
+extension SlidebarView {
+    @ViewBuilder
+    private func sidebarContent(_ geometry: GeometryProxy) -> some View {
+        VStack(spacing: 10) {
+            if !isSearchActive {
+                let hasPending = !sessionsViewModel.pendingRequests.isEmpty
+
+                if hasPending {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(sessionsViewModel.pendingRequests, id: \.id) { request in
+                            Button(action: {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                                    sessionsViewModel.openPendingRequest(request)
+                                    isOpen = false
+                                }
+                            }) {
+                                HStack(alignment: .top, spacing: 12) {
+                                    Image(systemName: "person.crop.circle.badge.plus")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Partner Request")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.primary)
+                                        Text(request.content)
+                                            .font(.system(size: 13))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(12)
+                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+                                )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(.systemGray6))
+                    )
+                    .padding(.horizontal, 16)
+                }
+
+                VStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        Text("Conversations")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                }
+                .offset(y: isSearchActive ? -120 : 0)
+                .opacity(isSearchActive ? 0 : 1)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchActive)
+            }
+
+            let term = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = term.lowercased()
+            let filteredSessions: [ChatSession] = sessionsViewModel.sessions.filter { session in
+                if lower.isEmpty { return true }
+                return session.displayTitle.lowercased().contains(lower)
+            }
+
+            LazyVStack(spacing: 6) {
+                if sessionsViewModel.isLoadingSessions {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                        Text("Loading sessions…")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.secondary)
+                    }
+                } else if !filteredSessions.isEmpty {
+                    ForEach(filteredSessions, id: \.id) { session in
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)) {
+                                sessionsViewModel.openSession(session.id)
+                                navigationViewModel.selectedTab = .chat
+                                isOpen = false
+                            }
+                        }) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text(session.displayTitle)
+                                        .font(.system(size: 18, weight: .regular))
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Text(sessionsViewModel.formatLastUsed(session.lastUsedISO8601))
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.secondary)
+                                }
+                                HStack(spacing: 6) {
+                                    let previewTargetWidth = geometry.size.width * 0.88
+                                    let rawPreview = shouldShowLastMessage(session.lastMessageContent) ? session.lastMessageContent! : "No messages yet"
+                                    let clippedPreview = wordBoundaryTruncated(rawPreview, previewTargetWidth)
+                                    Text(clippedPreview + (clippedPreview.count < rawPreview.count ? "…" : ""))
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .frame(maxWidth: previewTargetWidth, alignment: .leading)
+                                    Spacer()
+                                    let isLinked = (linkVM.state == .linked) || (sessionsViewModel.partnerInfo?.linked == true)
+                                    let hasUnread = sessionsViewModel.unreadPartnerSessionIds.contains(session.id)
+                                    if isLinked && hasUnread {
+                                        Circle()
+                                            .fill(Color(red: 0.4, green: 0.2, blue: 0.6))
+                                            .frame(width: 14, height: 14)
+                                            .onAppear { }
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 2)
+                            .padding(.vertical, 12)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .contextMenu {
+                            Button("Rename", systemImage: "pencil") {
+                                renameTargetId = session.id
+                                renameText = (session.displayTitle == ChatSession.defaultTitle) ? "" : session.displayTitle
+                                showRenameSheet = true
+                            }
+                            Button(role: .destructive) {
+                                Task { await sessionsViewModel.deleteSession(session.id) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.top, 4)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+            .offset(y: isSearchActive ? -8 : 0)
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isSearchActive)
+        }
+        .padding(.top, 8)
+        .padding(.bottom, 80)
+    }
+
+    @ViewBuilder
+    private var partnerInviteOverlay: some View {
+        if !isSearchActive && shouldShowPartnerBanner {
+            PartnerInviteBannerView()
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: shouldShowPartnerBanner)
+                .ignoresSafeArea(.keyboard, edges: .bottom)
+                .ignoresSafeArea(.container, edges: .bottom)
+                .zIndex(10)
+        } else {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var partnerAddedBannerOverlay: some View {
+        if showPartnerAddedBanner {
+            VStack {
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .frame(width: 34, height: 34)
+                        .background {
+                            Circle().fill(.ultraThinMaterial).overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1))
+                        }
+                        .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 3)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("You’ve been added as a partner to " + (partnerAddedName.isEmpty ? "your partner" : partnerAddedName))
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.primary)
+                    }
+                    Spacer(minLength: 8)
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.35)) { showPartnerAddedBanner = false }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .frame(width: 30, height: 30)
+                            .background {
+                                Circle().fill(.ultraThinMaterial).overlay(Circle().stroke(Color.primary.opacity(0.10), lineWidth: 1))
+                            }
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
+                )
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+
+                Spacer(minLength: 0)
+            }
+            .transition(
+                .asymmetric(
+                    insertion: .scale(scale: 0.95, anchor: .top).combined(with: .opacity),
+                    removal: .scale(scale: 0.98, anchor: .top).combined(with: .opacity)
+                )
+            )
+            .animation(.easeInOut(duration: 0.35), value: showPartnerAddedBanner)
+            .zIndex(20)
+        } else {
+            EmptyView()
         }
     }
 }

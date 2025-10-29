@@ -1,10 +1,12 @@
 import os
+import urllib.parse
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import get_current_user
 from ..Models.requests import CreateLinkInviteResponse, AcceptLinkInviteRequest, AcceptLinkInviteResponse, UnlinkResponse, LinkStatusResponse
 from ..Database.link_repo import accept_link_invite, unlink_relationship_for_user, get_link_status_for_user, get_or_create_link_invite
+from ..Database.supabase_client import supabase
 
 router = APIRouter(prefix = "/link")
 
@@ -20,7 +22,34 @@ async def create_invite(current_user: dict = Depends(get_current_user)):
         # Idempotent get-or-create behavior: return existing unexpired invite or create a new one
         row = await get_or_create_link_invite(inviter_user_id = user_uuid, expires_in_hours = 24)
         base = os.getenv("SHARE_LINK_BASE_URL", "https://example.com")
-        share_url = f"{base.rstrip('/')}/link?code={row['invite_token']}"
+        # Resolve inviter display name to include in the link for instant client display
+        inviter_name: str = ""
+        try:
+            # Prefer saved profile full_name
+            prof = supabase.table("profiles").select("full_name").eq("user_id", str(user_uuid)).limit(1).execute()
+            if not getattr(prof, "error", None) and prof.data:
+                saved_full = (prof.data[0].get("full_name") or "").strip()
+                inviter_name = saved_full or ""
+            if not inviter_name:
+                # Fallback to auth metadata
+                res = supabase.auth.admin.get_user_by_id(str(user_uuid))  # type: ignore[attr-defined]
+                user = getattr(res, "user", None) or getattr(res, "data", None)
+                def extract_name(meta_dict):
+                    if not isinstance(meta_dict, dict):
+                        return ""
+                    return (meta_dict.get("full_name") or meta_dict.get("name") or meta_dict.get("display_name") or "").strip()
+                if isinstance(user, dict):
+                    inviter_name = extract_name(user.get("user_metadata"))
+                else:
+                    meta = getattr(user, "user_metadata", None)
+                    inviter_name = extract_name(meta if isinstance(meta, dict) else None)
+        except Exception:
+            inviter_name = ""
+
+        qp = f"code={row['invite_token']}"
+        if inviter_name:
+            qp += f"&name={urllib.parse.quote(inviter_name)}"
+        share_url = f"{base.rstrip('/')}/link?{qp}"
 
         return CreateLinkInviteResponse(invite_token = row["invite_token"], share_url = share_url)
     except PermissionError as e:  # Error if user is already linked (must unlink first)

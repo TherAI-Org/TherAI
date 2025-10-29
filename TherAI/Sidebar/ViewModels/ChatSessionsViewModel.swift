@@ -592,6 +592,7 @@ class ChatSessionsViewModel: ObservableObject {
                         await linkVM.ensureInviteReady()
                     }
                 }
+
             }
             if res.linked, let url = res.partner?.avatar_url, !url.isEmpty {
                 await avatarCacheManager.preloadAvatars(urls: [url])

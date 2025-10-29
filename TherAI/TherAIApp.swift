@@ -17,9 +17,6 @@ struct TherAIApp: App {
 
     @StateObject private var auth = AuthService.shared
     @StateObject private var linkVM = LinkViewModel(accessTokenProvider: {
-        
-        
-        
         let session = try await AuthService.shared.client.auth.session
         return session.accessToken
     })
@@ -52,6 +49,16 @@ struct TherAIApp: App {
                         if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
                            let token = components.queryItems?.first(where: { $0.name == "code" })?.value,
                            !token.isEmpty {
+                            // Prefer inviter display name from deep link if present
+                            var partnerName = components.queryItems?.first(where: { $0.name == "name" })?.value ?? ""
+                            partnerName = partnerName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if partnerName.isEmpty {
+                                partnerName = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName) ?? ""
+                            } else {
+                                UserDefaults.standard.set(partnerName, forKey: PreferenceKeys.partnerName)
+                            }
+                            // Fire an immediate notification so UI can react instantly
+                            NotificationCenter.default.post(name: .partnerLinkOpened, object: nil, userInfo: ["partnerName": partnerName])
                             if auth.isAuthenticated {
                                 Task {
                                     await linkVM.acceptInvite(using: token)
