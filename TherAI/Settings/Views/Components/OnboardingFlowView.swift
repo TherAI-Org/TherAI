@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingFlowView: View {
     @ObservedObject var viewModel: OnboardingViewModel
+    @EnvironmentObject private var linkVM: LinkViewModel
 
     @State private var tempName: String = ""
     @State private var tempPartner: String = ""
@@ -106,18 +107,20 @@ struct OnboardingFlowView: View {
                     Text("Almost there 🎯")
                         .font(.headline)
                         .foregroundColor(.secondary)
-                    Text("Link with your partner?")
+                    Text("Share your invite to connect with your partner")
                         .font(.title2).bold()
-                    Text("You can share an invite to connect accounts for partner messages.")
-                        .font(.subheadline)
                         .multilineTextAlignment(.center)
+
+                    // Reuse the existing share UI from the app
+                    PartnerInviteBannerView()
+                        .environmentObject(linkVM)
+                        .onAppear { Task { await linkVM.ensureInviteReady() } }
+
                     HStack {
-                        Button("Not now") { Task { await viewModel.skipCurrent() } }
+                        Button("Not now") { Task { try? await viewModel.complete(skippedLinkSuggestion: true) } }
                         Spacer()
-                        Button("Link now") {
-                            Task { try? await viewModel.complete(skippedLinkSuggestion: false) }
-                        }
-                        .buttonStyle(.borderedProminent)
+                        Button("Finish") { Task { try? await viewModel.complete(skippedLinkSuggestion: false) } }
+                            .buttonStyle(.borderedProminent)
                     }
                 }
             case .completed:
