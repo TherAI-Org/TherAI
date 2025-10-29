@@ -19,9 +19,7 @@ struct SlidebarView: View {
     @State private var renameText: String = ""
     @State private var renameTargetId: UUID? = nil
 
-    // Partner accepted banner state (shows only when app opened via partner link)
-    @State private var showPartnerAddedBanner: Bool = false
-    @State private var partnerAddedName: String = ""
+    // Partner accepted banner moved to ChatView
 
     let profileNamespace: Namespace.ID
 
@@ -85,7 +83,6 @@ struct SlidebarView: View {
                 .scrollIndicators(.hidden)
                 }
                 .overlay(alignment: .bottom) { partnerInviteOverlay }
-                .overlay(alignment: .top) { partnerAddedBannerOverlay }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemBackground))
@@ -186,29 +183,7 @@ struct SlidebarView: View {
                 .padding(20)
                 .presentationDetents([.medium])
             }
-            .onReceive(NotificationCenter.default.publisher(for: .partnerLinkOpened)) { note in
-                if let name = note.userInfo?["partnerName"] as? String, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    partnerAddedName = name
-                } else {
-                    partnerAddedName = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName) ?? ""
-                }
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                    showPartnerAddedBanner = true
-                }
-                // Auto-dismiss after 5 seconds if not manually dismissed
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    if showPartnerAddedBanner {
-                        withAnimation(.easeInOut(duration: 0.35)) { showPartnerAddedBanner = false }
-                    }
-                }
-            }
-            .onChange(of: sessionsViewModel.partnerInfo?.partner?.name ?? "", initial: false) { _, newName in
-                // If banner is visible and we don't have a name yet, update once name arrives
-                let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if showPartnerAddedBanner && partnerAddedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !trimmed.isEmpty {
-                    partnerAddedName = trimmed
-                }
-            }
+            // Partner link banner handled in ChatView
         }
     }
 }
@@ -379,66 +354,7 @@ extension SlidebarView {
         }
     }
 
-    @ViewBuilder
-    private var partnerAddedBannerOverlay: some View {
-        if showPartnerAddedBanner {
-            VStack {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 34, height: 34)
-                        .background {
-                            Circle().fill(.ultraThinMaterial).overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 1))
-                        }
-                        .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 3)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("You’ve been added as a partner to " + (partnerAddedName.isEmpty ? "your partner" : partnerAddedName))
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.primary)
-                    }
-                    Spacer(minLength: 8)
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.35)) { showPartnerAddedBanner = false }
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.primary)
-                            .frame(width: 30, height: 30)
-                            .background {
-                                Circle().fill(.ultraThinMaterial).overlay(Circle().stroke(Color.primary.opacity(0.10), lineWidth: 1))
-                            }
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                        )
-                        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
-                )
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-
-                Spacer(minLength: 0)
-            }
-            .transition(
-                .asymmetric(
-                    insertion: .scale(scale: 0.95, anchor: .top).combined(with: .opacity),
-                    removal: .scale(scale: 0.98, anchor: .top).combined(with: .opacity)
-                )
-            )
-            .animation(.easeInOut(duration: 0.35), value: showPartnerAddedBanner)
-            .zIndex(20)
-        } else {
-            EmptyView()
-        }
-    }
+    // partnerAddedBannerOverlay moved to ChatView
 }
 
 #Preview("Pending Requests") {
