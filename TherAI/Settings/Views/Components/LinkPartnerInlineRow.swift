@@ -11,10 +11,8 @@ struct LinkPartnerInlineRow: View {
             switch linkViewModel.state {
             case .linked:
                 HStack(spacing: 8) {
-                    let name: String? = {
-                        let trimmed = cachedPartnerName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        return trimmed.isEmpty ? UserDefaults.standard.string(forKey: PreferenceKeys.partnerName) : trimmed
-                    }()
+                    // Use helper function that prioritizes user-entered partner_display_name
+                    let name = PreferenceKeys.getPartnerDisplayName()
                     let avatarURL: String? = {
                         let trimmed = cachedPartnerAvatarURL.trimmingCharacters(in: .whitespacesAndNewlines)
                         return trimmed.isEmpty ? UserDefaults.standard.string(forKey: PreferenceKeys.partnerAvatarURL) : trimmed
@@ -58,7 +56,7 @@ struct LinkPartnerInlineRow: View {
                         .frame(width: 20, height: 20)
                         .clipShape(Circle())
 
-                        Text(name ?? "Partner")
+                        Text(name)
                             .font(.system(size: 16, weight: .regular))
                             .foregroundColor(.primary)
                             .lineLimit(1)
