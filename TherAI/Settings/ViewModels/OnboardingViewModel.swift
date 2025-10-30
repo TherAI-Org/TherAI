@@ -47,6 +47,10 @@ final class OnboardingViewModel: ObservableObject {
             await MainActor.run {
                 self.fullName = info.full_name
                 self.partnerName = info.partner_display_name ?? ""
+                // Cache partner_display_name for use in UI
+                if let displayName = info.partner_display_name, !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    UserDefaults.standard.set(displayName, forKey: PreferenceKeys.partnerDisplayName)
+                }
                 let fetchedStep = Step(rawValue: info.onboarding_step) ?? .none
                 self.isLinked = info.linked
                 // If a link was opened this session OR user is already linked, force completion and persist it
@@ -93,6 +97,8 @@ final class OnboardingViewModel: ObservableObject {
             self.partnerName = trimmed
             self.errorMessage = nil
             self.step = .suggested_link
+            // Cache partner_display_name immediately for UI use
+            UserDefaults.standard.set(trimmed, forKey: PreferenceKeys.partnerDisplayName)
         }
         // Persist via onboarding endpoint so fetchOnboarding reflects the change
         Task {
