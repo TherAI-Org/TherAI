@@ -131,11 +131,8 @@ struct ChatView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .partnerLinkOpened)) { note in
-            if let name = note.userInfo?["partnerName"] as? String, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                partnerAddedName = name
-            } else {
-                partnerAddedName = UserDefaults.standard.string(forKey: PreferenceKeys.partnerName) ?? ""
-            }
+            // Use helper function that prioritizes user-entered partner_display_name
+            partnerAddedName = PreferenceKeys.getPartnerDisplayName()
             withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                 showPartnerAddedBanner = true
             }
@@ -148,9 +145,9 @@ struct ChatView: View {
         }
         .onChange(of: sessionsViewModel.partnerInfo?.partner?.name ?? "", initial: false) { _, newName in
             // If banner is visible and we don't have a name yet, update once name arrives
-            let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-            if showPartnerAddedBanner && partnerAddedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !trimmed.isEmpty {
-                partnerAddedName = trimmed
+            // Use helper function that prioritizes user-entered partner_display_name
+            if showPartnerAddedBanner && partnerAddedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                partnerAddedName = PreferenceKeys.getPartnerDisplayName()
             }
         }
         // SkipPartnerDraftRequested no-op removed; feature not in use
